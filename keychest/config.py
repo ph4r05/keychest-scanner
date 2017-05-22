@@ -40,6 +40,8 @@ class Config(object):
                 'mysql_db': None,
                 'mysql_user': None,
                 'mysql_password': None,
+                'redis_host': '127.0.0.1',
+                'redis_port': 6379,
             }
         })
 
@@ -90,6 +92,24 @@ class Config(object):
     @mysql_password.setter
     def mysql_password(self, val):
         self.set_config('mysql_password', val)
+
+    # Redis host name
+    @property
+    def redis_host(self):
+        return self.get_config('redis_host', '127.0.0.1')
+
+    @redis_host.setter
+    def redis_host(self, val):
+        self.set_config('redis_host', val)
+
+    # Redis port number
+    @property
+    def redis_port(self):
+        return self.get_config('redis_port', 6379)
+
+    @redis_port.setter
+    def redis_port(self, val):
+        self.set_config('redis_port', val)
 
 
 

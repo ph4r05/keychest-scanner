@@ -23,6 +23,7 @@ install_requires = [
     'flask',
     'MarkupSafe>=0.23',  # problem with deps
     'redis',
+    'hiredis',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
