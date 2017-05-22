@@ -18,7 +18,7 @@ class RedisQueue(object):
         self.redis = redis_client
 
         self.pop_retry_after = 60
-        self.default_queue = 'scanner'
+        self.default_queue = 'queues:scanner'
 
     #
     # Queue
@@ -32,7 +32,7 @@ class RedisQueue(object):
         """
         if queue is None:
             queue = self.default_queue
-        return 'queues:%s' % queue
+        return queue
 
     def size(self, queue=None):
         """
@@ -112,6 +112,7 @@ class RedisQueue(object):
         :param job: 
         :return: 
         """
+        logger.debug('Deleting')
         return self.redis.redis.zrem('%s:reserved' % self.get_queue(queue), job.get_reserved_job())
 
     def delete_and_release(self, queue, job, delay):

@@ -11,6 +11,7 @@ from config import Config
 from dbutil import MySQL
 from redis_client import RedisClient
 from redis_queue import RedisQueue
+import redis_helper as rh
 
 import threading
 import pid
@@ -241,6 +242,24 @@ class Server(object):
 
         return job
 
+    def scan_mark_failed_if_exceeds(self, job, max_tries=30):
+        """
+        Mark the given job as failed if it has exceeded the maximum allowed attempts.
+        
+        This will likely be because the job previously exceeded a timeout.
+        :param job: 
+        :param max_tries: 
+        :return: 
+        """
+        mt = job.max_tries()
+        if mt is None:
+            mt = max_tries
+
+        if mt is None or mt == 0 or job.attempts() <= mt:
+            return
+
+        rh.failjob(job)
+
     def scan_redis_jobs(self):
         """
         Blocking method scanning redis jobs
@@ -258,6 +277,16 @@ class Server(object):
             try:
                 # Process job in try-catch so it does not break worker
                 logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
+                self.scan_mark_failed_if_exceeds(job)
+
+                # Here we will fire off the job and let it process. We will catch any exceptions so
+                # they can be reported to the developers logs, etc. Once the job is finished the
+                # proper events will be fired to let any listeners know this job has finished.
+                job.fire()
+
+                # Once done, delete job from the queue
+                if not job.is_deleted_or_released():
+                    job.delete()
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e, ))

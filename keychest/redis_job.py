@@ -99,4 +99,39 @@ class RedisJob(object):
         """
         return self.payload()['job']
 
+    def has_failed(self):
+        """
+        Determine if the job has been marked as a failure.
+        :return: 
+        """
+        return self.failed
+
+    def mark_as_failed(self):
+        """
+        Mark the job as "failed".
+        :return: 
+        """
+        self.failed = True
+
+    def is_deleted_or_released(self):
+        """
+        Determine if the job has been deleted or released.
+        :return: 
+        """
+        return self.deleted or self.released
+
+    def failed(self, e=None):
+        """
+        Process an exception that caused the job to fail.
+        :return: 
+        """
+        self.mark_as_failed()
+        # TODO: finish
+
+    def fire(self):
+        """
+        Job fire 
+        :return: 
+        """
+        pass
 
