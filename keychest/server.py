@@ -191,6 +191,34 @@ class Server(object):
     # Interface - redis
     #
 
+    def process_redis_job(self, job):
+        """
+        Main redis job processor
+        :param job: 
+        :return: 
+        """
+        try:
+            # Process job in try-catch so it does not break worker
+            logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
+            self.scan_mark_failed_if_exceeds(job)
+
+            # Here we will fire off the job and let it process. We will catch any exceptions so
+            # they can be reported to the developers logs, etc. Once the job is finished the
+            # proper events will be fired to let any listeners know this job has finished.
+            self.on_redis_job(job)
+
+            # Once done, delete job from the queue
+            if not job.is_deleted_or_released():
+                job.delete()
+
+        except Exception as e:
+            logger.error('Exception in processing job %s' % (e,))
+            logger.debug(traceback.format_exc())
+
+            self.scan_mark_failed_exceeds_attempts(job, e)
+            if not job.is_deleted_or_released() and not job.failed:
+                job.release()
+
     def on_redis_job(self, job):
         """
         New redis job - process
@@ -255,7 +283,11 @@ class Server(object):
             try:
                 # Process job in try-catch so it does not break worker
                 logger.info('[%02d] Processing job' % (idx, ))
-                # TODO: process job
+                jtype, jobj = job
+                if jtype == 'redis':
+                    self.process_redis_job(jobj)
+                else:
+                    pass
 
             except Exception as e:
                 logger.error('Exception in processing job %s: %s' % (e, job))
@@ -325,26 +357,11 @@ class Server(object):
                 continue
 
             try:
-                # Process job in try-catch so it does not break worker
-                logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
-                self.scan_mark_failed_if_exceeds(job)
-
-                # Here we will fire off the job and let it process. We will catch any exceptions so
-                # they can be reported to the developers logs, etc. Once the job is finished the
-                # proper events will be fired to let any listeners know this job has finished.
-                self.on_redis_job(job)
-
-                # Once done, delete job from the queue
-                if not job.is_deleted_or_released():
-                    job.delete()
+                self.job_queue.put(('redis', job))
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e, ))
                 logger.debug(traceback.format_exc())
-
-                self.scan_mark_failed_exceeds_attempts(job, e)
-                if not job.is_deleted_or_released() and not job.failed:
-                    job.release()
 
             finally:
                 pass
