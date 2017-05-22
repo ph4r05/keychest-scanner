@@ -9,6 +9,8 @@ from daemon import Daemon
 from core import Core
 from config import Config
 from dbutil import MySQL
+from redis_client import RedisClient
+from redis_queue import RedisQueue
 
 import threading
 import pid
@@ -26,7 +28,6 @@ import coloredlogs
 import traceback
 import collections
 import signal
-import redis
 from queue import Queue, Empty as QEmpty
 from datetime import datetime, timedelta
 import sqlalchemy as salch
@@ -66,11 +67,11 @@ class Server(object):
         self.running = True
         self.run_thread = None
         self.stop_event = threading.Event()
-        self.terminate = True
+        self.terminate = False
 
         self.db = None
-        self.redis_pool = None
         self.redis = None
+        self.redis_queue = None
 
         self.job_queue = Queue(50)
         self.local_data = threading.local()
@@ -156,8 +157,9 @@ class Server(object):
         self.db.init_db()
 
         # redis init
-        self.redis_pool = redis.ConnectionPool(host=self.config.redis_host, port=self.config.redis_port, db=0)
-        self.redis = redis.Redis(connection_pool=self.redis_pool)
+        self.redis = RedisClient()
+        self.redis.init(self.config)
+        self.redis_queue = RedisQueue(redis_client=self.redis)
 
     def signal_handler(self, signal, frame):
         """
@@ -218,7 +220,7 @@ class Server(object):
             try:
                 # Process job in try-catch so it does not break worker
                 logger.info('[%02d] Processing job' % (idx, ))
-                time.sleep(0.2)
+                # TODO: process job
 
             except Exception as e:
                 logger.error('Exception in processing job %s: %s' % (e, job))
@@ -228,13 +230,42 @@ class Server(object):
                 self.job_queue.task_done()
         logger.info('Worker %02d terminated' % idx)
 
+    def scan_load_job(self):
+        """
+        Loads redis job
+        :return: 
+        """
+        job = self.redis_queue.pop()
+        if job is None:
+            raise QEmpty()
+
+        return job
+
     def scan_redis_jobs(self):
         """
         Blocking method scanning redis jobs
         :return: 
         """
-        pass
+        while self.is_running():
+            job = None
+            try:
+                job = self.scan_load_job()
 
+            except QEmpty:
+                time.sleep(0.01)
+                continue
+
+            try:
+                # Process job in try-catch so it does not break worker
+                logger.info('New job: %s' % job.decoded)
+
+            except Exception as e:
+                logger.error('Exception in processing job %s' % (e, ))
+                logger.debug(traceback.format_exc())
+
+            finally:
+                self.job_queue.task_done()
+        logger.info('Queue scanner terminated')
 
     #
     # DB cleanup
@@ -333,6 +364,7 @@ class Server(object):
         self.init_config()
         self.init_log()
         self.init_db()
+        signal.signal(signal.SIGINT, self.signal_handler)
 
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
         self.cleanup_thread.setDaemon(True)
