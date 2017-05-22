@@ -83,9 +83,9 @@ setup(
         'docs': docs_extras,
     },
 
-    # entry_points={
-    #     'console_scripts': [
-    #         'keychest-server = keychest.server:main',
-    #     ],
-    # }
+    entry_points={
+        'console_scripts': [
+            'keychest-server = keychest.server:main',
+        ],
+    }
 )
