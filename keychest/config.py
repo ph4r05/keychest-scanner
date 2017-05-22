@@ -35,17 +35,17 @@ class Config(object):
 
     @classmethod
     def default_config(cls):
-        return cls(json_db={
-            'config': {
-                'mysql_db': None,
-                'mysql_user': None,
-                'mysql_password': None,
-                'redis_host': '127.0.0.1',
-                'redis_port': 6379,
-                'workers': 10,
+        def_cfg = collections.OrderedDict()
+        def_cfg['mysql_db'] = 'keychest'
+        def_cfg['mysql_user'] = 'keychest'
+        def_cfg['mysql_password'] = 'keychest'
+        def_cfg['redis_host'] = '127.0.0.1'
+        def_cfg['redis_port'] = 6379
+        def_cfg['workers'] = 10
 
-            }
-        })
+        root = collections.OrderedDict()
+        root['config'] = def_cfg
+        return cls(json_db=root)
 
     def ensure_config(self):
         if self.json is None:
