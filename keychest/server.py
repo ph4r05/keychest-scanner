@@ -260,6 +260,22 @@ class Server(object):
 
         rh.failjob(job)
 
+    def scan_mark_failed_exceeds_attempts(self, job, max_tries=None, e=None):
+        """
+        Mark the given job as failed if it has exceeded the maximum allowed attempts.
+        :param job: 
+        :param max_tries: 
+        :return: 
+        """
+        mt = job.max_tries()
+        if mt is None:
+            mt = max_tries
+
+        if mt is None or mt == 0 or job.attempts() <= mt:
+            return
+
+        rh.failjob(job, e)
+
     def scan_redis_jobs(self):
         """
         Blocking method scanning redis jobs
@@ -291,6 +307,10 @@ class Server(object):
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e, ))
                 logger.debug(traceback.format_exc())
+
+                self.scan_mark_failed_exceeds_attempts(job, e)
+                if not job.is_deleted_or_released() and not job.failed:
+                    job.release()
 
             finally:
                 pass

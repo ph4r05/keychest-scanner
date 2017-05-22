@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-def failjob(job):
+def failjob(job, e=None):
     """
     Fails job
     :param job: 
@@ -14,5 +14,7 @@ def failjob(job):
         return
 
     job.delete()
-    job.failed()
+    job.failed(e)
+
+
 
