@@ -247,17 +247,8 @@ class Server(object):
         :return: 
         """
         pass
-        # TODO: create new main job
-
-    #
-    # Main queue jobs
-    #
-
-    def on_scan_job(self, job):
-        """
-        pass
-        :return: 
-        """
+        # TODO: scan CT database
+        # TODO: host scan
 
     #
     # Workers
@@ -347,6 +338,9 @@ class Server(object):
         Blocking method scanning redis jobs
         :return: 
         """
+        cur_size = self.redis_queue.size()
+        logger.info('Redis total queue size: %s' % cur_size)
+
         while self.is_running():
             job = None
             try:
