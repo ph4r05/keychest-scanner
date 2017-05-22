@@ -42,6 +42,8 @@ class Config(object):
                 'mysql_password': None,
                 'redis_host': '127.0.0.1',
                 'redis_port': 6379,
+                'workers': 10,
+
             }
         })
 
@@ -110,6 +112,15 @@ class Config(object):
     @redis_port.setter
     def redis_port(self, val):
         self.set_config('redis_port', val)
+
+    # Redis port number
+    @property
+    def workers(self):
+        return self.get_config('workers', 10)
+
+    @workers.setter
+    def workers(self, val):
+        self.set_config('workers', val)
 
 
 

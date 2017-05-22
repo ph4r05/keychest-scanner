@@ -25,7 +25,9 @@ import logging
 import coloredlogs
 import traceback
 import collections
+import signal
 import redis
+from queue import Queue, Empty as QEmpty
 from datetime import datetime, timedelta
 import sqlalchemy as salch
 
@@ -64,12 +66,15 @@ class Server(object):
         self.running = True
         self.run_thread = None
         self.stop_event = threading.Event()
-
-        self.last_result = None
+        self.terminate = True
 
         self.db = None
         self.redis_pool = None
         self.redis = None
+
+        self.job_queue = Queue(50)
+        self.local_data = threading.local()
+        self.workers = []
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -154,6 +159,31 @@ class Server(object):
         self.redis_pool = redis.ConnectionPool(host=self.config.redis_host, port=self.config.redis_port, db=0)
         self.redis = redis.Redis(connection_pool=self.redis_pool)
 
+    def signal_handler(self, signal, frame):
+        """
+        Signal handler - terminate gracefully
+        :param signal:
+        :param frame:
+        :return:
+        """
+        logger.info('CTRL+C pressed')
+        self.trigger_stop()
+
+    def trigger_stop(self):
+        """
+        Sets terminal conditions to true
+        :return:
+        """
+        self.terminate = True
+        self.stop_event.set()
+
+    def is_running(self):
+        """
+        Returns true if termination was not triggered
+        :return: 
+        """
+        return not self.terminate and not self.stop_event.isSet()
+
     #
     # Interface
     #
@@ -165,8 +195,46 @@ class Server(object):
         """
 
     #
-    # DB Update
+    # Worker
     #
+
+    def worker_main(self, idx):
+        """
+        Worker main entry method
+        :param idx: 
+        :return: 
+        """
+        self.local_data.idx = idx
+        logger.info('Worker %02d started' % idx)
+
+        while self.is_running():
+            job = None
+            try:
+                job = self.queue.get(True, timeout=1.0)
+            except QEmpty:
+                time.sleep(0.1)
+                continue
+
+            try:
+                # Process job in try-catch so it does not break worker
+                logger.info('[%02d] Processing job' % (idx, ))
+                time.sleep(0.2)
+
+            except Exception as e:
+                logger.error('Exception in processing job %s: %s' % (e, job))
+                logger.debug(traceback.format_exc())
+
+            finally:
+                self.queue.task_done()
+        logger.info('Worker %02d terminated' % idx)
+
+    def scan_redis_jobs(self):
+        """
+        Blocking method scanning redis jobs
+        :return: 
+        """
+        pass
+
 
     #
     # DB cleanup
@@ -186,7 +254,7 @@ class Server(object):
                     if self.cleanup_last_check + self.cleanup_check_time > cur_time:
                         continue
 
-                    # self.trim_sessions_db()
+                    # TODO: implement
                     self.cleanup_last_check = cur_time
 
                 except Exception as e:
@@ -235,7 +303,19 @@ class Server(object):
         """
         logger.info('Main thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
         try:
+            # scan redis queue infinitelly
+            self.scan_redis_jobs()
             logger.info('Terminating')
+
+            # Wait on all jobs being finished
+            self.queue.join()
+
+            # All data processed, terminate bored workers
+            self.stop_event.set()
+
+            # Make sure it is over by joining threads
+            for th in self.workers:
+                th.join()
 
         except Exception as e:
             logger.error('Exception: %s' % e)
@@ -257,6 +337,13 @@ class Server(object):
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
         self.cleanup_thread.setDaemon(True)
         self.cleanup_thread.start()
+
+        # Worker start
+        for worker_idx in range(0, self.config.workers):
+            t = threading.Thread(target=self.worker_main, args=(worker_idx, ))
+            self.workers.append(t)
+            t.setDaemon(True)
+            t.start()
 
         # Daemon vs. run mode.
         if self.args.daemon:
