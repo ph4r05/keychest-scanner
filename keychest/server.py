@@ -210,7 +210,7 @@ class Server(object):
         while self.is_running():
             job = None
             try:
-                job = self.queue.get(True, timeout=1.0)
+                job = self.job_queue.get(True, timeout=1.0)
             except QEmpty:
                 time.sleep(0.1)
                 continue
@@ -225,7 +225,7 @@ class Server(object):
                 logger.debug(traceback.format_exc())
 
             finally:
-                self.queue.task_done()
+                self.job_queue.task_done()
         logger.info('Worker %02d terminated' % idx)
 
     def scan_redis_jobs(self):
@@ -308,7 +308,7 @@ class Server(object):
             logger.info('Terminating')
 
             # Wait on all jobs being finished
-            self.queue.join()
+            self.job_queue.join()
 
             # All data processed, terminate bored workers
             self.stop_event.set()
