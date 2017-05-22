@@ -188,17 +188,51 @@ class Server(object):
         return not self.terminate and not self.stop_event.isSet()
 
     #
-    # Interface
+    # Interface - redis
     #
 
-    def on_scan_job(self):
+    def on_redis_job(self, job):
+        """
+        New redis job - process
+        :param job: 
+        :return: 
+        """
+        payload = job.decoded
+        if payload is None or 'id' not in payload or 'data' not in payload:
+            logger.warning('Invalid job detected: %s' % json.dumps(payload))
+            job.delete()
+            return
+
+        data = payload['data']
+        cmd = data['commandName']
+        if cmd == 'App\\Jobs\\ScanHostJob':
+            self.on_redis_scan_job(job)
+        else:
+            logger.warning('Unknown job')
+            job.delete()
+            return
+
+    def on_redis_scan_job(self, job):
+        """
+        redis scan job
+        :param job: 
+        :return: 
+        """
+        pass
+        # TODO: create new main job
+
+    #
+    # Main queue jobs
+    #
+
+    def on_scan_job(self, job):
         """
         pass
         :return: 
         """
 
     #
-    # Worker
+    # Workers
     #
 
     def worker_main(self, idx):
@@ -298,7 +332,7 @@ class Server(object):
                 # Here we will fire off the job and let it process. We will catch any exceptions so
                 # they can be reported to the developers logs, etc. Once the job is finished the
                 # proper events will be fired to let any listeners know this job has finished.
-                job.fire()
+                self.on_redis_job(job)
 
                 # Once done, delete job from the queue
                 if not job.is_deleted_or_released():
