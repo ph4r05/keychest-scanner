@@ -22,6 +22,7 @@ install_requires = [
     'shellescape',
     'flask',
     'MarkupSafe>=0.23',  # problem with deps
+    'redis',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
