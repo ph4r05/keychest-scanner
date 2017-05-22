@@ -2,10 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import time
+import logging
+
 import redis
+
 import lua_scripts
 from redis_client import RedisClient
 from redis_job import RedisJob
+
+logger = logging.getLogger(__name__)
 
 
 class RedisQueue(object):
@@ -26,8 +31,8 @@ class RedisQueue(object):
         :return: 
         """
         if queue is None:
-            return self.default_queue
-        return queue
+            queue = self.default_queue
+        return 'queues:%s' % queue
 
     def size(self, queue=None):
         """

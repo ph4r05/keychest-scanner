@@ -4,6 +4,9 @@
 import time
 import redis
 import lua_scripts
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RedisClient(object):
@@ -33,6 +36,7 @@ class RedisClient(object):
         self.lua_pop = self.redis.register_script(lua_scripts.lua_pop())
         self.lua_release = self.redis.register_script(lua_scripts.lua_release())
         self.lua_migrate_expired_jobs = self.redis.register_script(lua_scripts.lua_migrate_expired_jobs())
+        logger.debug('Redis client initialized')
 
     #
     # Queue

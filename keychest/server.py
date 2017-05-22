@@ -257,14 +257,14 @@ class Server(object):
 
             try:
                 # Process job in try-catch so it does not break worker
-                logger.info('New job: %s' % job.decoded)
+                logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e, ))
                 logger.debug(traceback.format_exc())
 
             finally:
-                self.job_queue.task_done()
+                pass
         logger.info('Queue scanner terminated')
 
     #
