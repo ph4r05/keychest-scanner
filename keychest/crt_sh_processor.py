@@ -96,7 +96,7 @@ class CrtProcessor(object):
 
                 ret.attempts = attempt
                 ret.time_end = time.time()
-                ret.result = res.text
+                ret.result = util.strip(res.text)
                 ret.success = True
                 return ret
 

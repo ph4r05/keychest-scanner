@@ -32,7 +32,7 @@ import signal
 from queue import Queue, Empty as QEmpty
 from datetime import datetime, timedelta
 import sqlalchemy as salch
-from processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
+from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
 
 
 __author__ = 'dusanklinec'
