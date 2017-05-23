@@ -53,10 +53,62 @@ class CrtShIndexRecord(object):
                % (self.id, self.logged_at, self.not_before, self.identity, self.ca_dn, self.ca_id)
 
 
+class CrtShCertResponse(object):
+    """
+    Wrapping response for the certificate download
+    """
+    def __init__(self, crtid=None):
+        self.crtid = crtid
+        self.time_start = time.time()
+        self.time_end = 0
+        self.attempts = 0
+        self.success = False
+        self.result = None
+
+    def __repr__(self):
+        return '<CrtShCertResponse(crtid=%r, success=%r, time_start=%r, time_end=%r, attempts=%r, result=%r)>' \
+               % (self.crtid, self.success, self.time_start, self.time_end, self.attempts, self.result)
+
+
 class CrtProcessor(object):
+    """
+    crt.sh parser
+    """
+
+    BASE_URL = 'https://crt.sh/'
+
     def __init__(self):
         self.timeout = 10
         self.attempts = 3
+
+    def download_crt(self, crt_id):
+        """
+        Queries download of the raw certificate according to the cert ID
+        https://crt.sh/?d=12345
+        :param crt_id: 
+        :return: 
+        """
+        ret = CrtShCertResponse(crtid=crt_id)
+        for attempt in range(self.attempts):
+            try:
+                res = requests.get(self.BASE_URL, params={'d': crt_id}, timeout=10)
+                res.raise_for_status()
+
+                ret.attempts = attempt
+                ret.time_end = time.time()
+                ret.result = res.text
+                ret.success = True
+                return ret
+
+            except Exception as e:
+                logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug(traceback.format_exc())
+                if attempt >= self.attempts:
+                    raise
+                else:
+                    time.sleep(1.0)
+
+        return None
 
     def query(self, domain):
         """
@@ -64,11 +116,10 @@ class CrtProcessor(object):
         :param domain: 
         :return: 
         """
-        url = 'https://crt.sh/'
         ret = CrtShIndexResponse(query=domain)
         for attempt in range(self.attempts):
             try:
-                res = requests.get(url, params={'q': domain}, timeout=10)
+                res = requests.get(self.BASE_URL, params={'q': domain}, timeout=10)
                 res.raise_for_status()
                 data = res.text
 
