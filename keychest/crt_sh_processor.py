@@ -70,6 +70,70 @@ class CrtShCertResponse(object):
                % (self.crtid, self.success, self.time_start, self.time_end, self.attempts, self.result)
 
 
+class CrtShDetailResponse(object):
+    """
+    Certificate detail response
+    """
+    def __init__(self, crtid=None):
+        self.crtid = crtid
+        self.time_start = time.time()
+        self.time_end = 0
+        self.attempts = 0
+        self.success = False
+        self.result = None
+
+    def __repr__(self):
+        return '<CrtShDetailResponse(crtid=%r, success=%r, time_start=%r, time_end=%r, attempts=%r, result=%r)>' \
+               % (self.crtid, self.success, self.time_start, self.time_end, self.attempts, self.result)
+
+
+class CrtShCertDetail(object):
+    """
+    Certificate detail
+    """
+    def __init__(self, crtid=None):
+        self.crt_id = crtid
+        self.sha1 = None
+        self.sha256 = None
+        self.revocation = []
+        self.ct = []
+
+    def __repr__(self):
+        return '<CrtShCertDetail(crtid=%r, sha1=%r, sha256=%r, revocation=%r, ct=%r)>' \
+               % (self.crt_id, self.sha1, self.sha256, self.revocation, self.ct)
+
+
+class CrtShCT(object):
+    """
+    Certificate transparency record
+    """
+    def __init__(self):
+        self.time_stamp = None
+        self.entry_id = None
+        self.log_operator = None
+        self.log_url = None
+
+    def __repr__(self):
+        return '<CrtShCT(time_stamp=%r, entry_id=%r, log_operator=%r, log_url=%r)>' \
+               % (self.time_stamp, self.entry_id, self.log_operator, self.log_url)
+
+
+class CrtShRevocation(object):
+    """
+    Revocation record
+    """
+    def __init__(self):
+        self.mechanism = None
+        self.provider = None
+        self.status = None
+        self.revoked_by = None
+        self.revoked_at = None
+
+    def __repr__(self):
+        return '<CertShRevocation(mechanism=%r, provider=%r, status=%r, revoked_by=%r, revoked_at=%r)>' \
+               % (self.mechanism, self.provider, self.status, self.revoked_by, self.revoked_at)
+
+
 class CrtProcessor(object):
     """
     crt.sh parser
@@ -78,7 +142,7 @@ class CrtProcessor(object):
     BASE_URL = 'https://crt.sh/'
 
     def __init__(self):
-        self.timeout = 10
+        self.timeout = 20
         self.attempts = 3
 
     def download_crt(self, crt_id):
@@ -91,7 +155,7 @@ class CrtProcessor(object):
         ret = CrtShCertResponse(crtid=crt_id)
         for attempt in range(self.attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'d': crt_id}, timeout=10)
+                res = requests.get(self.BASE_URL, params={'d': crt_id}, timeout=self.timeout)
                 res.raise_for_status()
 
                 ret.attempts = attempt
@@ -119,7 +183,7 @@ class CrtProcessor(object):
         ret = CrtShIndexResponse(query=domain)
         for attempt in range(self.attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'q': domain}, timeout=10)
+                res = requests.get(self.BASE_URL, params={'q': domain}, timeout=self.timeout)
                 res.raise_for_status()
                 data = res.text
 
@@ -184,4 +248,143 @@ class CrtProcessor(object):
             ret.add(cur_res)
 
         return ret
+
+    def detail(self, crt_id):
+        """
+        Certificate detail page load
+        :param crt_id: 
+        :return: 
+        """
+        ret = CrtShDetailResponse(crtid=crt_id)
+        for attempt in range(self.attempts):
+            try:
+                res = requests.get(self.BASE_URL, params={'id': crt_id}, timeout=self.timeout)
+                res.raise_for_status()
+                data = res.text
+
+                ret.attempts = attempt
+                ret.time_end = time.time()
+
+                self.parse_detail(ret, data)
+                ret.success = True
+                return ret
+
+            except Exception as e:
+                logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug(traceback.format_exc())
+                if attempt >= self.attempts:
+                    raise
+                else:
+                    time.sleep(1.0)
+
+        return None
+
+    def parse_detail(self, ret, data):
+        """
+        Parses crt.sh certificate detail page
+        :param ret: 
+        :param data: 
+        :return: 
+        """
+        tree = html.fromstring(data)
+        tables = tree.xpath('//table')
+        if len(tables) < 2:
+            return ret
+
+        rt = CrtShCertDetail(ret.crtid)
+        data_table = tables[1]
+
+        for row in data_table:
+            hd = util.lower(util.strip(row[0].text_content()))
+
+            if 'transparency' in hd:
+                self.parse_ct(rt, row[1])
+            elif 'revocation' in hd:
+                self.parse_revocation(rt, row[1])
+            elif 'sha-1' in hd:
+                rt.sha1 = util.lower(util.strip(row[1].text_content()))
+            elif 'sha-256' in hd:
+                rt.sha256 = util.lower(util.strip(row[1].text_content()))
+            elif 'asn.1' in hd:
+                self.parse_text(rt, row[1])
+
+        ret.result = rt
+        return ret
+
+    def parse_ct(self, rt, data):
+        """
+        Parses certificate transparency
+        :param rt: 
+        :param data: 
+        :return: 
+        """
+        try:
+            if len(data) == 0:
+                return
+
+            tbl = data[0]
+            if tbl.tag != 'table':
+                return
+
+            for row in tbl[1:]:
+                rc = CrtShCT()
+
+                tstamp = util.strip(row[0].text_content())
+                rc.entry_id = util.strip(row[1].text_content())
+                rc.log_operator = util.strip(row[2].text_content())
+                rc.log_url = util.strip(row[3].text_content())
+
+                if tstamp is not None:
+                    rc.time_stamp = tstamp.encode('utf8').replace('\xc2', '').replace('\xa0', '')
+                rt.ct.append(rc)
+
+        except Exception as e:
+            logger.debug('CT Parsing error: %s', e)
+
+    def parse_revocation(self, rt, data):
+        """
+        Parses revocation data
+        :param rt: 
+        :param data: 
+        :return: 
+        """
+        try:
+            if len(data) == 0:
+                return
+
+            tbl = data[0]
+            if tbl.tag != 'table':
+                return
+
+            for row in tbl[1:]:
+                rc = CrtShRevocation()
+
+                rc.mechanism = util.strip(row[0].text_content())
+                rc.provider = util.strip(row[1].text_content())
+                rc.status = util.strip(row[2].text_content())
+                rc.revoked_by = util.strip(row[3].text_content())
+                rc.revoked_at = util.strip(row[4].text_content())
+
+                if rc.revoked_by == 'n/a':
+                    rc.revoked_by = None
+
+                if rc.revoked_at == 'n/a':
+                    rc.revoked_at = None
+
+                rt.revocation.append(rc)
+
+        except Exception as e:
+            logger.debug('Revocation Parsing error: %s', e)
+
+    def parse_text(self, rt, data):
+        """
+        Parses textual dump
+        :param rt: 
+        :param data: 
+        :return: 
+        """
+        try:
+            pass
+        except Exception as e:
+            logger.debug('Text Parsing error: %s', e)
 
