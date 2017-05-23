@@ -103,15 +103,17 @@ class RedisQueue(object):
         :param timeout: 
         :return: 
         """
+        avail_at = int((time.time() + self.pop_retry_after)*1000) if self.pop_retry_after is not None else 0
+        
         if not blocking:
-            return self.redis.lua_pop(keys=[queue, '%s:reserved' % queue], args=[self.pop_retry_after])
+            return self.redis.lua_pop(keys=[queue, '%s:reserved' % queue], args=[avail_at])
 
         ret = None, None
         res = self.redis.redis.blpop(keys=[queue], timeout=timeout)
         if res is not None:
             rqueue, job = res
-            ret = self.redis.lua_after_pop(keys=['%s:reserved' % queue], args=[job, self.pop_retry_after])
-            
+            ret = self.redis.lua_after_pop(keys=['%s:reserved' % queue], args=[job, avail_at])
+
         return ret
 
     def migrate(self, queue):
