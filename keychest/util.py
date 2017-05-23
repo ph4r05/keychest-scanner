@@ -13,6 +13,8 @@ import calendar
 import string
 import random
 import types
+import decimal
+import phpserialize
 
 import errno
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -22,6 +24,72 @@ import errors
 
 
 PAYLOAD_ENC_TYPE = 'AES-256-GCM-SHA256'
+
+
+class AutoJSONEncoder(json.JSONEncoder):
+    """
+    JSON encoder trying to_json() first
+    """
+    DATE_FORMAT = "%Y-%m-%d"
+    TIME_FORMAT = "%H:%M:%S"
+
+    def default(self, obj):
+        try:
+            return obj.to_json()
+        except AttributeError:
+            return self.default_classic(obj)
+
+    def default_classic(self, o):
+        if isinstance(o, set):
+            return list(o)
+        elif isinstance(o, datetime.datetime):
+            return o.strftime("%s %s" % (self.DATE_FORMAT, self.TIME_FORMAT))
+        elif isinstance(o, datetime.date):
+            return o.strftime(self.DATE_FORMAT)
+        elif isinstance(o, datetime.time):
+            return o.strftime(self.TIME_FORMAT)
+        elif isinstance(o, decimal.Decimal):
+            return str(o)
+        else:
+            return super(AutoJSONEncoder, self).default(o)
+
+
+def php_obj_hook(obj):
+    """
+    Object hook for objects with defined php serialization support
+    :param obj: 
+    :return: 
+    """
+    try:
+        return obj.to_php()
+    except AttributeError as e:
+        return '%s' % obj
+
+
+def php_set_protected(obj, name, value):
+    """
+    Sets protected value for php
+    :param obj: 
+    :param name: 
+    :param value: 
+    :return: 
+    """
+    obj.__php_vars__["\x00*\x00%s" % name] = value
+    return obj
+
+
+def phpize(x):
+    """
+    Calls to_php if not already a phpobject
+    :param x: 
+    :return: 
+    """
+    if isinstance(x, phpserialize.phpobject):
+        return x
+    try:
+        return x.to_php()
+    except AttributeError:
+        return x
 
 
 def protect_payload(payload, config):
@@ -332,6 +400,15 @@ def random_nonce(length):
     :return:
     """
     return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits + "_") for _ in range(length))
+
+
+def random_alphanum(length):
+    """
+    Generates a random password which consists of digits, lowercase and uppercase characters
+    :param length:
+    :return:
+    """
+    return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(length))
 
 
 def strip(x):

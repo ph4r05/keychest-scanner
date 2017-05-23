@@ -3,12 +3,16 @@
 
 import time
 import logging
+import json
 
+import util
 import redis
+import collections
 
 import lua_scripts
 from redis_client import RedisClient
 from redis_job import RedisJob
+import redis_helper as rh
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +23,7 @@ class RedisQueue(object):
 
         self.pop_retry_after = 60
         self.default_queue = 'queues:scanner'
+        self.event_queue = 'queues:default'
 
     #
     # Queue
@@ -126,5 +131,38 @@ class RedisQueue(object):
         q = self.get_queue(queue)
         return self.redis.lua_release(keys=['%s:delayed' % q, '%s:reserved' % q],
                                       args=[job.get_reserved_job(), int((time.time() + delay)*1000)])
+
+    def random_id(self):
+        """
+        Generates random job id
+        :return: 
+        """
+        return util.random_alphanum(32)
+
+    def default_event(self):
+        """
+        Generates default event objects
+        :return: 
+        """
+        return rh.default_envelope()
+
+    #
+    # Events
+    #
+
+    def event(self, evt):
+        """
+        Event dispatcher
+        :return: 
+        """
+        envelope = evt
+        if isinstance(evt, rh.EvtBase):
+            envelope = self.default_event()
+            envelope.set_event(evt)
+
+        encoded_envelope = envelope.encode()
+        trans_form_envelope = json.dumps(encoded_envelope)
+
+        self.push_raw(trans_form_envelope, self.event_queue)
 
 
