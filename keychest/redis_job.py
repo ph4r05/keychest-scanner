@@ -20,6 +20,12 @@ class RedisJob(object):
 
         self.decoded = self.payload()
 
+    def __repr__(self):
+        return '<RedisJob(job=%r, queue=%r, reserved=%r, connection=%r, deleted=%r, released=%r, failed=%r, ' \
+               'decoded=%r)>' \
+               % (self.job, self.queue, self.reserved, self.connection_name, self.deleted, self.released, self.failed,
+                  self.decoded)
+
     def get_raw_body(self):
         """
         Get the raw body string for the job.
