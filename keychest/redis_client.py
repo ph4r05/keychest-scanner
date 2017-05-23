@@ -16,6 +16,7 @@ class RedisClient(object):
 
         self.lua_size = None
         self.lua_pop = None
+        self.lua_after_pop = None
         self.lua_release = None
         self.lua_migrate_expired_jobs = None
 
@@ -34,6 +35,7 @@ class RedisClient(object):
         # register scripts
         self.lua_size = self.redis.register_script(lua_scripts.lua_size())
         self.lua_pop = self.redis.register_script(lua_scripts.lua_pop())
+        self.lua_after_pop = self.redis.register_script(lua_scripts.lua_after_pop())
         self.lua_release = self.redis.register_script(lua_scripts.lua_release())
         self.lua_migrate_expired_jobs = self.redis.register_script(lua_scripts.lua_migrate_expired_jobs())
         logger.debug('Redis client initialized')

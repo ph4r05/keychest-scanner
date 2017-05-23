@@ -38,6 +38,29 @@ return {job, reserved}
     """
 
 
+def lua_after_pop():
+    """
+    lua script invoked after pop, which may be performed separately or in a blocking command.
+    BLPOP - blocking pop cannot be performed in the LUA as it would have to block on the server side
+    during evaluation.
+    :return: 
+    """
+    return """
+local job = ARGV[1]
+local reserved = false
+
+if(job ~= false) then
+    -- Increment the attempt count and place job on the reserved queue...
+    reserved = cjson.decode(job)
+    reserved['attempts'] = reserved['attempts'] + 1
+    reserved = cjson.encode(reserved)
+    redis.call('zadd', KEYS[1], ARGV[2], reserved)
+end
+
+return {job, reserved}
+    """
+
+
 def lua_release():
     """
     LUA release script

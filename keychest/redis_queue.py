@@ -67,15 +67,19 @@ class RedisQueue(object):
         """
         return self.redis.redis.zadd('%s:delayed' % self.get_queue(queue), int((time.time() + delay)*1000), data)
 
-    def pop(self, queue=None):
+    def pop(self, queue=None, blocking=False, timeout=1):
         """
         Pop the next job off of the queue.
         :param queue: 
+        :param blocking: 
+        :param timeout: 
         :return: 
         """
         q = self.get_queue(queue)
 
-        job, reserved = self.retrieve_next_job(q)
+        self.migrate(q)
+
+        job, reserved = self.retrieve_next_job(q, blocking=blocking, timeout=timeout)
 
         if reserved is not None:
             return RedisJob(None, self, job, reserved, None, q)
@@ -91,13 +95,24 @@ class RedisQueue(object):
         """
         return self.redis.lua_migrate_expired_jobs(keys=[qfrom, qto], args=[int(time.time()*1000)])
 
-    def retrieve_next_job(self, queue):
+    def retrieve_next_job(self, queue, blocking=False, timeout=5):
         """
         Retrieves job from the redis queue - implemented as list
         :param queue: 
+        :param blocking: 
+        :param timeout: 
         :return: 
         """
-        return self.redis.lua_pop(keys=[queue, '%s:reserved' % queue], args=[self.pop_retry_after])
+        if not blocking:
+            return self.redis.lua_pop(keys=[queue, '%s:reserved' % queue], args=[self.pop_retry_after])
+
+        ret = None, None
+        res = self.redis.redis.blpop(keys=[queue], timeout=timeout)
+        if res is not None:
+            rqueue, job = res
+            ret = self.redis.lua_after_pop(keys=['%s:reserved' % queue], args=[job, self.pop_retry_after])
+            
+        return ret
 
     def migrate(self, queue):
         """

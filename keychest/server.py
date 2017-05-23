@@ -215,7 +215,7 @@ class Server(object):
             logger.error('Exception in processing job %s' % (e,))
             logger.debug(traceback.format_exc())
 
-            self.scan_mark_failed_exceeds_attempts(job, e)
+            self.scan_mark_failed_exceeds_attempts(job, 30, e)
             if not job.is_deleted_or_released() and not job.failed:
                 job.release()
 
@@ -246,7 +246,9 @@ class Server(object):
         :param job: 
         :return: 
         """
-        pass
+        evt = rh.scan_job_progress({'job': 'ok', 'state': 'started'})
+        self.redis_queue.event(evt)
+
         # TODO: scan CT database
         # TODO: host scan
 
@@ -293,7 +295,7 @@ class Server(object):
         Loads redis job
         :return: 
         """
-        job = self.redis_queue.pop()
+        job = self.redis_queue.pop(blocking=True, timeout=3)
         if job is None:
             raise QEmpty()
 
@@ -322,6 +324,7 @@ class Server(object):
         Mark the given job as failed if it has exceeded the maximum allowed attempts.
         :param job: 
         :param max_tries: 
+        :param e: 
         :return: 
         """
         mt = job.max_tries()
