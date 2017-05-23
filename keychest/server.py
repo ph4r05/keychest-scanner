@@ -246,7 +246,10 @@ class Server(object):
         :param job: 
         :return: 
         """
-        evt = rh.scan_job_progress({'job': 'ok', 'state': 'started'})
+        job_data = job.decoded['data']['json']
+        logger.debug(job_data)
+
+        evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'started'})
         self.redis_queue.event(evt)
 
         # TODO: scan CT database
