@@ -262,6 +262,10 @@ class Server(object):
 
         # TODO: host scan
 
+
+        evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'finished'})
+        self.redis_queue.event(evt)
+
     #
     # Workers
     #
