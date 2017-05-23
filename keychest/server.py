@@ -255,16 +255,17 @@ class Server(object):
 
         evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'started'})
         self.redis_queue.event(evt)
+        try:
 
-        # TODO: scan CT database
-        crt_sh = self.crt_sh_proc.query(domain)
-        logger.debug(crt_sh)
+            # TODO: scan CT database
+            crt_sh = self.crt_sh_proc.query(domain)
+            logger.debug(crt_sh)
 
-        # TODO: host scan
+            # TODO: host scan
 
-
-        evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'finished'})
-        self.redis_queue.event(evt)
+        finally:
+            evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'finished'})
+            self.redis_queue.event(evt)
 
     #
     # Workers
