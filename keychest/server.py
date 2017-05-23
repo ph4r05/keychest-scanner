@@ -310,7 +310,7 @@ class Server(object):
         Loads redis job
         :return: 
         """
-        job = self.redis_queue.pop(blocking=True, timeout=3)
+        job = self.redis_queue.pop(blocking=True, timeout=1)
         if job is None:
             raise QEmpty()
 
