@@ -25,6 +25,7 @@ def failjob(job, e=None):
 class MainEventWrapper(object):
     """
     Base event object to submit to the redis queue.
+    
     {
         "displayName": "App\\Listeners\\ScanJobListener", 
         "attempts": 0, 

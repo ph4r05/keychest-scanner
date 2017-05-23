@@ -150,10 +150,15 @@ class RedisQueue(object):
     # Events
     #
 
-    def event(self, evt):
+    def event(self, evt, queue=None):
         """
         Event dispatcher, submits a new event to the default event queue.
         Event can be either base event or the whole envelope.
+        
+        example: 
+            x = rh.EvtScanJobProgress({'test': 123, 'data': 'secret'})
+            rq.event(x)
+            
         :return: 
         """
         envelope = evt
@@ -164,6 +169,9 @@ class RedisQueue(object):
         encoded_envelope = envelope.encode()
         trans_form_envelope = json.dumps(encoded_envelope)
 
-        self.push_raw(trans_form_envelope, self.event_queue)
+        if queue is None:
+            queue = self.event_queue
+
+        return self.push_raw(trans_form_envelope, queue)
 
 
