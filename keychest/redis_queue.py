@@ -21,7 +21,7 @@ class RedisQueue(object):
     def __init__(self, redis_client):
         self.redis = redis_client
 
-        self.pop_retry_after = 60
+        self.pop_retry_after = 60 * 10
         self.default_queue = 'queues:scanner'
         self.event_queue = 'queues:default'
 
