@@ -152,7 +152,8 @@ class RedisQueue(object):
 
     def event(self, evt):
         """
-        Event dispatcher
+        Event dispatcher, submits a new event to the default event queue.
+        Event can be either base event or the whole envelope.
         :return: 
         """
         envelope = evt
