@@ -8,6 +8,7 @@ import requests
 from lxml import html
 import util
 import datetime
+import traceback
 
 
 logger = logging.getLogger(__name__)
@@ -39,16 +40,17 @@ class CrtShIndexRecord(object):
     """
     One single record from the index search
     """
-    def __init__(self, crtid=None, logged_at=None, not_before=None, ca_dn=None, ca_id=None):
+    def __init__(self, crtid=None, logged_at=None, not_before=None, identity=None, ca_dn=None, ca_id=None):
         self.id = crtid
         self.logged_at = logged_at
         self.not_before = not_before
+        self.identity = identity
         self.ca_dn = ca_dn
         self.ca_id = ca_id
 
     def __repr__(self):
-        return '<CrtShIndexRecord>(crtid=%r, logged_at=%r, not_before=%r, ca_dn=%r, ca_id=%r)' \
-               % (self.id, self.logged_at, self.not_before, self.ca_dn, self.ca_id)
+        return '<CrtShIndexRecord>(crtid=%r, logged_at=%r, not_before=%r, identity=%r, ca_dn=%r, ca_id=%r)' \
+               % (self.id, self.logged_at, self.not_before, self.identity, self.ca_dn, self.ca_id)
 
 
 class CrtProcessor(object):
@@ -62,11 +64,11 @@ class CrtProcessor(object):
         :param domain: 
         :return: 
         """
-        url = 'https://crt.sh/?q=%s' % domain
+        url = 'https://crt.sh/'
         ret = CrtShIndexResponse(query=domain)
         for attempt in range(self.attempts):
             try:
-                res = requests.get(url, timeout=10)
+                res = requests.get(url, params={'q': domain}, timeout=10)
                 res.raise_for_status()
                 data = res.text
 
@@ -79,6 +81,7 @@ class CrtProcessor(object):
 
             except Exception as e:
                 logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug(traceback.format_exc())
                 if attempt >= self.attempts:
                     raise
                 else:
@@ -94,13 +97,18 @@ class CrtProcessor(object):
         :return: 
         """
         tree = html.fromstring(data)
-        res_table = tree.xpath('//table//table')[0]
+        res_table = tree.xpath('//table//table')
+        if util.is_empty(res_table):
+            return ret
 
+        res_table = res_table[0]
         if len(res_table) <= 1:
             return ret
 
         rows = res_table[1:]
         for row in rows:
+            col_cnt = len(row)
+
             cur_res = CrtShIndexRecord()
             cur_res.id = util.strip(row[0].text_content())
 
@@ -109,10 +117,18 @@ class CrtProcessor(object):
             cur_res.not_before = util.unix_time(datetime.datetime.strptime(
                 util.strip(row[2].text_content()), '%Y-%m-%d'))
 
-            cur_res.ca_dn = util.strip(row[3].text_content())
-            ca_href = util.strip(row[3][0].attrib['href'])
-            if not util.is_empty(ca_href):
-                cur_res.ca_id = int(ca_href.rsplit('=', 1)[1])
+            ca_offset = 0
+            if col_cnt >= 5:
+                cur_res.identity = util.strip(row[3].text_content())
+                ca_offset += 1
+
+            cur_res.ca_dn = util.strip(row[3 + ca_offset].text_content())
+            try:
+                ca_href = util.strip(row[3 + ca_offset][0].attrib['href'])
+                if not util.is_empty(ca_href):
+                    cur_res.ca_id = int(ca_href.rsplit('=', 1)[1])
+            except:
+                pass
 
             ret.add(cur_res)
 
