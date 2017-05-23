@@ -32,6 +32,7 @@ import signal
 from queue import Queue, Empty as QEmpty
 from datetime import datetime, timedelta
 import sqlalchemy as salch
+from processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
 
 
 __author__ = 'dusanklinec'
@@ -77,6 +78,8 @@ class Server(object):
         self.job_queue = Queue(50)
         self.local_data = threading.local()
         self.workers = []
+
+        self.crt_sh_proc = CrtProcessor()
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -247,12 +250,16 @@ class Server(object):
         :return: 
         """
         job_data = job.decoded['data']['json']
+        domain = job_data['scan_host']
         logger.debug(job_data)
 
         evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'started'})
         self.redis_queue.event(evt)
 
         # TODO: scan CT database
+        crt_sh = self.crt_sh_proc.query(domain)
+        logger.debug(crt_sh)
+
         # TODO: host scan
 
     #

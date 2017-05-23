@@ -411,6 +411,15 @@ def random_alphanum(length):
     return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(length))
 
 
+def is_empty(x):
+    """
+    none or len(x) == 0
+    :param x: 
+    :return: 
+    """
+    return x is None or len(x) == 0
+
+
 def strip(x):
     """
     Strips string x (if non empty) or each string in x if it is a list
