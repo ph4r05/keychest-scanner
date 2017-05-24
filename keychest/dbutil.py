@@ -48,6 +48,31 @@ class ScanJob(Base):
     user_sess = Column(String(255), nullable=True)
 
 
+class Certificate(Base):
+    """
+    Certificate object
+    """
+    __tablename__ = 'certificates'
+    id = Column(BigInteger, primary_key=True)
+    crt_sh_id = Column(BigInteger, index=True, nullable=True)
+
+    fprint_sha1 = Column(String(40), index=True, nullable=True)
+    fprint_sha256 = Column(String(64), index=True, nullable=True)
+
+    valid_from = Column(DateTime, default=None, nullable=True)
+    valid_to = Column(DateTime, default=None, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    cname = Column(Text, nullable=True)
+    subject = Column(Text, nullable=True)
+    issuer = Column(Text, nullable=True)
+    pem = Column(Text, nullable=True)
+
+    source = Column(String(255), nullable=True)  # CT / crt.sh / manual
+
+
 class MySQL(object):
     """
     MySQL management, installation & stuff
