@@ -8,7 +8,7 @@ Server part of the script
 from daemon import Daemon
 from core import Core
 from config import Config
-from dbutil import MySQL, ScanJob, Certificate
+from dbutil import MySQL, ScanJob, Certificate, CertificateAltName
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
@@ -310,6 +310,7 @@ class Server(object):
             cert_db.created_at = salch.func.now()
             cert_db.pem = response.result
             cert_db.source = 'crt.sh'
+            alt_names = []
 
             try:
                 cert = util.load_x509(str(cert_db.pem))
@@ -321,14 +322,23 @@ class Server(object):
                 cert_db.subject = util.utf8ize(util.get_dn_string(cert.subject))
                 cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
 
-                alt_names = util.try_get_san(cert)
-                logger.debug('Alt names: %s' % alt_names)
+                alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+                cert_db.alt_names = json.dumps(alt_names)
 
             except Exception as e:
                 logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
                 self.trace_logger.log(e)
 
             s.add(cert_db)
+            s.flush()
+
+            for alt_name in alt_names:
+                alt_db = CertificateAltName()
+                alt_db.cert_id = cert_db.id
+                alt_db.alt_name = alt_name
+                s.add(alt_db)
+
+            s.commit()
 
         except Exception as e:
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
