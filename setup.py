@@ -25,6 +25,7 @@ install_requires = [
     'redis',
     'hiredis',
     'phpserialize',
+    'scapy-ssl-tls',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
