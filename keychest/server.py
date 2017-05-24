@@ -8,7 +8,7 @@ Server part of the script
 from daemon import Daemon
 from core import Core
 from config import Config
-from dbutil import MySQL
+from dbutil import MySQL, ScanJob
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
@@ -255,8 +255,7 @@ class Server(object):
         domain = job_data['scan_host']
         logger.debug(job_data)
 
-        evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': 'started'})
-        self.redis_queue.event(evt)
+        self.update_job_state(job_data, 'started')
         try:
 
             # TODO: scan CT database
@@ -266,8 +265,47 @@ class Server(object):
             # TODO: host scan
 
         finally:
-            evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': 'finished'})
-            self.redis_queue.event(evt)
+            self.update_job_state(job_data, 'finished')
+
+    #
+    # Helpers
+    #
+
+    def update_job_state(self, job_data, state):
+        """
+        Updates job state in DB + sends event via redis
+        :param job_data: 
+        :param state: 
+        :return: 
+        """
+        s = None
+        try:
+            s = self.db.get_session()
+            # s.query(ScanJob)\
+            #     .filter(ScanJob.uuid == job_data['uuid'])\
+            #     .update(
+            #     {
+            #         "state": state,
+            #         "updated_at": salch.func.now()
+            #     })
+
+            stmt = salch.update(ScanJob).where(ScanJob.uuid == job_data['uuid'])\
+                .values(state=state, updated_at=salch.func.now())
+            s.execute(stmt)
+            s.commit()
+
+            # stmt = salch.update(ScanJob).where(ScanJob.uuid == job_data['uuid']).values(state=state)
+            # s.execute(stmt)
+
+        except Exception as e:
+            logger.error('Scan job state update failed: %s' % e)
+            self.trace_logger.log(e)
+
+        finally:
+            util.silent_close(s)
+
+        evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': state})
+        self.redis_queue.event(evt)
 
     #
     # Workers
