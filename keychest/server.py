@@ -12,6 +12,7 @@ from dbutil import MySQL
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
+from trace_logger import Tracelogger
 
 import threading
 import pid
@@ -79,6 +80,7 @@ class Server(object):
         self.local_data = threading.local()
         self.workers = []
 
+        self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
 
         self.cleanup_last_check = 0
