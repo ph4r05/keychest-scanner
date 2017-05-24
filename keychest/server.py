@@ -8,7 +8,7 @@ Server part of the script
 from daemon import Daemon
 from core import Core
 from config import Config
-from dbutil import MySQL, ScanJob
+from dbutil import MySQL, ScanJob, Certificate
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
@@ -21,6 +21,7 @@ import os
 import sys
 import util
 import json
+import base64
 import itertools
 import argparse
 import calendar
@@ -255,21 +256,108 @@ class Server(object):
         domain = job_data['scan_host']
         logger.debug(job_data)
 
+        s = None
         self.update_job_state(job_data, 'started')
         try:
+            s = self.db.get_session()
 
             # TODO: scan CT database
             crt_sh = self.crt_sh_proc.query(domain)
             logger.debug(crt_sh)
 
-            # TODO: host scan
+            # existing certificates - have pem
+            all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
+            existing_ids = self.cert_load_existing(s, list(all_crt_ids))
+            existing_ids = set(existing_ids)
+
+            # load pem for new certificates
+            new_ids = all_crt_ids - existing_ids
+            for new_crt_id in new_ids:
+                self.fetch_new_certs(s, job_data, new_crt_id)
+
+            for cert in crt_sh.results:
+                self.analyze_cert(s, job_data, cert)
+
+            s.commit()
 
         finally:
             self.update_job_state(job_data, 'finished')
+            util.silent_close(s)
+
+        # TODO: host scan
+        pass
 
     #
     # Helpers
     #
+
+    def fetch_new_certs(self, s, job_data, crt_sh_id):
+        """
+        Fetches the new cert, parses, inserts to the db
+        :param s: 
+        :param job_data: 
+        :param crt_sh_id: 
+        :return: 
+        """
+        try:
+            response = self.crt_sh_proc.download_crt(crt_sh_id)
+            if not response.success:
+                logger.debug('Download of %s not successful' % crt_sh_id)
+                return
+
+            cert_db = Certificate()
+            cert_db.crt_sh_id = crt_sh_id
+            cert_db.created_at = salch.func.now()
+            cert_db.pem = response.result
+            cert_db.source = 'crt.sh'
+
+            try:
+                cert = util.load_x509(str(cert_db.pem))
+                cert_db.cname = util.utf8ize(util.try_get_cname(cert))
+                cert_db.fprint_sha1 = util.lower(util.try_get_fprint_sha1(cert))
+                cert_db.fprint_sha256 = util.lower(util.try_get_fprint_sha256(cert))
+                cert_db.valid_from = util.dt_norm(cert.not_valid_before)
+                cert_db.valid_to = util.dt_norm(cert.not_valid_after)
+                cert_db.subject = util.utf8ize(util.get_dn_string(cert.subject))
+                cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
+
+                alt_names = util.try_get_san(cert)
+                logger.debug('Alt names: %s' % alt_names)
+
+            except Exception as e:
+                logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
+                self.trace_logger.log(e)
+
+            s.add(cert_db)
+
+        except Exception as e:
+            logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
+            self.trace_logger.log(e)
+
+    def cert_load_existing(self, s, certs_id):
+        """
+        Loads existing certificates with cert id from the set
+        :param s: 
+        :param certs_id: 
+        :return: 
+        """
+        ret = []
+
+        int_list = [int(x) for x in certs_id]
+        res = s.query(Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
+        for cur in res:
+            ret.append(int(cur.crt_sh_id))
+        
+        return ret
+
+    def analyze_cert(self, s, job_data, cert):
+        """
+        Parses cert result, analyzes - adds to the db
+        :param s: 
+        :param job_data: 
+        :param cert: 
+        :return: 
+        """
 
     def update_job_state(self, job_data, state):
         """
