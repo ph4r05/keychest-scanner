@@ -126,7 +126,7 @@ class RedisJob(object):
         """
         return self.deleted or self.released
 
-    def failed(self, e=None):
+    def fail(self, e=None):
         """
         Process an exception that caused the job to fail.
         :return: 

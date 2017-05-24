@@ -19,7 +19,7 @@ def failjob(job, e=None):
         return
 
     job.delete()
-    job.failed(e)
+    job.fail(e)
 
 
 class MainEventWrapper(object):
