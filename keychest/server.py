@@ -200,6 +200,8 @@ class Server(object):
     def process_redis_job(self, job):
         """
         Main redis job processor
+        Handles job logic as implemented in Laravel.
+        e.g., removes jobs from delay/reserved queues when finished.
         :param job: 
         :return: 
         """
@@ -227,7 +229,7 @@ class Server(object):
 
     def on_redis_job(self, job):
         """
-        New redis job - process
+        Main redis job router. Determines which command should be executed. 
         :param job: 
         :return: 
         """
@@ -306,10 +308,11 @@ class Server(object):
             s.commit()
 
         finally:
-            self.update_job_state(job_data, 'finished')
+            self.update_job_state(job_data, 'crtsh-done')
             util.silent_close(s)
 
         # TODO: host scan
+        self.update_job_state(job_data, 'finished')
         pass
 
     #
@@ -490,9 +493,9 @@ class Server(object):
                 self.job_queue.task_done()
         logger.info('Worker %02d terminated' % idx)
 
-    def scan_load_job(self):
+    def scan_load_redis_job(self):
         """
-        Loads redis job
+        Loads redis job from the queue. Blocking behavior for optimized performance
         :return: 
         """
         job = self.redis_queue.pop(blocking=True, timeout=1)
@@ -538,7 +541,8 @@ class Server(object):
 
     def scan_redis_jobs(self):
         """
-        Blocking method scanning redis jobs
+        Blocking method scanning redis jobs.
+        Should be run in dedicated thread or in the main thread as it blocks the execution. 
         :return: 
         """
         cur_size = self.redis_queue.size()
@@ -547,7 +551,7 @@ class Server(object):
         while self.is_running():
             job = None
             try:
-                job = self.scan_load_job()
+                job = self.scan_load_redis_job()
 
             except QEmpty:
                 time.sleep(0.01)
