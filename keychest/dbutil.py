@@ -25,6 +25,29 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 
+class ScanJob(Base):
+    """
+    Github repositories for the user
+    """
+    __tablename__ = 'scan_jobs'
+    id = Column(BigInteger, primary_key=True)
+    uuid = Column(String(36), nullable=False, unique=True)
+
+    scan_host = Column(String(255), nullable=True)
+    scan_scheme = Column(String(255), nullable=True)
+    scan_port = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    state = Column(String(255), nullable=True)
+    progress = Column(String(255), nullable=True)
+
+    user_id = Column(BigInteger, nullable=True)
+    user_ip = Column(String(255), nullable=True)
+    user_sess = Column(String(255), nullable=True)
+
+
 class MySQL(object):
     """
     MySQL management, installation & stuff
