@@ -8,7 +8,7 @@ Server part of the script
 from daemon import Daemon
 from core import Core
 from config import Config
-from dbutil import MySQL, ScanJob, Certificate, CertificateAltName
+from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
@@ -261,6 +261,9 @@ class Server(object):
         try:
             s = self.db.get_session()
 
+            # load job object
+            job_db = s.query(ScanJob).filter(ScanJob.uuid == job_data['uuid']).first()
+
             # TODO: scan CT database
             crt_sh = self.crt_sh_proc.query(domain)
             logger.debug(crt_sh)
@@ -268,12 +271,34 @@ class Server(object):
             # existing certificates - have pem
             all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
             existing_ids = self.cert_load_existing(s, list(all_crt_ids))
-            existing_ids = set(existing_ids)
+            existing_ids_set = set(existing_ids.keys())
+            new_ids = all_crt_ids - existing_ids_set
+
+            # scan record
+            crtsh_query_db = DbCrtShQuery()
+            crtsh_query_db.created_at = salch.func.now()
+            crtsh_query_db.job_id = job_db.id
+            crtsh_query_db.status = crt_sh.success
+            crtsh_query_db.results = len(all_crt_ids)
+            crtsh_query_db.new_results = len(new_ids)
+            s.add(crtsh_query_db)
+            s.flush()
+
+            # existing records
+            for crt_sh_id in existing_ids:
+                crtsh_res_db = DbCrtShQueryResult()
+                crtsh_res_db.query_id = crtsh_query_db.id
+                crtsh_res_db.job_id = crtsh_query_db.job_id
+                crtsh_res_db.crt_id = existing_ids[crt_sh_id]
+                crtsh_res_db.crt_sh_id = crt_sh_id
+                crtsh_res_db.was_new = 0
+                s.add(crtsh_res_db)
 
             # load pem for new certificates
-            new_ids = all_crt_ids - existing_ids
             for new_crt_id in new_ids:
-                self.fetch_new_certs(s, job_data, new_crt_id)
+                self.fetch_new_certs(s, job_data, new_crt_id,
+                                     [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
+                                     crtsh_query_db)
 
             for cert in crt_sh.results:
                 self.analyze_cert(s, job_data, cert)
@@ -291,12 +316,14 @@ class Server(object):
     # Helpers
     #
 
-    def fetch_new_certs(self, s, job_data, crt_sh_id):
+    def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db):
         """
         Fetches the new cert, parses, inserts to the db
         :param s: 
         :param job_data: 
         :param crt_sh_id: 
+        :param index_result: 
+        :param crt.sh scan object: 
         :return: 
         """
         try:
@@ -307,6 +334,7 @@ class Server(object):
 
             cert_db = Certificate()
             cert_db.crt_sh_id = crt_sh_id
+            cert_db.crt_sh_ca_id = index_result.ca_id
             cert_db.created_at = salch.func.now()
             cert_db.pem = response.result
             cert_db.source = 'crt.sh'
@@ -340,6 +368,15 @@ class Server(object):
 
             s.commit()
 
+            # crt.sh scan info
+            crtsh_res_db = DbCrtShQueryResult()
+            crtsh_res_db.query_id = crtsh_query_db.id
+            crtsh_res_db.job_id = crtsh_query_db.job_id
+            crtsh_res_db.was_new = 1
+            crtsh_res_db.crt_id = cert_db.id
+            crtsh_res_db.crt_sh_id = crt_sh_id
+            s.add(crtsh_res_db)
+
         except Exception as e:
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
             self.trace_logger.log(e)
@@ -351,12 +388,12 @@ class Server(object):
         :param certs_id: 
         :return: 
         """
-        ret = []
+        ret = {}
 
         int_list = [int(x) for x in certs_id]
-        res = s.query(Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
+        res = s.query(Certificate.id, Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
         for cur in res:
-            ret.append(int(cur.crt_sh_id))
+            ret[int(cur.crt_sh_id)] = int(cur.id)
         
         return ret
 
@@ -369,7 +406,7 @@ class Server(object):
         :return: 
         """
 
-    def update_job_state(self, job_data, state):
+    def update_job_state(self, job_data, state, s=None):
         """
         Updates job state in DB + sends event via redis
         :param job_data: 
@@ -377,8 +414,17 @@ class Server(object):
         :return: 
         """
         s = None
+        s_was_none = s is None
         try:
-            s = self.db.get_session()
+            if s is None:
+                s = self.db.get_session()
+
+            if isinstance(job_data, ScanJob):
+                job_data.status = state
+                job_data.updated_at = datetime.now()
+                s.flush()
+                return
+
             # s.query(ScanJob)\
             #     .filter(ScanJob.uuid == job_data['uuid'])\
             #     .update(
@@ -400,7 +446,8 @@ class Server(object):
             self.trace_logger.log(e)
 
         finally:
-            util.silent_close(s)
+            if s_was_none:
+                util.silent_close(s)
 
         evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': state})
         self.redis_queue.event(evt)

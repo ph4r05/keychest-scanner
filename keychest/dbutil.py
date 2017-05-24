@@ -8,7 +8,7 @@ import logging
 
 from sqlalchemy import create_engine
 from sqlalchemy import exc as sa_exc
-from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger
+from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from warnings import filterwarnings
@@ -55,6 +55,7 @@ class Certificate(Base):
     __tablename__ = 'certificates'
     id = Column(BigInteger, primary_key=True)
     crt_sh_id = Column(BigInteger, index=True, nullable=True)
+    crt_sh_ca_id = Column(BigInteger, nullable=True)
 
     fprint_sha1 = Column(String(40), index=True, nullable=True)
     fprint_sha256 = Column(String(64), index=True, nullable=True)
@@ -70,9 +71,9 @@ class Certificate(Base):
     issuer = Column(Text, nullable=True)
     alt_names = Column(Text, nullable=True)
 
-    pem = Column(Text, nullable=True)
-
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual
+
+    pem = Column(Text, nullable=True)
 
 
 class CertificateAltName(Base):
@@ -82,6 +83,34 @@ class CertificateAltName(Base):
     __tablename__ = 'certificate_alt_names'
     cert_id = Column(BigInteger, index=True, primary_key=True)
     alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
+
+
+class DbCrtShQuery(Base):
+    """
+    crt.sh search query
+    """
+    __tablename__ = 'crtsh_query'
+    id = Column(BigInteger, primary_key=True)
+    job_id = Column(BigInteger, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    status = Column(SmallInteger, default=0)
+    results = Column(Integer, default=0)
+    new_results = Column(Integer, default=0)
+
+
+class DbCrtShQueryResult(Base):
+    """
+    Single response from the crtsh
+    """
+    __tablename__ = 'crtsh_query_result'
+    id = Column(BigInteger, primary_key=True)
+    query_id = Column(BigInteger)
+    job_id = Column(BigInteger, nullable=True)
+
+    crt_id = Column(BigInteger, nullable=True)
+    crt_sh_id = Column(BigInteger, nullable=True)
+    was_new = Column(SmallInteger, default=0)
 
 
 class MySQL(object):
