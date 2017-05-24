@@ -68,9 +68,20 @@ class Certificate(Base):
     cname = Column(Text, nullable=True)
     subject = Column(Text, nullable=True)
     issuer = Column(Text, nullable=True)
+    alt_names = Column(Text, nullable=True)
+
     pem = Column(Text, nullable=True)
 
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual
+
+
+class CertificateAltName(Base):
+    """
+    Certificate alt names
+    """
+    __tablename__ = 'certificate_alt_names'
+    cert_id = Column(BigInteger, index=True, primary_key=True)
+    alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
 
 
 class MySQL(object):
