@@ -253,7 +253,7 @@ class Server(object):
         domain = job_data['scan_host']
         logger.debug(job_data)
 
-        evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'started'})
+        evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': 'started'})
         self.redis_queue.event(evt)
         try:
 
@@ -264,7 +264,7 @@ class Server(object):
             # TODO: host scan
 
         finally:
-            evt = rh.scan_job_progress({'job': job_data['id'], 'state': 'finished'})
+            evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': 'finished'})
             self.redis_queue.event(evt)
 
     #
