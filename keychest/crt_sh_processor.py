@@ -18,13 +18,13 @@ class CrtShIndexResponse(object):
     """
     Index search result
     """
-    def __init__(self, query=None, results=None):
+    def __init__(self, query=None):
         self.query = query
         self.time_start = time.time()
         self.time_end = 0
         self.attempts = 0
         self.success = False
-        self.results = results
+        self.results = []
 
     def add(self, x):
         if self.results is None:
