@@ -14,13 +14,31 @@ import string
 import random
 import types
 import decimal
+import logging
+import traceback
 import phpserialize
 
 import errno
+
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import ExtensionNotFound
+from cryptography.x509.base import load_pem_x509_certificate, load_der_x509_certificate
+from cryptography.hazmat.primitives.serialization import load_ssh_public_key
+from cryptography.hazmat.primitives import hashes
+from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import ExtensionOID
+from cryptography.hazmat.backends.openssl.backend import Backend as BackendOssl
+from cryptography.hazmat.backends.openssl import decode_asn1
+from cryptography import x509 as x509_c
 
 import errors
+
+import dateutil
+import dateutil.parser
+
+
+logger = logging.getLogger(__name__)
 
 
 PAYLOAD_ENC_TYPE = 'AES-256-GCM-SHA256'
@@ -495,4 +513,258 @@ def defvalkeys(js, key, default=None):
     except:
         pass
     return default
+
+
+def get_backend(backend=None):
+    return default_backend() if backend is None else backend
+
+
+def load_x509(data, backend=None):
+    return load_pem_x509_certificate(data, get_backend(backend))
+
+
+def load_x509_der(data, backend=None):
+    return load_der_x509_certificate(data, get_backend(backend))
+
+
+def get_cn(obj):
+    """Accepts requests cert"""
+    if obj is None:
+        return None
+    if 'subject' not in obj:
+        return None
+
+    sub = obj['subject'][0]
+    for x in sub:
+        if x[0] == 'commonName':
+            return x[1]
+
+    return None
+
+
+def get_alts(obj):
+    """Accepts requests cert"""
+    if obj is None:
+        return []
+    if 'subjectAltName' not in obj:
+        return []
+
+    buf = []
+    for x in obj['subjectAltName']:
+        if x[0] == 'DNS':
+            buf.append(x[1])
+
+    return buf
+
+
+def get_dn_part(subject, oid=None):
+    if subject is None:
+        return None
+    if oid is None:
+        raise ValueError('Disobey wont be tolerated')
+
+    for sub in subject:
+        if oid is not None and sub.oid == oid:
+            return sub.value
+
+
+def get_dn_string(subject):
+    """
+    Returns DN as a string
+    :param subject: 
+    :return: 
+    """
+    ret = []
+    for attribute in subject:
+        oid = attribute.oid
+        dot = oid.dotted_string
+        oid_name = oid._name
+        val = attribute.value
+        ret.append('%s: %s' % (oid_name, val))
+    return ', '.join(ret)
+
+
+def try_get_san(cert):
+    """
+    Tries to load SAN from the certificate
+    :param cert: 
+    :return: 
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        if ext is not None:
+            values = list(ext.value.get_values_for_type(x509_c.DNSName))
+            return values
+    except:
+        pass
+
+    return []
+
+
+def try_is_ca(cert, quiet=True):
+    """
+    Tries to load SAN from the certificate
+    :param cert: 
+    :param quiet: 
+    :return: 
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS)
+        return ext.value.ca
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting CA rest. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_is_self_signed(cert, quiet=True):
+    """
+    Tries to determine if the certificate is self signed
+    Currently implemented by comparing subject & issuer
+    :param cert: 
+    :param quiet: 
+    :return: 
+    """
+    try:
+        return cert.subject == cert.issuer
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in self-signed check. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return None
+
+
+def try_get_cname(cert):
+    """
+    Cname
+    :param cert: 
+    :return: 
+    """
+    try:
+        return get_dn_part(cert.subject, NameOID.COMMON_NAME)
+    except:
+        pass
+    return None
+
+
+def try_parse_timestamp(x):
+    """
+    Tries to parse timestamp
+    :param str: 
+    :return: 
+    """
+    try:
+        return dateutil.parser.parse(x)
+    except:
+        pass
+    return None
+
+
+def try_get_fprint_sha1(x):
+    """
+    Makes SHA1 fingerprint
+    :param x: 
+    :return: 
+    """
+    try:
+        return base64.b16encode(x.fingerprint(hashes.SHA1()))
+    except:
+        pass
+    return None
+
+
+def try_get_fprint_sha256(x):
+    """
+    Makes SHA1 fingerprint
+    :param x: 
+    :return: 
+    """
+    try:
+        return base64.b16encode(x.fingerprint(hashes.SHA256()))
+    except:
+        pass
+    return None
+
+
+def monkey_patch_asn1_time():
+    """
+    Monkey-patching of the date time parsing
+    :return: 
+    """
+    def _parse_asn1_generalized_time(self, generalized_time):
+        time = self._asn1_string_to_ascii(
+            self._ffi.cast("ASN1_STRING *", generalized_time)
+        )
+        try:
+            return datetime.datetime.strptime(time, "%Y%m%d%H%M%SZ")
+        except Exception as e:
+            logger.debug('Parsing ASN.1 date with standard format failed: %s, exc: %s' % (time, e))
+            return dateutil.parser.parse(time)
+
+    BackendOssl._parse_asn1_generalized_time = _parse_asn1_generalized_time
+
+    def _parse_asn1_generalized_time(backend, generalized_time):
+        time = decode_asn1._asn1_string_to_ascii(
+            backend, backend._ffi.cast("ASN1_STRING *", generalized_time)
+        )
+        try:
+            return datetime.datetime.strptime(time, "%Y%m%d%H%M%SZ")
+        except Exception as e:
+            logger.debug('Parsing ASN.1 date with standard format failed: %s, exc: %s' % (time, e))
+            return dateutil.parser.parse(time)
+
+    decode_asn1._parse_asn1_generalized_time = _parse_asn1_generalized_time
+
+
+def utf8ize(x):
+    """
+    Converts to utf8 if non-empty
+    :param x: 
+    :return: 
+    """
+    if x is None:
+        return None
+    return x.encode('utf-8')
+
+
+def dt_unaware(x):
+    """
+    Makes date time zone unaware
+    :param x: 
+    :return: 
+    """
+    if x is None:
+        return None
+    return x.replace(tzinfo=None)
+
+
+def dt_norm(x):
+    """
+    Normalizes timestamp to UTC
+    :param x: 
+    :return: 
+    """
+    if x is None:
+        return None
+
+    tstamp = unix_time(x)
+    return datetime.datetime.utcfromtimestamp(tstamp)
+
+
+def drop_nones(lst):
+    """
+    Drop None elements from the list
+    :param lst: 
+    :return: 
+    """
+    return [x for x in lst if x is not None]
+
 
