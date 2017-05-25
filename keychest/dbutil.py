@@ -69,7 +69,7 @@ class Certificate(Base):
     cname = Column(Text, nullable=True)
     subject = Column(Text, nullable=True)
     issuer = Column(Text, nullable=True)
-    alt_names = Column(Text, nullable=True)
+    alt_names = Column(Text, nullable=True)  # json encoded alt names array. denormalized for efficiency
 
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual
 
@@ -78,7 +78,7 @@ class Certificate(Base):
 
 class CertificateAltName(Base):
     """
-    Certificate alt names
+    Certificate alt names, simple association table to certificate for DB based search.
     """
     __tablename__ = 'certificate_alt_names'
     cert_id = Column(BigInteger, index=True, primary_key=True)
@@ -97,6 +97,8 @@ class DbCrtShQuery(Base):
     status = Column(SmallInteger, default=0)
     results = Column(Integer, default=0)
     new_results = Column(Integer, default=0)
+
+    certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
 
 
 class DbCrtShQueryResult(Base):

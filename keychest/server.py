@@ -276,6 +276,9 @@ class Server(object):
             existing_ids_set = set(existing_ids.keys())
             new_ids = all_crt_ids - existing_ids_set
 
+            # certificate ids
+            certs_ids = list(existing_ids.values())
+
             # scan record
             crtsh_query_db = DbCrtShQuery()
             crtsh_query_db.created_at = salch.func.now()
@@ -298,12 +301,16 @@ class Server(object):
 
             # load pem for new certificates
             for new_crt_id in new_ids:
-                self.fetch_new_certs(s, job_data, new_crt_id,
-                                     [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
-                                     crtsh_query_db)
+                db_cert = self.fetch_new_certs(s, job_data, new_crt_id,
+                                          [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
+                                          crtsh_query_db)
+                if db_cert is not None:
+                    certs_ids.append(db_cert.id)
 
             for cert in crt_sh.results:
                 self.analyze_cert(s, job_data, cert)
+
+            crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
 
             s.commit()
 
@@ -327,7 +334,7 @@ class Server(object):
         :param crt_sh_id: 
         :param index_result: 
         :param crt.sh scan object: 
-        :return: 
+        :return:  cert_db
         """
         try:
             response = self.crt_sh_proc.download_crt(crt_sh_id)
@@ -379,6 +386,8 @@ class Server(object):
             crtsh_res_db.crt_id = cert_db.id
             crtsh_res_db.crt_sh_id = crt_sh_id
             s.add(crtsh_res_db)
+
+            return cert_db
 
         except Exception as e:
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
