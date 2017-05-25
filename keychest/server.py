@@ -308,7 +308,7 @@ class Server(object):
             logger.debug('Domain %s not elligible to handshake' % domain)
             return
 
-        port = util.defvalkeys(job_data, 'scan_port', 443)
+        port = util.defvalkey(job_data, 'scan_port', 443)
         try:
             resp = self.tls_handshaker.try_handshake(domain, port)
             logger.debug(resp)
