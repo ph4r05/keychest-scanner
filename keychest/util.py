@@ -505,6 +505,9 @@ def defvalkeys(js, key, default=None):
     """
     if js is None:
         return default
+    if not isinstance(key, types.ListType):
+        key = [key]
+        
     try:
         cur = js
         for ckey in key:
