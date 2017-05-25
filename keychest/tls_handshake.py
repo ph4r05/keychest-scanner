@@ -85,6 +85,15 @@ class TlsHandshakeResult(object):
         self.certificates = []
 
 
+class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
+    name = "TLS Extension Signature And Hash Algorithm"
+    fields_desc = [
+                   XFieldLenField("length", None, length_of="algs", fmt="H"),
+                   PacketListField("algs", None, TLSSignatureHashAlgorithm, length_from=lambda x:x.length),
+                  ]
+bind_layers(TLSExtension, TLSExtSignatureAndHashAlgorithmFixed, {'type': TLSExtensionType.SIGNATURE_ALGORITHMS})
+
+
 class TlsHandshaker(object):
     """
     Object performing simple TLS handshake, parsing the results
@@ -115,7 +124,33 @@ class TlsHandshaker(object):
         # SNI
         cl_hello.extensions = [
             TLSExtension() /
+            TLSExtRenegotiationInfo(),
+
+            TLSExtension() /
             TLSExtServerNameIndication(server_names=server_names),
+
+            TLSExtension() /
+            TLSExtSessionTicketTLS(),
+
+            TLSExtension() /
+            TLSExtSignatureAndHashAlgorithmFixed(algs=[
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.ECDSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.RSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA1, sig_alg=TLSSignatureAlgorithm.RSA),
+            ]),
+
+            TLSExtension() /
+            TLSExtALPN(protocol_name_list=[TLSALPNProtocol(data="http/1.1")]),
+
+            TLSExtension() /
+            TLSExtECPointsFormat(ec_point_formats=[TLSEcPointFormat.UNCOMPRESSED]),
+
+            TLSExtension() /
+            TLSExtEllipticCurves(elliptic_curves=[
+                TLSEllipticCurve.ECDH_X25519,
+                TLSEllipticCurve.SECP256R1,
+                TLSEllipticCurve.SECP384R1,
+            ]),
         ]
 
         # Complete record with handshake / client hello
@@ -337,7 +372,7 @@ class TlsHandshaker(object):
 if __name__ == '__main__':
     coloredlogs.install(level=logging.DEBUG)
 
-    target = 'root.cz'
+    target = 'enigmabridge.com'
     if len(sys.argv) > 1:
         target = sys.argv[1]
 
