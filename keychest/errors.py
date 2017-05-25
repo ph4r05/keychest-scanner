@@ -51,6 +51,7 @@ class Error(Exception):
         self.exc_type, self.exc_value, self.exc_traceback = sys.exc_info()
         self.traceback_formatted = traceback.format_exc()
         self.traceback = traceback.extract_tb(self.exc_traceback)
+        return self
 
 
 class InvalidResponse(Error):

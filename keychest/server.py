@@ -15,7 +15,7 @@ from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
-from tls_handshake import TlsHandshaker, TlsHandshakeResult
+from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
 
 import threading
 import pid
@@ -310,9 +310,18 @@ class Server(object):
 
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
         try:
-            resp = self.tls_handshaker.try_handshake(domain, port)
-            logger.debug(resp)
+            resp = None
+            try:
+                resp = self.tls_handshaker.try_handshake(domain, port)
 
+            except TlsTimeout as te:
+                logger.debug('Scan timeout: %s' % te)
+                resp = te.scan_result
+            except TlsException as te:
+                logger.debug('Scan fail: %s' % te)
+                resp = te.scan_result
+
+            logger.debug(resp)
             time_elapsed = None
             if resp.time_start is not None and resp.time_finished is not None:
                 time_elapsed = (resp.time_finished - resp.time_start)*1000
@@ -470,7 +479,7 @@ class Server(object):
                     num_new_results += 1
                     if cert_db.parent_id is None:
                         cert_db.parent_id = prev_id
-                        
+
                     s.add(cert_db)
                     s.flush()
 
@@ -635,20 +644,12 @@ class Server(object):
                 job_data.status = state
                 job_data.updated_at = datetime.now()
                 s.flush()
-                return
 
-            # s.query(ScanJob)\
-            #     .filter(ScanJob.uuid == job_data['uuid'])\
-            #     .update(
-            #     {
-            #         "state": state,
-            #         "updated_at": salch.func.now()
-            #     })
-
-            stmt = salch.update(ScanJob).where(ScanJob.uuid == job_data['uuid'])\
-                .values(state=state, updated_at=salch.func.now())
-            s.execute(stmt)
-            s.commit()
+            else:
+                stmt = salch.update(ScanJob).where(ScanJob.uuid == job_data['uuid'])\
+                    .values(state=state, updated_at=salch.func.now())
+                s.execute(stmt)
+                s.commit()
 
             # stmt = salch.update(ScanJob).where(ScanJob.uuid == job_data['uuid']).values(state=state)
             # s.execute(stmt)

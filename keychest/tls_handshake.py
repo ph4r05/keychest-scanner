@@ -56,14 +56,23 @@ DEFAULT_CIPHER_SUITES = [
 
 class TlsIncomplete(errors.Error):
     """Incomplete data stream"""
-    def __init__(self, message=None, cause=None):
+    def __init__(self, message=None, cause=None, scan_result=None):
         super(TlsIncomplete, self).__init__(message=message, cause=cause)
+        self.scan_result = scan_result
 
 
 class TlsTimeout(errors.Error):
     """Handshake read timeout"""
-    def __init__(self, message=None, cause=None):
+    def __init__(self, message=None, cause=None, scan_result=None):
         super(TlsTimeout, self).__init__(message=message, cause=cause)
+        self.scan_result = scan_result
+
+
+class TlsException(errors.Error):
+    """General exception"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(TlsException, self).__init__(message=message, cause=cause)
+        self.scan_result = scan_result
 
 
 class TlsHandshakeResult(object):
@@ -205,7 +214,17 @@ class TlsHandshaker(object):
             s.settimeout(timeout)
 
             return_obj.time_start = time.time()
-            s.connect(target)
+            try:
+                s.connect(target)
+            except Exception as e:
+                logger.debug('Exception during connect: %s' % e)
+                self.trace_logger.log(e)
+                return_obj.handshake_failure = 2
+
+                exc = TlsTimeout('Connect timeout').load(e)
+                exc.scan_result = return_obj
+                raise exc
+
             return_obj.time_connected = time.time()
 
             cl_hello = self._build_client_hello(host, tls_ver, **kwargs)
@@ -219,6 +238,18 @@ class TlsHandshaker(object):
             return_obj.certificates = self._extract_certificates(return_obj.resp_record)
 
             return return_obj
+
+        except TlsTimeout:
+            raise
+        except TlsIncomplete:
+            raise
+        except Exception as e:
+            logger.debug('Generic exception on tls scan %s' % e)
+            self.trace_logger.log(e)
+
+            exc = TlsException.load(e)
+            exc.scan_result = return_obj
+            raise exc
 
         finally:
             util.silent_close(s)
@@ -235,7 +266,8 @@ class TlsHandshaker(object):
         while True:
             resp_bin = self._recv_timeout(s, timeout=timeout, single_read=True)
             if len(resp_bin) == 0:
-                raise TlsTimeout('Could not read more data')
+                return_obj.handshake_failure = 3
+                raise TlsTimeout('Could not read more data', scan_result=return_obj)
 
             resp_bin_acc.append(resp_bin)
             resp_bin_tot = ''.join(resp_bin_acc)
