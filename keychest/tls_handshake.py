@@ -84,6 +84,12 @@ class TlsHandshakeResult(object):
         self.cipher_suite = None
         self.certificates = []
 
+    def __repr__(self):
+        return '<TlsHandshakeResult(time_start=%r, time_connected=%r, time_sent=%r, time_finished=%r, failure=%r, ' \
+               'cipher_suite=%r, certificates_len=%r)>' \
+               % (self.time_start, self.time_connected, self.time_sent, self.time_finished, self.handshake_failure,
+                  self.cipher_suite, len(self.certificates))
+
 
 class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
     name = "TLS Extension Signature And Hash Algorithm"
@@ -200,6 +206,7 @@ class TlsHandshaker(object):
 
             return_obj.time_start = time.time()
             s.connect(target)
+            return_obj.time_connected = time.time()
 
             cl_hello = self._build_client_hello(host, tls_ver, **kwargs)
             return_obj.cl_hello = cl_hello
