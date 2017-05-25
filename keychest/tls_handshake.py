@@ -12,6 +12,7 @@ import datetime
 import traceback
 import base64
 import trace_logger
+import errors
 
 import scapy
 from scapy.layers.ssl_tls import *
@@ -53,6 +54,18 @@ DEFAULT_CIPHER_SUITES = [
 ]
 
 
+class TlsIncomplete(errors.Error):
+    """Incomplete data stream"""
+    def __init__(self, message=None, cause=None):
+        super(TlsIncomplete, self).__init__(message=message, cause=cause)
+
+
+class TlsTimeout(errors.Error):
+    """Handshake read timeout"""
+    def __init__(self, message=None, cause=None):
+        super(TlsTimeout, self).__init__(message=message, cause=cause)
+
+
 class TlsHandshakeResult(object):
     """
     Result of the handshake test
@@ -67,6 +80,7 @@ class TlsHandshakeResult(object):
         self.resp_bin = None
         self.resp_record = None
 
+        self.handshake_failure = False
         self.cipher_suite = None
         self.certificates = []
 
@@ -101,7 +115,7 @@ class TlsHandshaker(object):
         # SNI
         cl_hello.extensions = [
             TLSExtension() /
-            TLSExtServerNameIndication(server_names=server_names)
+            TLSExtServerNameIndication(server_names=server_names),
         ]
 
         # Complete record with handshake / client hello
@@ -139,6 +153,7 @@ class TlsHandshaker(object):
         :return: 
         """
         target = (host, port)
+        logger.debug(target)
         tls_ver = kwargs.get('tls_version', self.tls_version)
         timeout = float(kwargs.get('timeout', self.timeout))
         return_obj = TlsHandshakeResult()
@@ -157,33 +172,166 @@ class TlsHandshaker(object):
             s.sendall(str(cl_hello))
             return_obj.time_sent = time.time()
 
-            resp_bin = s.recv(65536*4)
-            return_obj.time_finished = time.time()
+            self._read_while_finished(return_obj, s, timeout)
 
-            # rec = TLSRecord(resp)
-            rec = SSL(resp_bin)
-            return_obj.resp_record = rec
-
-            # certificate extract
-            for srec in rec.records:
-                try:
-                    is_handshake = srec.content_type == TLSContentType.HANDSHAKE
-                    is_certificate = is_handshake and srec.payload.type == TLSHandshakeType.CERTIFICATE
-                    if is_certificate:
-                        cert_list_rec = srec.payload.payload
-                        certificates_rec = cert_list_rec.certificates
-                        return_obj.certificates = [str(x.data) for x in certificates_rec]
-
-                except AttributeError as ae:
-                    logger.debug('Attribute error on tls handshake cert get: %s' % ae)
-                    self.trace_logger.log(ae)
-                    logger.debug(srec.show())
-                    raise
+            return_obj.certificates = self._extract_certificates(return_obj.resp_record)
 
             return return_obj
 
         finally:
             util.silent_close(s)
+
+    def _read_while_finished(self, return_obj, s, timeout):
+        """
+        Reads the socket until the whole handshake is done or timeouts
+        :param return_obj: 
+        :param s: 
+        :return: 
+        """
+        resp_bin_acc = []
+        resp_bin_tot = ''
+        while True:
+            resp_bin = self._recv_timeout(s, timeout=timeout, single_read=True)
+            if len(resp_bin) == 0:
+                raise TlsTimeout('Could not read more data')
+
+            resp_bin_acc.append(resp_bin)
+            resp_bin_tot = ''.join(resp_bin_acc)
+            try:
+                rec = SSL(resp_bin_tot)
+                return_obj.resp_record = rec
+
+                if self._is_failure(rec):
+                    return_obj.handshake_failure = True
+                    break
+
+                if self._test_hello_done(rec):
+                    break
+
+            except TlsIncomplete as e:
+                logger.debug(e)
+                continue
+
+        return_obj.resp_bin = resp_bin_tot
+        return_obj.time_finished = time.time()
+        return return_obj
+
+    def _is_failure(self, packet):
+        """
+        True if SSL failure has been detected
+        :param packet: 
+        :return: 
+        """
+        if packet is None:
+            raise ValueError('Packet is None')
+        if not isinstance(packet, SSL):
+            raise ValueError('Incorrect packet')
+
+        for srec in packet.records:
+            if srec.content_type != TLSContentType.ALERT:
+                continue
+
+            alert = srec.payload
+            if not isinstance(alert, TLSAlert):
+                logger.debug('TLS alert is not an alert')
+                raise TlsIncomplete('Alert declared but no alert found')
+
+            if alert.level == TLSAlertLevel.FATAL:
+                return True
+
+        return False
+
+    def _test_hello_done(self, packet):
+        """
+        Tests if the whole server hello has been parser properly
+        :param packet: 
+        :return: 
+        """
+        if packet is None:
+            raise ValueError('Packet is None')
+        if not isinstance(packet, SSL):
+            raise ValueError('Incorrect packet')
+
+        for srec in packet.records:
+            if srec.content_type != TLSContentType.HANDSHAKE:
+                continue
+
+            if not isinstance(srec.payload, TLSHandshake):
+                raise TlsIncomplete('Handshake declared but no handshake found (hello)')
+
+            if srec.payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
+                return True
+
+        return False
+
+    def _extract_certificates(self, packet):
+        """
+        Extracts server certificates from the response
+        :param packet: 
+        :return: 
+        """
+        if packet is None:
+            raise ValueError('Packet is None')
+        if not isinstance(packet, SSL):
+            raise ValueError('Incorrect packet')
+
+        certificates = []
+        for srec in packet.records:
+            if srec.content_type != TLSContentType.HANDSHAKE:
+                continue
+
+            if not isinstance(srec.payload, TLSHandshake):
+                raise TlsIncomplete('Handshake declared but no handshake found (cert)')
+
+            if srec.payload.type == TLSHandshakeType.CERTIFICATE:
+                cert_list_rec = srec.payload.payload
+                certificates_rec = cert_list_rec.certificates
+                certificates += [str(x.data) for x in certificates_rec]
+
+        return certificates
+
+    def _recv_timeout(self, the_socket, timeout=3, single_read=False):
+        """
+        Reading data from the socket with timeout (multiple packet read)
+        :param the_socket: 
+        :param timeout: 
+        :return: 
+        """
+        # make socket non blocking
+        the_socket.setblocking(0)
+
+        # total data partwise in an array
+        total_data = []
+        data = ''
+
+        # beginning time
+        begin = time.time()
+        while 1:
+            # if you got some data, then break after timeout
+            if total_data and time.time() - begin > timeout:
+                break
+
+            # if you got no data at all, wait a little longer, twice the timeout
+            elif time.time() - begin > timeout * 2:
+                break
+
+            # recv something
+            try:
+                data = the_socket.recv(8192)
+                if data:
+                    total_data.append(data)
+                    # change the beginning time for measurement
+                    begin = time.time()
+                    if single_read:
+                        return ''.join(total_data)
+                else:
+                    # sleep for sometime to indicate a gap
+                    time.sleep(0.1)
+            except:
+                pass
+
+        # join all parts to make final string
+        return ''.join(total_data)
 
 
 if __name__ == '__main__':
@@ -194,14 +342,22 @@ if __name__ == '__main__':
         target = sys.argv[1]
 
     tester = TlsHandshaker()
-    tester.timeout = 5
+    tester.timeout = 3
+    tester.attempts = 3
     tester.tls_version = 'TLS_1_1'
 
     logger.info('Testing %s' % target)
     ret = tester.try_handshake(host=target)
 
-    print ret.resp_record.show()
-    print '-' * 80
+    # print('Client hello: ')
+    # print(ret.cl_hello.show())
+    # print('-' * 80)
+
+    print(ret.resp_record.show())
+    print('-' * 80)
+
+    # print(repr(ret.resp_bin))
+    # print('-' * 80)
 
     print 'Certificates: \n'
     for x in ret.certificates:
