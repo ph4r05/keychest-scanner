@@ -69,6 +69,10 @@ class Certificate(Base):
     cname = Column(Text, nullable=True)
     subject = Column(Text, nullable=True)
     issuer = Column(Text, nullable=True)
+    is_ca = Column(SmallInteger, nullable=False, default=0)
+    is_self_signed = Column(SmallInteger, nullable=False, default=0)
+    parent_id = Column(BigInteger, nullable=True)  # when found in cert chain
+
     alt_names = Column(Text, nullable=True)  # json encoded alt names array. denormalized for efficiency
 
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual
@@ -105,7 +109,7 @@ class DbCrtShQueryResult(Base):
     """
     Single response from the crtsh
     """
-    __tablename__ = 'crtsh_query_result'
+    __tablename__ = 'crtsh_query_results'
     id = Column(BigInteger, primary_key=True)
     query_id = Column(BigInteger)
     job_id = Column(BigInteger, nullable=True)
@@ -113,6 +117,41 @@ class DbCrtShQueryResult(Base):
     crt_id = Column(BigInteger, nullable=True)
     crt_sh_id = Column(BigInteger, nullable=True)
     was_new = Column(SmallInteger, default=0)
+
+
+class DbScanJob(Base):
+    """
+    TLS handshake scan, one single IP scan.
+    """
+    __tablename__ = 'scan_handshakes'
+    id = Column(BigInteger, primary_key=True)
+    job_id = Column(BigInteger, nullable=True)
+    ip_scanned = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    status = Column(SmallInteger, default=0)
+    time_elapsed = Column(Integer, nullable=True)
+
+    results = Column(Integer, default=0)
+    new_results = Column(Integer, default=0)
+
+    certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
+    cert_id_leaf = Column(BigInteger, nullable=True)
+
+
+class DbScanJobResult(Base):
+    """
+    Single certificate extracted from tls handshake scan
+    """
+    __tablename__ = 'scan_handshake_results'
+    id = Column(BigInteger, primary_key=True)
+    scan_id = Column(BigInteger)
+    job_id = Column(BigInteger, nullable=True)
+
+    crt_id = Column(BigInteger, nullable=True)
+    crt_sh_id = Column(BigInteger, nullable=True)
+    was_new = Column(SmallInteger, default=0)
+    is_ca = Column(SmallInteger, default=0)
 
 
 class MySQL(object):
