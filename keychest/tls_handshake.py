@@ -43,7 +43,13 @@ DEFAULT_CIPHER_SUITES = [
     TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256,
     TLSCipherSuite.ECDHE_RSA_WITH_AES_256_CBC_SHA,
     TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+    TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
     TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+
+    TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    TLSCipherSuite.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+
+    TLSCipherSuite.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 ]
 
 
@@ -189,6 +195,7 @@ if __name__ == '__main__':
 
     tester = TlsHandshaker()
     tester.timeout = 5
+    tester.tls_version = 'TLS_1_1'
 
     logger.info('Testing %s' % target)
     ret = tester.try_handshake(host=target)
