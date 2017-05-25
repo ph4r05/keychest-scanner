@@ -477,7 +477,13 @@ class Server(object):
             if s_was_none:
                 util.silent_close(s)
 
-        evt = rh.scan_job_progress({'job': job_data['uuid'], 'state': state})
+        evt_data = {}
+        if isinstance(job_data, ScanJob):
+            evt_data = {'job': job_data.uuid, 'state': state}
+        else:
+            evt_data = {'job': job_data['uuid'], 'state': state}
+
+        evt = rh.scan_job_progress(evt_data)
         self.redis_queue.event(evt)
 
     #
