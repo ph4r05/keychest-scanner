@@ -8,17 +8,22 @@ Server part of the script
 from daemon import Daemon
 from core import Core
 from config import Config
-from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult
+from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
+    DbScanJob, DbScanJobResult
+
 from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
+from tls_handshake import TlsHandshaker, TlsHandshakeResult
 
 import threading
 import pid
 import time
+import re
 import os
 import sys
+import types
 import util
 import json
 import base64
@@ -83,6 +88,7 @@ class Server(object):
 
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
+        self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_1', attempts=3)
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -271,16 +277,62 @@ class Server(object):
 
             # crt.sh scan
             self.scan_crt_sh(s, job_data, domain, job_db)
+            s.commit()
 
+            self.update_job_state(job_db, 'crtsh-done', s)
+
+            # TODO: search for more subdomains, *.domain, %.domain
+            # ...
+
+            # TODO: host scan
+            self.scan_handshake(s, job_data, domain, job_db)
             s.commit()
 
         finally:
-            self.update_job_state(job_data, 'crtsh-done')
             util.silent_close(s)
 
-        # TODO: host scan
         self.update_job_state(job_data, 'finished')
         pass
+
+    def scan_handshake(self, s, job_data, query, job_db):
+        """
+        Performs direct handshake if applicable
+        :param s: 
+        :param job_data: 
+        :param query: 
+        :param job_db: 
+        :return: 
+        """
+        domain = job_data['scan_host']
+        if not re.match(r'^[a-zA-Z0-9._-]+$', domain):
+            logger.debug('Domain %s not elligible to handshake' % domain)
+            return
+
+        port = util.defvalkeys(job_data, 'scan_port', 443)
+        try:
+            resp = self.tls_handshaker.try_handshake(domain, port)
+            logger.debug(resp)
+
+            time_elapsed = None
+            if resp.time_start is not None and resp.time_finished is not None:
+                time_elapsed = resp.time_finished - resp.time_start
+
+            # scan record
+            scan_db = DbScanJob()
+            scan_db.created_at = salch.func.now()
+            scan_db.job_id = job_db.id
+            scan_db.status = len(resp.certificates) > 0
+            scan_db.time_elapsed = time_elapsed
+            scan_db.results = len(resp.certificates)
+            scan_db.new_results = 0
+            s.add(scan_db)
+            s.flush()
+
+            self.process_handshake_certs(s, resp, scan_db)
+
+        except Exception as e:
+            logger.debug('Exception when scanning: %s' % e)
+            self.trace_logger.log(e)
 
     def scan_crt_sh(self, s, job_data, query, job_db):
         """
@@ -342,6 +394,123 @@ class Server(object):
     # Helpers
     #
 
+    def parse_certificate(self, cert_db, pem=None, der=None):
+        """
+        Parses the certificate, returns the parsed cert
+        :param cert_db: 
+        :param pem: 
+        :param der: 
+        :return: 
+        """
+        cert = None
+        if pem is not None:
+            cert = util.load_x509(str(cert_db.pem))
+        elif der is not None:
+            cert = util.load_x509_der(der)
+        else:
+            raise ValueError('No certificate provided')
+
+        cert_db.cname = util.utf8ize(util.try_get_cname(cert))
+        cert_db.fprint_sha1 = util.lower(util.try_get_fprint_sha1(cert))
+        cert_db.fprint_sha256 = util.lower(util.try_get_fprint_sha256(cert))
+        cert_db.valid_from = util.dt_norm(cert.not_valid_before)
+        cert_db.valid_to = util.dt_norm(cert.not_valid_after)
+        cert_db.subject = util.utf8ize(util.get_dn_string(cert.subject))
+        cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
+        cert_db.is_ca = util.try_is_ca(cert)
+        cert_db.is_self_signed = util.try_is_self_signed(cert)
+
+        alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+        cert_db.alt_names = json.dumps(alt_names)
+
+        return cert, alt_names
+
+    def process_handshake_certs(self, s, resp, scan_db):
+        """
+        Processes certificates from the handshake
+        :return: 
+        """
+        if util.is_empty(resp.certificates):
+            return
+
+        # pre-parsing, get fprints for later load
+        local_db = []
+        fprints_handshake = set()
+        for der in resp.certificates:
+            try:
+                cert_db = Certificate()
+                cert, alt_names = self.parse_certificate(cert_db, der=der)
+                local_db.append((cert_db, cert, alt_names, der))
+                fprints_handshake.add(cert_db.fprint_sha1)
+
+            except Exception as e:
+                logger.error('Exception when downloading a certificate %s' % (e))
+                self.trace_logger.log(e)
+
+        # load existing certificates
+        cert_existing = self.cert_load_fprints(s, list(fprints_handshake))
+        leaf_cert_id = None
+        all_cert_ids = set()
+        num_new_results = 0
+        prev_id = None
+
+        # process non-existing certificates
+        for endb in reversed(local_db):
+            cert_db, cert, alt_names, der = endb
+            cert_db_cur = cert_db
+            fprint = cert_db.fprint_sha1
+
+            try:
+                cert_db.created_at = salch.func.now()
+                cert_db.pem = '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----' % (base64.b64encode(der),)
+                cert_db.source = 'handshake'
+
+                # new certificate - add
+                if fprint not in cert_existing:
+                    num_new_results += 1
+                    if cert_db.parent_id is None:
+                        cert_db.parent_id = prev_id
+                        
+                    s.add(cert_db)
+                    s.flush()
+
+                    for alt_name in alt_names:
+                        alt_db = CertificateAltName()
+                        alt_db.cert_id = cert_db.id
+                        alt_db.alt_name = alt_name
+                        s.add(alt_db)
+
+                    s.flush()
+                else:
+                    cert_db = cert_existing[fprint]
+
+                all_cert_ids.add(cert_db.id)
+
+                # crt.sh scan info
+                sub_res_db = DbScanJobResult()
+                sub_res_db.scan_id = scan_db.id
+                sub_res_db.job_id = scan_db.job_id
+                sub_res_db.was_new = fprint not in cert_existing
+                sub_res_db.crt_id = cert_db.id
+                sub_res_db.crt_sh_id = cert_db.crt_sh_id
+                sub_res_db.is_ca = cert_db.is_ca
+                s.add(sub_res_db)
+
+                if not cert_db.is_ca:
+                    leaf_cert_id = cert_db.id
+
+                prev_id = cert_db.id
+
+            except Exception as e:
+                logger.error('Exception when processing a handshake certificate %s' (e))
+                self.trace_logger.log(e)
+
+        # update main scan result entry
+        scan_db.cert_id_leaf = leaf_cert_id
+        scan_db.new_results = num_new_results
+        scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
+        s.flush()
+
     def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db):
         """
         Fetches the new cert, parses, inserts to the db
@@ -367,17 +536,7 @@ class Server(object):
             alt_names = []
 
             try:
-                cert = util.load_x509(str(cert_db.pem))
-                cert_db.cname = util.utf8ize(util.try_get_cname(cert))
-                cert_db.fprint_sha1 = util.lower(util.try_get_fprint_sha1(cert))
-                cert_db.fprint_sha256 = util.lower(util.try_get_fprint_sha256(cert))
-                cert_db.valid_from = util.dt_norm(cert.not_valid_before)
-                cert_db.valid_to = util.dt_norm(cert.not_valid_after)
-                cert_db.subject = util.utf8ize(util.get_dn_string(cert.subject))
-                cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
-
-                alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
-                cert_db.alt_names = json.dumps(alt_names)
+                cert, alt_names = self.parse_certificate(cert_db, pem=str(cert_db.pem))
 
             except Exception as e:
                 logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
@@ -423,6 +582,31 @@ class Server(object):
         for cur in res:
             ret[int(cur.crt_sh_id)] = int(cur.id)
         
+        return ret
+
+    def cert_load_fprints(self, s, fprints):
+        """
+        Load certificate by sha1 fprint
+        :param s: 
+        :param fprints: 
+        :return: 
+        """
+        was_array = True
+        if not isinstance(fprints, types.ListType):
+            fprints = [fprints]
+            was_array = False
+
+        ret = {}
+
+        res = s.query(Certificate)\
+            .filter(Certificate.fprint_sha1.in_(list(fprints))).all()
+
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[util.lower(cur.fprint_sha1)] = cur
+
         return ret
 
     def analyze_cert(self, s, job_data, cert):
