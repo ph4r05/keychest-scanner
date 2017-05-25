@@ -308,14 +308,14 @@ class Server(object):
             logger.debug('Domain %s not elligible to handshake' % domain)
             return
 
-        port = util.defvalkey(job_data, 'scan_port', 443)
+        port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
         try:
             resp = self.tls_handshaker.try_handshake(domain, port)
             logger.debug(resp)
 
             time_elapsed = None
             if resp.time_start is not None and resp.time_finished is not None:
-                time_elapsed = resp.time_finished - resp.time_start
+                time_elapsed = (resp.time_finished - resp.time_start)*1000
 
             # scan record
             scan_db = DbScanJob()
