@@ -267,50 +267,10 @@ class Server(object):
             job_db = s.query(ScanJob).filter(ScanJob.uuid == job_data['uuid']).first()
 
             # TODO: scan CT database
-            crt_sh = self.crt_sh_proc.query(domain)
-            logger.debug(crt_sh)
+            # ...
 
-            # existing certificates - have pem
-            all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
-            existing_ids = self.cert_load_existing(s, list(all_crt_ids))
-            existing_ids_set = set(existing_ids.keys())
-            new_ids = all_crt_ids - existing_ids_set
-
-            # certificate ids
-            certs_ids = list(existing_ids.values())
-
-            # scan record
-            crtsh_query_db = DbCrtShQuery()
-            crtsh_query_db.created_at = salch.func.now()
-            crtsh_query_db.job_id = job_db.id
-            crtsh_query_db.status = crt_sh.success
-            crtsh_query_db.results = len(all_crt_ids)
-            crtsh_query_db.new_results = len(new_ids)
-            s.add(crtsh_query_db)
-            s.flush()
-
-            # existing records
-            for crt_sh_id in existing_ids:
-                crtsh_res_db = DbCrtShQueryResult()
-                crtsh_res_db.query_id = crtsh_query_db.id
-                crtsh_res_db.job_id = crtsh_query_db.job_id
-                crtsh_res_db.crt_id = existing_ids[crt_sh_id]
-                crtsh_res_db.crt_sh_id = crt_sh_id
-                crtsh_res_db.was_new = 0
-                s.add(crtsh_res_db)
-
-            # load pem for new certificates
-            for new_crt_id in new_ids:
-                db_cert = self.fetch_new_certs(s, job_data, new_crt_id,
-                                          [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
-                                          crtsh_query_db)
-                if db_cert is not None:
-                    certs_ids.append(db_cert.id)
-
-            for cert in crt_sh.results:
-                self.analyze_cert(s, job_data, cert)
-
-            crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
+            # crt.sh scan
+            self.scan_crt_sh(s, job_data, domain, job_db)
 
             s.commit()
 
@@ -321,6 +281,62 @@ class Server(object):
         # TODO: host scan
         self.update_job_state(job_data, 'finished')
         pass
+
+    def scan_crt_sh(self, s, job_data, query, job_db):
+        """
+        Performs one simple CRT SH scan with the given query
+        stores the resuls.
+        
+        :param s: 
+        :param job_data: 
+        :param domain: 
+        :param job_db: 
+        :return: 
+        """
+        crt_sh = self.crt_sh_proc.query(query)
+        logger.debug(crt_sh)
+
+        # existing certificates - have pem
+        all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
+        existing_ids = self.cert_load_existing(s, list(all_crt_ids))
+        existing_ids_set = set(existing_ids.keys())
+        new_ids = all_crt_ids - existing_ids_set
+
+        # certificate ids
+        certs_ids = list(existing_ids.values())
+
+        # scan record
+        crtsh_query_db = DbCrtShQuery()
+        crtsh_query_db.created_at = salch.func.now()
+        crtsh_query_db.job_id = job_db.id
+        crtsh_query_db.status = crt_sh.success
+        crtsh_query_db.results = len(all_crt_ids)
+        crtsh_query_db.new_results = len(new_ids)
+        s.add(crtsh_query_db)
+        s.flush()
+
+        # existing records
+        for crt_sh_id in existing_ids:
+            crtsh_res_db = DbCrtShQueryResult()
+            crtsh_res_db.query_id = crtsh_query_db.id
+            crtsh_res_db.job_id = crtsh_query_db.job_id
+            crtsh_res_db.crt_id = existing_ids[crt_sh_id]
+            crtsh_res_db.crt_sh_id = crt_sh_id
+            crtsh_res_db.was_new = 0
+            s.add(crtsh_res_db)
+
+        # load pem for new certificates
+        for new_crt_id in new_ids:
+            db_cert = self.fetch_new_certs(s, job_data, new_crt_id,
+                                           [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
+                                           crtsh_query_db)
+            if db_cert is not None:
+                certs_ids.append(db_cert.id)
+
+        for cert in crt_sh.results:
+            self.analyze_cert(s, job_data, cert)
+
+        crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
 
     #
     # Helpers
