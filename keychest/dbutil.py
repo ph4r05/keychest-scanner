@@ -137,6 +137,7 @@ class DbScanJob(Base):
 
     certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
     cert_id_leaf = Column(BigInteger, nullable=True)
+    valid_path = Column(SmallInteger, default=0)  # cert path validity test
 
 
 class DbScanJobResult(Base):

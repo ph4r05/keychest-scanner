@@ -16,6 +16,7 @@ from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
+from cert_path_validator import PathValidator, ValidationException
 
 import threading
 import pid
@@ -89,6 +90,7 @@ class Server(object):
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_1', attempts=3)
+        self.crt_validator = PathValidator()
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -173,6 +175,14 @@ class Server(object):
         self.redis = RedisClient()
         self.redis.init(self.config)
         self.redis_queue = RedisQueue(redis_client=self.redis)
+
+    def init_misc(self):
+        """
+        Misc components init
+        :return: 
+        """
+        self.crt_validator.init()
+        signal.signal(signal.SIGINT, self.signal_handler)
 
     def signal_handler(self, signal, frame):
         """
@@ -513,6 +523,12 @@ class Server(object):
             except Exception as e:
                 logger.error('Exception when processing a handshake certificate %s' (e))
                 self.trace_logger.log(e)
+
+        # path validation test
+        try:
+            scan_db.valid_path = self.crt_validator.validate(resp.certificates, is_der=True)
+        except Exception as e:
+            logger.debug('Path validation failed: %s' % e)
 
         # update main scan result entry
         scan_db.cert_id_leaf = leaf_cert_id
@@ -881,7 +897,7 @@ class Server(object):
         self.init_config()
         self.init_log()
         self.init_db()
-        signal.signal(signal.SIGINT, self.signal_handler)
+        self.init_misc()
 
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
         self.cleanup_thread.setDaemon(True)
