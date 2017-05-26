@@ -34,8 +34,8 @@ class Tracelogger(object):
     Prints traceback to the debugging logger if not shown before
     """
 
-    def __init__(self, logger=None):
-        self.logger = logger
+    def __init__(self, logger_obj=None):
+        self._logger = logger_obj if logger_obj is not None else logger
         self._db = set()
 
     def log(self, cause=None, do_message=True, custom_msg=None):
@@ -55,13 +55,21 @@ class Tracelogger(object):
             return
 
         if custom_msg is not None and cause is not None:
-            self.logger.debug('%s : %s' % (custom_msg, cause))
+            self._logger.debug('%s : %s' % (custom_msg, cause))
         elif custom_msg is not None:
-            self.logger.debug(custom_msg)
+            self._logger.debug(custom_msg)
         elif cause is not None:
-            self.logger.debug('%s' % cause)
+            self._logger.debug('%s' % cause)
 
-        self.logger.debug(traceback_formatted)
+        self._logger.debug(traceback_formatted)
         self._db.add(md5)
 
+    def set_logger(self, logger_obj):
+        """
+        Updates internall logging 
+        :param logger: 
+        :return: 
+        """
+        self._logger = logger_obj if logger_obj is not None else logger
 
+        
