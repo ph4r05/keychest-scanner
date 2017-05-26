@@ -16,6 +16,7 @@ import types
 import decimal
 import logging
 import traceback
+import pkg_resources
 import phpserialize
 
 import errno
@@ -769,5 +770,17 @@ def drop_nones(lst):
     :return: 
     """
     return [x for x in lst if x is not None]
+
+
+def load_roots():
+    """
+    Loads root certificates
+    File downloaded from: https://curl.haxx.se/docs/caextract.html
+    :return: 
+    """
+
+    resource_package = __name__
+    resource_path = 'data/cacert.pem'
+    return pkg_resources.resource_string(resource_package, resource_path)
 
 

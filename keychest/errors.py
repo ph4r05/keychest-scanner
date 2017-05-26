@@ -27,7 +27,7 @@ def error_message(e, message=None, cause=None):
 
 class Error(Exception):
     """Generic EB client error."""
-    def __init__(self, message=None, cause=None):
+    def __init__(self, message=None, cause=None, do_message=True):
         super(Error, self).__init__(error_message(self, message, cause))
         self.cause = cause
         self.base_message = message
@@ -36,7 +36,7 @@ class Error(Exception):
         self.traceback_formatted = None
         self.traceback = None
 
-        self.load(cause, do_message=False)
+        self.load(cause, do_message=do_message)
 
     def load(self, cause=None, do_message=True):
         """
