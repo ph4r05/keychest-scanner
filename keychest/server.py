@@ -521,7 +521,7 @@ class Server(object):
                 prev_id = cert_db.id
 
             except Exception as e:
-                logger.error('Exception when processing a handshake certificate %s' (e))
+                logger.error('Exception when processing a handshake certificate %s' % (e, ))
                 self.trace_logger.log(e)
 
         # path validation test
