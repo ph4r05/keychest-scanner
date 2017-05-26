@@ -119,7 +119,7 @@ class DbCrtShQueryResult(Base):
     was_new = Column(SmallInteger, default=0)
 
 
-class DbScanJob(Base):
+class DbHandshakeScanJob(Base):
     """
     TLS handshake scan, one single IP scan.
     """
@@ -140,7 +140,7 @@ class DbScanJob(Base):
     valid_path = Column(SmallInteger, default=0)  # cert path validity test
 
 
-class DbScanJobResult(Base):
+class DbHandshakeScanJobResult(Base):
     """
     Single certificate extracted from tls handshake scan
     """

@@ -9,7 +9,7 @@ from daemon import Daemon
 from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
-    DbScanJob, DbScanJobResult
+    DbHandshakeScanJob, DbHandshakeScanJobResult
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -337,7 +337,7 @@ class Server(object):
                 time_elapsed = (resp.time_finished - resp.time_start)*1000
 
             # scan record
-            scan_db = DbScanJob()
+            scan_db = DbHandshakeScanJob()
             scan_db.created_at = salch.func.now()
             scan_db.job_id = job_db.id
             scan_db.status = len(resp.certificates) > 0
@@ -506,7 +506,7 @@ class Server(object):
                 all_cert_ids.add(cert_db.id)
 
                 # crt.sh scan info
-                sub_res_db = DbScanJobResult()
+                sub_res_db = DbHandshakeScanJobResult()
                 sub_res_db.scan_id = scan_db.id
                 sub_res_db.job_id = scan_db.job_id
                 sub_res_db.was_new = fprint not in cert_existing
