@@ -221,9 +221,7 @@ class TlsHandshaker(object):
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = 2
 
-                exc = TlsTimeout('Connect timeout').load(e)
-                exc.scan_result = return_obj
-                raise exc
+                raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
 
             return_obj.time_connected = time.time()
 
@@ -247,9 +245,7 @@ class TlsHandshaker(object):
             logger.debug('Generic exception on tls scan %s' % e)
             self.trace_logger.log(e)
 
-            exc = TlsException.load(e)
-            exc.scan_result = return_obj
-            raise exc
+            raise TlsException('Generic exception', e, scan_result=return_obj)
 
         finally:
             util.silent_close(s)
