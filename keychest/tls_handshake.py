@@ -85,6 +85,7 @@ class TlsHandshakeResult(object):
         self.time_connected = None
         self.time_sent = None
         self.time_finished = None
+        self.tls_version = None
 
         self.cl_hello = None
         self.resp_bin = None
@@ -208,6 +209,7 @@ class TlsHandshaker(object):
         tls_ver = kwargs.get('tls_version', self.tls_version)
         timeout = float(kwargs.get('timeout', self.timeout))
         return_obj = TlsHandshakeResult()
+        return_obj.tls_version = tls_ver
 
         # create simple tcp socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -278,7 +280,7 @@ class TlsHandshaker(object):
                 return_obj.resp_record = rec
 
                 if self._is_failure(rec):
-                    return_obj.handshake_failure = True
+                    return_obj.handshake_failure = 1
                     break
 
                 if self._test_hello_done(rec):
