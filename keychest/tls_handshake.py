@@ -270,7 +270,7 @@ class TlsHandshaker(object):
 
             if not read_more and len(resp_bin_tot) == 0:  # no data received at all -> timeout
                     return_obj.handshake_failure = 3
-                    logger.debug('Total: %s' % base64.b16encode(''.join(resp_bin_acc)))
+                    return_obj.time_failed = time.time()
                     raise TlsTimeout('Could not read any data', scan_result=return_obj)
 
             resp_bin_acc.append(resp_bin)
