@@ -16,6 +16,7 @@ import errors
 
 import scapy
 from scapy.layers.ssl_tls import *
+from scapy.packet import NoPayload
 import socket
 
 
@@ -292,6 +293,16 @@ class TlsHandshaker(object):
         return_obj.time_finished = time.time()
         return return_obj
 
+    def _search_payload(self, payload):
+        """
+        Returns true if the payload is a processable payload, not sentinel scapy.packet.NoPayload
+        :param payload: 
+        :return: 
+        """
+        return payload is not None \
+               and type(payload) is not PacketNoPayload \
+               and type(payload) is not NoPayload
+
     def _is_failure(self, packet):
         """
         True if SSL failure has been detected
@@ -317,10 +328,11 @@ class TlsHandshaker(object):
 
         return False
 
-    def _test_hello_done(self, packet):
+    def _test_hello_done(self, packet, recursive_search=True):
         """
         Tests if the whole server hello has been parser properly
         :param packet: 
+        :param recursive_search: 
         :return: 
         """
         if packet is None:
@@ -335,15 +347,21 @@ class TlsHandshaker(object):
             if not isinstance(srec.payload, TLSHandshake):
                 raise TlsIncomplete('Handshake declared but no handshake found (hello)')
 
-            if srec.payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
+            cur_payload = srec.payload
+            while self._search_payload(cur_payload):
+                if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
                 return True
+                if not recursive_search:
+                    return False
+                cur_payload = cur_payload.payload
 
         return False
 
-    def _extract_certificates(self, packet):
+    def _extract_certificates(self, packet, recursive_search=True):
         """
         Extracts server certificates from the response
         :param packet: 
+        :param recursive_search: 
         :return: 
         """
         if packet is None:
@@ -359,10 +377,15 @@ class TlsHandshaker(object):
             if not isinstance(srec.payload, TLSHandshake):
                 raise TlsIncomplete('Handshake declared but no handshake found (cert)')
 
-            if srec.payload.type == TLSHandshakeType.CERTIFICATE:
+            cur_payload = srec.payload
+            while self._search_payload(cur_payload):
+                if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.CERTIFICATE:
                 cert_list_rec = srec.payload.payload
                 certificates_rec = cert_list_rec.certificates
                 certificates += [str(x.data) for x in certificates_rec]
+                if not recursive_search:
+                    return False
+                cur_payload = cur_payload.payload
 
         return certificates
 
