@@ -335,6 +335,8 @@ class Server(object):
             time_elapsed = None
             if resp.time_start is not None and resp.time_finished is not None:
                 time_elapsed = (resp.time_finished - resp.time_start)*1000
+            if time_elapsed is None and resp.time_start is not None and resp.time_failed is not None:
+                time_elapsed = (resp.time_failed - resp.time_start)*1000
 
             # scan record
             scan_db = DbHandshakeScanJob()
