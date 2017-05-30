@@ -85,6 +85,7 @@ class TlsHandshakeResult(object):
         self.time_connected = None
         self.time_sent = None
         self.time_finished = None
+        self.time_failed = None
         self.tls_version = None
 
         self.cl_hello = None
@@ -223,6 +224,7 @@ class TlsHandshaker(object):
                 logger.debug('Exception during connect: %s' % e)
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = 2
+                return_obj.time_failed = time.time()
 
                 raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
 
@@ -281,6 +283,7 @@ class TlsHandshaker(object):
 
                 if self._is_failure(rec):
                     return_obj.handshake_failure = 1
+                    return_obj.time_failed = time.time()
                     break
 
                 if self._test_hello_done(rec):
