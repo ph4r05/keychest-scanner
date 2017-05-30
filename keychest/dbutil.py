@@ -129,9 +129,11 @@ class DbHandshakeScanJob(Base):
     id = Column(BigInteger, primary_key=True)
     job_id = Column(BigInteger, nullable=True)
     ip_scanned = Column(String(255), nullable=True)
+    tls_ver = Column(String(16), nullable=True)
 
     created_at = Column(DateTime, default=None)
     status = Column(SmallInteger, default=0)
+    err_code = Column(SmallInteger, default=0)
     time_elapsed = Column(Integer, nullable=True)
 
     results = Column(Integer, default=0)
