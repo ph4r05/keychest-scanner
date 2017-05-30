@@ -239,7 +239,7 @@ class Server(object):
             logger.error('Exception in processing job %s' % (e,))
             logger.debug(traceback.format_exc())
 
-            self.scan_mark_failed_exceeds_attempts(job, 30, e)
+            self.scan_mark_failed_exceeds_attempts(job, 5, e)
             if not job.is_deleted_or_released() and not job.failed:
                 job.release()
 
@@ -736,7 +736,7 @@ class Server(object):
 
         return job
 
-    def scan_mark_failed_if_exceeds(self, job, max_tries=30):
+    def scan_mark_failed_if_exceeds(self, job, max_tries=5):
         """
         Mark the given job as failed if it has exceeded the maximum allowed attempts.
         
