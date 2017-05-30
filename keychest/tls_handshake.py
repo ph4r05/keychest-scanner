@@ -267,7 +267,7 @@ class TlsHandshaker(object):
                 read_more = False
 
             if not read_more and len(resp_bin_tot) == 0:  # no data received at all -> timeout
-                return_obj.handshake_failure = 3
+                    return_obj.handshake_failure = 3
                     logger.debug('Total: %s' % base64.b16encode(''.join(resp_bin_acc)))
                     raise TlsTimeout('Could not read any data', scan_result=return_obj)
 
@@ -350,7 +350,7 @@ class TlsHandshaker(object):
             cur_payload = srec.payload
             while self._search_payload(cur_payload):
                 if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
-                return True
+                   return True
                 if not recursive_search:
                     return False
                 cur_payload = cur_payload.payload
@@ -380,9 +380,9 @@ class TlsHandshaker(object):
             cur_payload = srec.payload
             while self._search_payload(cur_payload):
                 if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.CERTIFICATE:
-                cert_list_rec = srec.payload.payload
-                certificates_rec = cert_list_rec.certificates
-                certificates += [str(x.data) for x in certificates_rec]
+                    cert_list_rec = srec.payload.payload
+                    certificates_rec = cert_list_rec.certificates
+                    certificates += [str(x.data) for x in certificates_rec]
                 if not recursive_search:
                     return False
                 cur_payload = cur_payload.payload
@@ -436,17 +436,22 @@ class TlsHandshaker(object):
 if __name__ == '__main__':
     coloredlogs.install(level=logging.DEBUG)
 
+    port = 443
     target = 'enigmabridge.com'
     if len(sys.argv) > 1:
         target = sys.argv[1]
+
+    if ':' in target:
+        target, port = target.split(':', 1)
+        port = int(port)
 
     tester = TlsHandshaker()
     tester.timeout = 3
     tester.attempts = 3
     tester.tls_version = 'TLS_1_2'
 
-    logger.info('Testing %s' % target)
-    ret = tester.try_handshake(host=target)
+    logger.info('Testing %s:%s' % (target, port))
+    ret = tester.try_handshake(host=target, port=port)
 
     # print('Client hello: ')
     # print(ret.cl_hello.show())
