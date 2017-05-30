@@ -113,7 +113,7 @@ class TlsHandshaker(object):
     """
     Object performing simple TLS handshake, parsing the results
     """
-    DEFAULT_TLS = "TLS_1_1"
+    DEFAULT_TLS = "TLS_1_2"
     DEFAULT_ATTEMPTS = 3
 
     def __init__(self, timeout=10, tls_version=None, attempts=None, **kwargs):
@@ -414,7 +414,7 @@ if __name__ == '__main__':
     tester = TlsHandshaker()
     tester.timeout = 3
     tester.attempts = 3
-    tester.tls_version = 'TLS_1_1'
+    tester.tls_version = 'TLS_1_2'
 
     logger.info('Testing %s' % target)
     ret = tester.try_handshake(host=target)

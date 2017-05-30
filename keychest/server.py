@@ -89,7 +89,7 @@ class Server(object):
 
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
-        self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_1', attempts=3)
+        self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
         self.crt_validator = PathValidator()
 
         self.cleanup_last_check = 0
