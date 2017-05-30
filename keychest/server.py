@@ -493,7 +493,7 @@ class Server(object):
                     s.add(cert_db)
                     s.flush()
 
-                    for alt_name in alt_names:
+                    for alt_name in util.stable_uniq(alt_names):
                         alt_db = CertificateAltName()
                         alt_db.cert_id = cert_db.id
                         alt_db.alt_name = alt_name
@@ -570,7 +570,7 @@ class Server(object):
             s.add(cert_db)
             s.flush()
 
-            for alt_name in alt_names:
+            for alt_name in util.stable_uniq(alt_names):
                 alt_db = CertificateAltName()
                 alt_db.cert_id = cert_db.id
                 alt_db.alt_name = alt_name

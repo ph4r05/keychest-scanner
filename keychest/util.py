@@ -784,3 +784,22 @@ def load_roots():
     return pkg_resources.resource_string(resource_package, resource_path)
 
 
+def stable_uniq(x):
+    """
+    Stable unique filter - removes duplicates without sorting
+    returns a new array, not modifying given.
+    :param x: 
+    :return: 
+    """
+    data = list(x)
+    st = set(data)
+    if len(st) == len(data):
+        return x
+
+    ret = []
+    for x in data:
+        if x in st:
+            continue
+        ret.append(x)
+    return ret
+
