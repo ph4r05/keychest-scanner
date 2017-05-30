@@ -259,11 +259,16 @@ class TlsHandshaker(object):
         """
         resp_bin_acc = []
         resp_bin_tot = ''
-        while True:
+        read_more = True
+        while read_more:
             resp_bin = self._recv_timeout(s, timeout=timeout, single_read=True)
             if len(resp_bin) == 0:
+                read_more = False
+
+            if not read_more and len(resp_bin_tot) == 0:  # no data received at all -> timeout
                 return_obj.handshake_failure = 3
-                raise TlsTimeout('Could not read more data', scan_result=return_obj)
+                    logger.debug('Total: %s' % base64.b16encode(''.join(resp_bin_acc)))
+                    raise TlsTimeout('Could not read any data', scan_result=return_obj)
 
             resp_bin_acc.append(resp_bin)
             resp_bin_tot = ''.join(resp_bin_acc)
@@ -280,7 +285,8 @@ class TlsHandshaker(object):
 
             except TlsIncomplete as e:
                 logger.debug(e)
-                continue
+                if not read_more:
+                    raise
 
         return_obj.resp_bin = resp_bin_tot
         return_obj.time_finished = time.time()
@@ -381,8 +387,8 @@ class TlsHandshaker(object):
             if total_data and time.time() - begin > timeout:
                 break
 
-            # if you got no data at all, wait a little longer, twice the timeout
-            elif time.time() - begin > timeout * 2:
+            # if you got no data at all, the same
+            elif time.time() - begin > timeout:
                 break
 
             # recv something
