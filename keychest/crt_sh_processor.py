@@ -384,7 +384,11 @@ class CrtProcessor(object):
         :return: 
         """
         try:
+            # html_simple = (html.tostring(data)).replace('<br>', '\n').replace('&#160;', ' ')
+            # html_sub = html.fromstring(html_simple)
+            # crt_txt = html_sub.text_content()
             pass
+
         except Exception as e:
             logger.debug('Text Parsing error: %s', e)
 
