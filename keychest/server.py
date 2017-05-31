@@ -15,7 +15,7 @@ from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
-from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
+from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
 
 import threading
