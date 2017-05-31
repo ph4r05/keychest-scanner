@@ -551,7 +551,6 @@ class Server(object):
         # path validation test + hostname test
         try:
             validation_res = self.crt_validator.validate(resp.certificates, is_der=True)
-            logger.debug(validation_res)
 
             scan_db.valid_path = validation_res.valid
             scan_db.err_many_leafs = len(validation_res.leaf_certs) > 1
@@ -604,8 +603,6 @@ class Server(object):
 
         # Raw hostname
         test_domain = TlsDomainTools.base_domain(hostname)
-        logger.debug('test domain: %s' % test_domain)
-        logger.debug('resp.handshake_failure: %s' % resp.handshake_failure)
 
         # Try raw connect to the tls if the previous failure does not indicate service is not running
         if resp.handshake_failure not in [TlsHandshakeErrors.CONN_ERR, TlsHandshakeErrors.READ_TO]:
