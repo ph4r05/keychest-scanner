@@ -81,6 +81,10 @@ class TlsHandshakeResult(object):
     Result of the handshake test
     """
     def __init__(self):
+        self.host = None
+        self.port = None
+        self.domain = None
+
         self.time_start = None
         self.time_connected = None
         self.time_sent = None
@@ -206,11 +210,16 @@ class TlsHandshaker(object):
         :return: 
         """
         target = (host, port)
-        logger.debug(target)
+        logger.debug('Connecting to: %s' % (target, ))
         tls_ver = kwargs.get('tls_version', self.tls_version)
+        domain_sni = kwargs.get('domain', host)
         timeout = float(kwargs.get('timeout', self.timeout))
+
         return_obj = TlsHandshakeResult()
         return_obj.tls_version = tls_ver
+        return_obj.host = host
+        return_obj.port = port
+        return_obj.domain = domain_sni
 
         # create simple tcp socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -220,6 +229,8 @@ class TlsHandshaker(object):
             return_obj.time_start = time.time()
             try:
                 s.connect(target)
+                return_obj.time_connected = time.time()
+
             except Exception as e:
                 logger.debug('Exception during connect: %s' % e)
                 self.trace_logger.log(e)
@@ -228,9 +239,7 @@ class TlsHandshaker(object):
 
                 raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
 
-            return_obj.time_connected = time.time()
-
-            cl_hello = self._build_client_hello(host, tls_ver, **kwargs)
+            cl_hello = self._build_client_hello(domain_sni, tls_ver, **kwargs)
             return_obj.cl_hello = cl_hello
 
             s.sendall(str(cl_hello))
