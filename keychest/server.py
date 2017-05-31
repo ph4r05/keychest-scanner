@@ -324,7 +324,7 @@ class Server(object):
             return
 
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
-        scheme = util.defvalkey(job_data, 'scan_scheme', 'https', take_none=False)
+        scheme = util.defvalkey(job_data, 'scan_scheme', None, take_none=False)
 
         # Simple TLS handshake to the given host.
         # Analyze results, store scan record.
@@ -598,7 +598,7 @@ class Server(object):
         hostname = util.defval(hostname, domain)
 
         if scheme not in ['http', 'https']:
-            logger.debug('Unsupported connect scheme %s' % scheme)
+            logger.debug('Unsupported connect scheme / port: %s / %s' % (scheme, port))
             return
 
         # Raw hostname
