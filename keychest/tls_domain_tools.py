@@ -14,6 +14,9 @@ from trace_logger import Tracelogger
 from six.moves.urllib.parse import urlparse, urlencode
 
 
+logger = logging.getLogger(__name__)
+
+
 class TlsDomainTools(object):
     """
     Domain tools
@@ -38,6 +41,9 @@ class TlsDomainTools(object):
         :return: 
         """
         p = TlsDomainTools.url_parse(url)
+        if util.is_empty(p.scheme) and util.is_empty(p.hostname):
+            p = TlsDomainTools.url_parse('https://%s' % url)
+
         return p.hostname
 
     @staticmethod
@@ -48,6 +54,9 @@ class TlsDomainTools(object):
         :return: domain, port
         """
         p = TlsDomainTools.url_parse(url)
+        if util.is_empty(p.scheme) and util.is_empty(p.hostname):
+            p = TlsDomainTools.url_parse('https://%s' % url)
+
         return p.hostname, p.port
 
     @staticmethod
@@ -110,7 +119,9 @@ class TlsDomainTools(object):
         for crt in certificates:
             arr = [util.utf8ize(x) for x in util.try_get_san(crt)]
             if include_cn:
-                arr.append(util.utf8ize(util.try_get_cname(crt)))
+                cname = util.utf8ize(util.try_get_cname(crt))
+                if not util.is_empty(cname):
+                    arr.append(cname)
             alt_names.extend(arr)
 
         return util.stable_uniq(alt_names)
