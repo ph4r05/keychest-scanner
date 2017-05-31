@@ -18,6 +18,7 @@ from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools
+from tls_scanner import TlsScanner, TlsScanResult
 
 import threading
 import pid
@@ -93,6 +94,8 @@ class Server(object):
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
         self.crt_validator = PathValidator()
         self.domain_tools = TlsDomainTools()
+        self.tls_scanner = TlsScanner()
+        self.test_timeout = 5
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -296,7 +299,7 @@ class Server(object):
             # TODO: search for more subdomains, *.domain, %.domain
             # ...
 
-            # TODO: host scan
+            # direct host scan
             self.scan_handshake(s, job_data, domain, job_db)
             s.commit()
 
@@ -321,10 +324,14 @@ class Server(object):
             return
 
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
+        scheme = util.defvalkey(job_data, 'scan_scheme', 'https', take_none=False)
+
+        # Simple TLS handshake to the given host.
+        # Analyze results, store scan record.
         try:
             resp = None
             try:
-                resp = self.tls_handshaker.try_handshake(domain, port)
+                resp = self.tls_handshaker.try_handshake(domain, port, scheme=scheme)
 
             except TlsTimeout as te:
                 logger.debug('Scan timeout: %s' % te)
@@ -353,7 +360,11 @@ class Server(object):
             s.add(scan_db)
             s.flush()
 
+            # Certificates processing + cert path validation
             self.process_handshake_certs(s, resp, scan_db)
+
+            # Try direct connect with requests, follow urls
+            self.connect_analysis(s, resp, scan_db, domain, port, scheme)
 
         except Exception as e:
             logger.debug('Exception when scanning: %s' % e)
@@ -425,7 +436,7 @@ class Server(object):
         :param cert_db: 
         :param pem: 
         :param der: 
-        :return: 
+        :return: (cryptography cert, list of alt names)
         """
         cert = None
         if pem is not None:
@@ -476,7 +487,7 @@ class Server(object):
                 fprints_handshake.add(cert_db.fprint_sha1)
 
             except Exception as e:
-                logger.error('Exception when downloading a certificate %s' % (e))
+                logger.error('Exception when downloading a certificate %s' % (e, ))
                 self.trace_logger.log(e)
 
         # load existing certificates
@@ -486,7 +497,7 @@ class Server(object):
         num_new_results = 0
         prev_id = None
 
-        # process non-existing certificates
+        # store non-existing certificates from the TLS scan to the database
         for endb in reversed(local_db):
             cert_db, cert, alt_names, der = endb
             cert_db_cur = cert_db
@@ -537,9 +548,21 @@ class Server(object):
                 logger.error('Exception when processing a handshake certificate %s' % (e, ))
                 self.trace_logger.log(e)
 
-        # path validation test
+        # path validation test + hostname test
         try:
-            scan_db.valid_path = self.crt_validator.validate(resp.certificates, is_der=True)
+            validation_res = self.crt_validator.validate(resp.certificates, is_der=True)
+            logger.debug(validation_res)
+
+            scan_db.valid_path = validation_res.valid
+            scan_db.err_many_leafs = len(validation_res.leaf_certs) > 1
+
+            # TODO: error from the validation (timeout, CA, ...)
+            scan_db.err_validity = None if validation_res.valid else 'ERR'
+
+            all_valid_alts = TlsDomainTools.get_alt_names(validation_res.valid_leaf_certs)
+            matched_domains = TlsDomainTools.match_domain(resp.domain, all_valid_alts)
+            scan_db.valid_hostname = len(matched_domains) > 0
+
         except Exception as e:
             logger.debug('Path validation failed: %s' % e)
 
@@ -549,9 +572,63 @@ class Server(object):
         scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
         s.flush()
 
+    def connect_analysis(self, s, resp, scan_db, domain, port=None, scheme=None, hostname=None):
+        """
+        Connects to the host, performs simple connection analysis - HTTP connect, HTTPS connect, follow redirects.
+        :param s: 
+        :param resp: 
+        :param scan_db: 
+        :param domain: 
+        :param port: 
+        :param scheme: 
+        :param hostname: 
+        :return: 
+        """
+        # scheme & port setting, params + auto-detection defaults
+        if port is None:
+            if scheme == 'https':
+                port = 443
+            elif scheme == 'http':
+                port = 80
+        port = util.defval(port, 443)
+
+        if port == 80 and scheme is None:
+            scheme = 'http'
+        else:
+            scheme = util.defval(scheme, 'https')
+        hostname = util.defval(hostname, domain)
+
+        if scheme not in ['http', 'https']:
+            logger.debug('Unsupported connect scheme %s' % scheme)
+            return
+
+        # Raw hostname
+        test_domain = TlsDomainTools.base_domain(hostname)
+        logger.debug('test domain: %s' % test_domain)
+        logger.debug('resp.handshake_failure: %s' % resp.handshake_failure)
+
+        # Try raw connect to the tls if the previous failure does not indicate service is not running
+        if resp.handshake_failure not in [TlsHandshakeErrors.CONN_ERR, TlsHandshakeErrors.READ_TO]:
+            c_url = '%s://%s:%s' % (scheme, test_domain, port)
+
+            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=False)
+            scan_db.req_https_result = self.tls_scanner.err2status(error)
+
+            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=True)
+            scan_db.follow_https_result = self.tls_scanner.err2status(error)
+            scan_db.follow_https_url = r.url if error is None else None
+
+        elif scheme == 'https' and port in [80, 443]:
+            c_url = 'http://%s' % test_domain
+
+            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, verify=False)
+            scan_db.follow_http_result = self.tls_scanner.err2status(error)
+            scan_db.follow_http_url = r.url if error is None else None
+        s.flush()
+
     def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db):
         """
-        Fetches the new cert, parses, inserts to the db
+        Fetches the new cert fro crt.sh, parses, inserts to the db
         :param s: 
         :param job_data: 
         :param crt_sh_id: 

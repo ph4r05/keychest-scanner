@@ -20,10 +20,63 @@ from OpenSSL.crypto import X509Store, X509StoreContext
 logger = logging.getLogger(__name__)
 
 
+class ValidationResult(object):
+    """
+    Cert path validation result
+    """
+    def __init__(self):
+        self.valid = False
+        self.ca_validation = None  # SubValidationResult
+        self.leaf_validation = None  # SubValidationResult
+
+        # Cryptography loaded certificates
+        self.ca_certs = []
+        self.leaf_certs = []
+        self.valid_leaf_certs = []
+
+    def __repr__(self):
+        return '<ValidationResult(valid=%r, ca_validation=%r, leaf_validation=%r, ca_certs=%r,' \
+               'leaf_certs=%r, valid_leaf_certs=%r)>' \
+               % (self.valid, self.ca_validation, self.leaf_validation, self.ca_certs,
+                  self.leaf_certs, self.valid_leaf_certs)
+
+
+class SubValidationResult(object):
+    """
+    Validation results for one single chain processing with one method.
+    Separate instance for intermediate verification, separate for leaf cert verification.
+    """
+    def __init__(self):
+        self.certs_valid = 0
+        self.fprints_valid = []      # sequence of valid certs sha256 fingerprints
+        self.validation_order = []   # sequence of validated cert ids in chain in validation
+        self.validation_steps = 0    # number of validation steps of the algorithm
+        self.validation_errors = {}  # idx -> validation error
+
+    def __repr__(self):
+        return '<SubValidationResult(certs_valid=%r, fprints_valid=%r, validation_order=%r, validation_steps=%r,' \
+               'validation_errors=%r)>' \
+               % (self.certs_valid, self.fprints_valid, self.validation_order, self.validation_steps,
+                  self.validation_errors)
+
+
+class ValidationOsslContext(object):
+    """
+    Context needed for OSSL path validation
+    """
+    def __init__(self):
+        self.verified_fprints = set()
+        self.verified_certs = []
+
+    def __repr__(self):
+        return '<ValidationOsslContext(verified_fprints=%r)>' % self.verified_fprints
+
+
 class ValidationException(errors.Error):
     """General exception"""
-    def __init__(self, message=None, cause=None):
+    def __init__(self, message=None, cause=None, result=None):
         super(ValidationException, self).__init__(message=message, cause=cause)
+        self.result = result
 
 
 class PathValidator(object):
@@ -67,7 +120,7 @@ class PathValidator(object):
 
         logger.debug('Loaded %s trusted roots' % roots_loaded)
 
-    def new_store(self):
+    def _new_ossl_store(self):
         """
         Creates a new root store for cert verification
         :return: 
@@ -77,16 +130,13 @@ class PathValidator(object):
             cur_store.add_cert(crt)
         return cur_store
 
-    def validate(self, chain, is_der=False):
+    def _load_chain(self, chain, is_der=False):
         """
-        Chain of certificates, incremental validation
-        :param chain: 
-        :return: 
+        Parses certificates from the chain by cryptography and openssl
+        :param chain:
+        :param is_der:
+        :return: [(ossl, crypt), ...]
         """
-        if not isinstance(chain, types.ListType):
-            chain = [chain]
-
-        # load given certs
         chain_loaded = []
         for crt in chain:
             if is_der:
@@ -97,53 +147,131 @@ class PathValidator(object):
                 crt_ossl = load_certificate(FILETYPE_PEM, crt)
                 crt_cryp = util.load_x509(crt)
                 chain_loaded.append((crt_ossl, crt_cryp))
+        return chain_loaded
+
+    def validate(self, chain, is_der=False):
+        """
+        Chain of certificates, incremental validation
+        :param chain: 
+        :return: 
+        """
+        result = ValidationResult()
+        if not isinstance(chain, types.ListType):
+            chain = [chain]
+
+        # parse chain certs to [(ossl certificate, cryptography certificate), ...]
+        chain_loaded = self._load_chain(chain, is_der)
 
         # Sort certs to CA and non-CA certificates
-        leaf_is_first = False
-        leaf_cert = None
         for idx, rec in enumerate(chain_loaded):
             if util.try_is_ca(rec[1]):
-                pass
-            elif leaf_cert is not None:
-                raise ValidationException('Too many nonCA certificates')
+                result.ca_certs.append(rec[1])
             else:
-                leaf_cert = rec
-                leaf_is_first = idx == 0
+                result.leaf_certs.append(rec[1])
 
-        if leaf_cert is None:
-            raise ValidationException('No leaf certificate')
+        if len(result.leaf_certs) == 0:
+            raise ValidationException('No leaf certificate', result=result)
 
-        # Incremental verification of certificates in the cert chain
-        if leaf_is_first:
-            chain_loaded = list(reversed(chain_loaded))
+        # Incremental verification of certificates in the cert chain.
+        # Currently only OSSL validation is supported.
+        validation_ctx = ValidationOsslContext()
 
-        verified_fprints = set()
-        verified_certs = []
-        while len(chain_loaded) > 0:
-            try:
-                cur_store = self.new_store()
-                for crt in verified_certs:
-                    cur_store.add_cert(crt[0])
+        # Stage 1 - verify all intermediate CAs, allow certificate fails
+        interm_res = self._verify_certs(chain_loaded, validation_ctx=validation_ctx, interm_mode=True)
+        result.ca_validation = interm_res
 
-                to_verify = chain_loaded[0]
-                chain_loaded = chain_loaded[1:]
+        # Stage 2 - verify all leaf certs
+        leaf_res = self._verify_certs(chain_loaded, validation_ctx=validation_ctx, interm_mode=False)
+        result.leaf_validation = leaf_res
+        result.valid = leaf_res.certs_valid > 0
 
-                store_ctx = X509StoreContext(cur_store, to_verify[0])
+        for idx in leaf_res.validation_order:
+            result.valid_leaf_certs.append(chain_loaded[idx][1])
 
-                store_ctx.verify_certificate()
+        return result
 
+    def _verify_certs(self, chain_loaded, validation_ctx, interm_mode=True):
+        """
+        Verify certificates in an arbitrary order in the chain.
+        :param chain_loaded:
+        :param validation_ctx:
+        :param interm_mode: intermediate mode
+        :return:
+        """
+        result = SubValidationResult()
+        idx_already_valid = set()
+
+        # Iterate on chain certificates until there is some progress
+        while True:
+            # In each step try to validate at least one certificate
+            certificates_validated = 0
+
+            # try to validate each certificate. At least one should be valid now.
+            for idx in range(0, len(chain_loaded)):
+                if idx in idx_already_valid:
+                    continue
+
+                to_verify = chain_loaded[idx]
+                is_ca_crt = util.try_is_ca(to_verify[1])
                 fprint = util.try_get_fprint_sha256(to_verify[1])
-                if fprint not in self.root_fprints and fprint not in verified_fprints:
-                    verified_certs.append(to_verify)
-                    verified_fprints.add(fprint)
 
-            except X509StoreContextError as cex:
-                self.trace_logger.log(cex, custom_msg='Exc in path validation')
-                raise ValidationException('Validation failed', cause=cex)
+                # in the intermediate mode require only CA certs
+                if interm_mode != is_ca_crt:
+                    continue
 
-            except Exception as e:
-                self.trace_logger.log(e, custom_msg='General Exc in verification')
-                raise ValidationException('Validation failed - generic fail', cause=e)
+                try:
+                    # Validate certificate with the validation method corresponding to the ctx.
+                    self._validate_cert(to_verify=to_verify, fprint=fprint, context=validation_ctx,
+                                        interm_mode=interm_mode)
 
-        return True
+                    # Validation passed - update stats
+                    result.certs_valid += 1
+                    certificates_validated += 1
+                    idx_already_valid.add(idx)
+
+                    result.validation_order.append(idx)
+                    result.fprints_valid.append(fprint)
+
+                except ValidationException as vex:
+                    vex.result = result
+                    result.validation_errors[idx] = vex
+
+                except Exception as e:
+                    self.trace_logger.log(e, custom_msg='General Exc in cert validation')
+                    result.validation_errors[idx] = e
+
+            # Terminal condition - no more progress
+            if certificates_validated == 0:
+                break
+
+            result.validation_steps += 1
+
+        return result
+
+    def _validate_cert(self, to_verify, fprint, context, interm_mode):
+        """
+        Validates current certificate in the given context.
+        Extension - different context for different validation method.
+        :param to_verify:
+        :param context:
+        :return:
+        """
+        try:
+            # current trust store with previously validated intermediate certificates
+            cur_store = self._new_ossl_store()
+            for crt in context.verified_certs:
+                cur_store.add_cert(crt[0])
+
+            # OSSL Verification w.r.t. base store
+            store_ctx = X509StoreContext(cur_store, to_verify[0])
+            store_ctx.verify_certificate()
+
+            # Add valid intermediate to the verified registers
+            if interm_mode and fprint not in self.root_fprints and fprint not in context.verified_fprints:
+                context.verified_certs.append(to_verify)
+                context.verified_fprints.add(fprint)
+
+        except X509StoreContextError as cex:  # translate specific exception to our general exception
+            self.trace_logger.log(cex, custom_msg='Exc in path validation')
+            raise ValidationException('Validation failed', cause=cex)
 
