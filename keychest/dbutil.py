@@ -128,20 +128,29 @@ class DbHandshakeScanJob(Base):
     __tablename__ = 'scan_handshakes'
     id = Column(BigInteger, primary_key=True)
     job_id = Column(BigInteger, nullable=True)
-    ip_scanned = Column(String(255), nullable=True)
-    tls_ver = Column(String(16), nullable=True)
+    ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to
+    tls_ver = Column(String(16), nullable=True)  # tls version used to connect
 
     created_at = Column(DateTime, default=None)
     status = Column(SmallInteger, default=0)
-    err_code = Column(SmallInteger, default=0)
+    err_code = Column(SmallInteger, default=0)  # basic error with the handshake (connect err / timeout / TLSAlert)
     time_elapsed = Column(Integer, nullable=True)
 
-    results = Column(Integer, default=0)
-    new_results = Column(Integer, default=0)
+    results = Column(Integer, default=0)     # num of certificates in the handshake
+    new_results = Column(Integer, default=0)  # num of new certificates in the handshake
 
     certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
-    cert_id_leaf = Column(BigInteger, nullable=True)
+    cert_id_leaf = Column(BigInteger, nullable=True)  # id of the leaf certificate.
     valid_path = Column(SmallInteger, default=0)  # cert path validity test
+    valid_hostname = Column(SmallInteger, default=0)  # hostname verifier check
+    err_validity = Column(String(64), default=0)  # error with the path validity
+    err_many_leafs = Column(SmallInteger, default=0)  # error with too many leafs in the handshake
+
+    req_https_result = Column(String(64), nullable=True)  # result of HTTPs req - no follow direct request
+    follow_http_result = Column(String(64), nullable=True)  # result of HTTP req with follow redirects.
+    follow_https_result = Column(String(64), nullable=True)  # result of HTTPs req with follow redirects
+    follow_http_url = Column(String(255), nullable=True)  # URL after loading HTTP page
+    follow_https_url = Column(String(255), nullable=True)  # URL after loading HTTPs page
 
 
 class DbHandshakeScanJobResult(Base):
