@@ -17,6 +17,7 @@ import redis_helper as rh
 from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
+from tls_domain_tools import TlsDomainTools
 
 import threading
 import pid
@@ -91,6 +92,7 @@ class Server(object):
         self.crt_sh_proc = CrtProcessor()
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
         self.crt_validator = PathValidator()
+        self.domain_tools = TlsDomainTools()
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -433,6 +435,8 @@ class Server(object):
         else:
             raise ValueError('No certificate provided')
 
+        alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+            
         cert_db.cname = util.utf8ize(util.try_get_cname(cert))
         cert_db.fprint_sha1 = util.lower(util.try_get_fprint_sha1(cert))
         cert_db.fprint_sha256 = util.lower(util.try_get_fprint_sha256(cert))
@@ -442,8 +446,13 @@ class Server(object):
         cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
         cert_db.is_ca = util.try_is_ca(cert)
         cert_db.is_self_signed = util.try_is_self_signed(cert)
+        cert_db.is_le = 'Let\'s Encrypt' in cert_db.issuer
 
-        alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+        alt_name_test = list(alt_names)
+        if not util.is_empty(cert_db.cname):
+            alt_name_test.append(cert_db.cname)
+
+        cert_db.is_cloudflare = len([x for x in alt_name_test if '.cloudflaressl.com' in x]) > 0
         cert_db.alt_names = json.dumps(alt_names)
 
         return cert, alt_names
