@@ -76,6 +76,18 @@ class TlsException(errors.Error):
         self.scan_result = scan_result
 
 
+class TlsHandshakeErrors(object):
+    """
+    Basic handshake errors
+    """
+    CONN_ERR = 2
+    READ_TO = 3
+    HANDSHAKE_ERR = 1
+
+    def __init__(self):
+        pass
+
+
 class TlsHandshakeResult(object):
     """
     Result of the handshake test
@@ -234,7 +246,7 @@ class TlsHandshaker(object):
             except Exception as e:
                 logger.debug('Exception during connect: %s' % e)
                 self.trace_logger.log(e)
-                return_obj.handshake_failure = 2
+                return_obj.handshake_failure = TlsHandshakeErrors.CONN_ERR
                 return_obj.time_failed = time.time()
 
                 raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
@@ -280,7 +292,7 @@ class TlsHandshaker(object):
                 read_more = False
 
             if not read_more and len(resp_bin_tot) == 0:  # no data received at all -> timeout
-                    return_obj.handshake_failure = 3
+                    return_obj.handshake_failure = TlsHandshakeErrors.READ_TO
                     return_obj.time_failed = time.time()
                     raise TlsTimeout('Could not read any data', scan_result=return_obj)
 
@@ -291,7 +303,7 @@ class TlsHandshaker(object):
                 return_obj.resp_record = rec
 
                 if self._is_failure(rec):
-                    return_obj.handshake_failure = 1
+                    return_obj.handshake_failure = TlsHandshakeErrors.HANDSHAKE_ERR
                     return_obj.time_failed = time.time()
                     break
 
