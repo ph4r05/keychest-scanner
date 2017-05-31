@@ -606,47 +606,6 @@ class Server(object):
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
             self.trace_logger.log(e)
 
-    def cert_load_existing(self, s, certs_id):
-        """
-        Loads existing certificates with cert id from the set
-        :param s: 
-        :param certs_id: 
-        :return: 
-        """
-        ret = {}
-
-        int_list = [int(x) for x in certs_id]
-        res = s.query(Certificate.id, Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
-        for cur in res:
-            ret[int(cur.crt_sh_id)] = int(cur.id)
-        
-        return ret
-
-    def cert_load_fprints(self, s, fprints):
-        """
-        Load certificate by sha1 fprint
-        :param s: 
-        :param fprints: 
-        :return: 
-        """
-        was_array = True
-        if not isinstance(fprints, types.ListType):
-            fprints = [fprints]
-            was_array = False
-
-        ret = {}
-
-        res = s.query(Certificate)\
-            .filter(Certificate.fprint_sha1.in_(list(fprints))).all()
-
-        for cur in res:
-            if not was_array:
-                return cur
-
-            ret[util.lower(cur.fprint_sha1)] = cur
-
-        return ret
-
     def analyze_cert(self, s, job_data, cert):
         """
         Parses cert result, analyzes - adds to the db
@@ -699,6 +658,51 @@ class Server(object):
 
         evt = rh.scan_job_progress(evt_data)
         self.redis_queue.event(evt)
+
+    #
+    # DB tools
+    #
+
+    def cert_load_existing(self, s, certs_id):
+        """
+        Loads existing certificates with cert id from the set
+        :param s: 
+        :param certs_id: 
+        :return: 
+        """
+        ret = {}
+
+        int_list = [int(x) for x in certs_id]
+        res = s.query(Certificate.id, Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
+        for cur in res:
+            ret[int(cur.crt_sh_id)] = int(cur.id)
+
+        return ret
+
+    def cert_load_fprints(self, s, fprints):
+        """
+        Load certificate by sha1 fprint
+        :param s: 
+        :param fprints: 
+        :return: 
+        """
+        was_array = True
+        if not isinstance(fprints, types.ListType):
+            fprints = [fprints]
+            was_array = False
+
+        ret = {}
+
+        res = s.query(Certificate) \
+            .filter(Certificate.fprint_sha1.in_(list(fprints))).all()
+
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[util.lower(cur.fprint_sha1)] = cur
+
+        return ret
 
     #
     # Workers
