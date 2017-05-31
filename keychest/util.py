@@ -797,9 +797,11 @@ def stable_uniq(x):
         return x
 
     ret = []
+    st = set()
     for x in data:
         if x in st:
             continue
         ret.append(x)
+        st.add(x)
     return ret
 
