@@ -610,6 +610,7 @@ class Server(object):
 
             r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=False)
             scan_db.req_https_result = self.tls_scanner.err2status(error)
+            self.http_headers_analysis(s, scan_db, r)
 
             r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=True)
             scan_db.follow_https_result = self.tls_scanner.err2status(error)
@@ -622,6 +623,31 @@ class Server(object):
             scan_db.follow_http_result = self.tls_scanner.err2status(error)
             scan_db.follow_http_url = r.url if error is None else None
         s.flush()
+
+    def http_headers_analysis(self, s, scan_db, r):
+        """
+        HSTS / cert pinning
+        :param s:
+        :param scan_db:
+        :param r:
+        :return:
+        """
+        if r is None:
+            return
+
+        hsts = TlsDomainTools.detect_hsts(r)
+        pinn = TlsDomainTools.detect_pinning(r)
+
+        scan_db.hsts_present = hsts.enabled
+        if hsts.enabled:
+            scan_db.hsts_max_age = hsts.max_age
+            scan_db.hsts_include_subdomains = hsts.include_subdomains
+            scan_db.hsts_preload = hsts.preload
+
+        scan_db.pinning_present = pinn.enabled
+        if pinn.enabled:
+            scan_db.pinning_report_only = pinn.report_only
+            scan_db.pinning_pins = json.dumps(pinn.pins)
 
     def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db):
         """
