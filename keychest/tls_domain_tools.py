@@ -17,6 +17,24 @@ from six.moves.urllib.parse import urlparse, urlencode
 logger = logging.getLogger(__name__)
 
 
+class HstsInfo(object):
+    def __init__(self):
+        self.enabled = False
+        self.max_age = None
+        self.include_subdomains = False
+        self.preload = False
+
+
+class PinningInfo(object):
+    def __init__(self):
+        self.enabled = False
+        self.report_only = False
+        self.pins = []
+        self.max_age = None
+        self.include_subdomains = False
+        self.report_uri = None
+
+
 class TlsDomainTools(object):
     """
     Domain tools
@@ -125,4 +143,78 @@ class TlsDomainTools(object):
             alt_names.extend(arr)
 
         return util.stable_uniq(alt_names)
+
+    @staticmethod
+    def detect_hsts(res):
+        """
+        Detects HSTS from the requests response
+        :param req:
+        :return:
+        """
+        ret = HstsInfo()
+        hdr = res.headers
+        sts = util.defvalkey_ic(hdr, 'Strict-Transport-Security')
+        if sts is None:
+            return ret
+
+        ret.enabled = True
+        parts = sts.split(';')
+        parts = util.strip(parts)
+        parts = util.lower(parts)
+        for part in parts:
+            try:
+                if part.startswith('max-age'):
+                    ret.max_age = int(part.split('=')[1])
+                elif part == 'preload':
+                    ret.preload = True
+                elif part.startswith('includesub'):
+                    ret.include_subdomains = True
+
+            except Exception as e:
+                logger.debug('Exception in parsing HSTS: %s' % e)
+
+        return ret
+
+    @staticmethod
+    def detect_pinning(res):
+        """
+        Detects certificate pinning in the requests response
+        :param res:
+        :return:
+        """
+        ret = PinningInfo()
+        hdr = res.headers
+
+        report_only = True
+        png = util.defvalkey_ic(hdr, 'Public-Key-Pins')
+        if png is not None:
+            report_only = False
+        else:
+            png = util.defvalkey_ic(hdr, 'Public-Key-Pins-Report-Only')
+
+        if png is None:
+            return ret
+
+        ret.enabled = True
+        ret.report_only = report_only
+        parts = png.split(';')
+        parts = util.strip(parts)
+
+        for part in parts:
+            try:
+                sub_part = part.split('=', 1)
+                part_name = util.lower(sub_part[0])
+                if part_name == 'pin-sha256':
+                    ret.pins.append(util.stip_quotes(sub_part[1]))
+                elif part_name == 'max-age':
+                    ret.max_age = int(sub_part[1])
+                elif part_name == 'includesubdomains':
+                    ret.include_subdomains = True
+                elif part_name == 'report-uri':  # bug here if uri contains ';'
+                    ret.report_uri = util.stip_quotes(sub_part[1])
+
+            except Exception as e:
+                logger.debug('Exception in parsing HSTS: %s' % e)
+
+        return ret
 
