@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from past.builtins import basestring    # pip install future
+
 import os
+import re
 import stat
 import json
 import hashlib
@@ -461,8 +464,10 @@ def lower(x):
     """
     if x is None:
         return None
-
-    return x.lower()
+    if isinstance(x, types.ListType):
+        return [y.lower() if y is not None else y for y in x]
+    else:
+        return x.lower()
 
 
 def defval(val, default=None):
@@ -491,6 +496,33 @@ def defvalkey(js, key, default=None, take_none=True):
     if js[key] is None and not take_none:
         return default
     return js[key]
+
+
+def defvalkey_ic(js, key, default=None, take_none=True):
+    """
+    Returns js[key] if set, otherwise default. Note js[key] can be None.
+    Keys are case insensitive
+    :param js:
+    :param key:
+    :param default:
+    :param take_none:
+    :return:
+    """
+    if js is None:
+        return default
+
+    key_low = lower(key)
+    for cur_key in js:
+        ck = cur_key
+        if isinstance(cur_key, basestring):
+            ck = lower(cur_key)
+        if ck == key_low:
+            val = js[cur_key]
+            if val is None and not take_none:
+                return default
+            else:
+                return val
+    return default
 
 
 def defvalkeys(js, key, default=None):
@@ -804,4 +836,24 @@ def stable_uniq(x):
         ret.append(x)
         st.add(x)
     return ret
+
+
+def stip_quotes(x):
+    """
+    Strips surrounding quotes
+    :param x:
+    :return:
+    """
+    if x is None:
+        return x
+
+    m1 = re.match(r'^"(.+?)"$', x)
+    if m1:
+        return m1.group(1)
+
+    m2 = re.match(r"^'(.+?)'$", x)
+    if m2:
+        return m2.group(1)
+
+    return x
 
