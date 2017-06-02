@@ -152,6 +152,15 @@ class DbHandshakeScanJob(Base):
     follow_http_url = Column(String(255), nullable=True)  # URL after loading HTTP page
     follow_https_url = Column(String(255), nullable=True)  # URL after loading HTTPs page
 
+    hsts_present = Column(SmallInteger, default=0)  # HSTS
+    hsts_max_age = Column(BigInteger, nullable=True)  # HSTS
+    hsts_include_subdomains = Column(SmallInteger, nullable=True)  # HSTS
+    hsts_preload = Column(SmallInteger, nullable=True)  # HSTS
+
+    pinning_present = Column(SmallInteger, default=0)  # Certificate pinning
+    pinning_report_only = Column(SmallInteger, nullable=True)  # Certificate pinning
+    pinning_pins = Column(Text, nullable=True)  # Certificate pinning, json encoded pins
+
 
 class DbHandshakeScanJobResult(Base):
     """
