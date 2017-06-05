@@ -71,6 +71,8 @@ class Certificate(Base):
     issuer = Column(Text, nullable=True)
     is_ca = Column(SmallInteger, nullable=False, default=0)
     is_self_signed = Column(SmallInteger, nullable=False, default=0)
+    is_precert = Column(SmallInteger, nullable=False, default=0)
+    is_precert_ca = Column(SmallInteger, nullable=False, default=0)
     parent_id = Column(BigInteger, nullable=True)  # when found in cert chain
     is_le = Column(SmallInteger, nullable=False, default=0)
     is_cloudflare = Column(SmallInteger, nullable=False, default=0)
