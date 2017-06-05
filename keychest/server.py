@@ -456,6 +456,8 @@ class Server(object):
         cert_db.subject = util.utf8ize(util.get_dn_string(cert.subject))
         cert_db.issuer = util.utf8ize(util.get_dn_string(cert.issuer))
         cert_db.is_ca = util.try_is_ca(cert)
+        cert_db.is_precert = util.try_is_precert(cert)
+        cert_db.is_precert_ca = util.try_is_precert_ca(cert)
         cert_db.is_self_signed = util.try_is_self_signed(cert)
         cert_db.is_le = 'Let\'s Encrypt' in cert_db.issuer
 
