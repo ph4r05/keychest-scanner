@@ -30,7 +30,7 @@ from cryptography.x509 import ExtensionNotFound
 from cryptography.x509.base import load_pem_x509_certificate, load_der_x509_certificate
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
 from cryptography.hazmat.primitives import hashes
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import NameOID, ObjectIdentifier
 from cryptography.x509.oid import ExtensionOID
 from cryptography.hazmat.backends.openssl.backend import Backend as BackendOssl
 from cryptography.hazmat.backends.openssl import decode_asn1
@@ -74,6 +74,11 @@ class AutoJSONEncoder(json.JSONEncoder):
             return str(o)
         else:
             return super(AutoJSONEncoder, self).default(o)
+
+
+class CertCtOID(object):
+    PRECERTIFICATE = ObjectIdentifier("1.3.6.1.4.1.11129.2.4.3")
+    PRECERTIFICATE_CA = ObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")
 
 
 def php_obj_hook(obj):
@@ -654,6 +659,50 @@ def try_is_ca(cert, quiet=True):
     except Exception as e:
         if not quiet:
             logger.error('Exception in getting CA rest. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_is_precert(cert, quiet=True):
+    """
+    Tries to determine if certificate is a precertificate
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(CertCtOID.PRECERTIFICATE)
+        return ext is not None
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting pre-cert. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_is_precert_ca(cert, quiet=True):
+    """
+    Tries to determine if certificate is a precertificate
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(CertCtOID.PRECERTIFICATE_CA)
+        return ext is not None
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting ca-pre-cert. %s' % e)
             logger.debug(traceback.format_exc())
 
     return False
