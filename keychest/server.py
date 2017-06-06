@@ -275,6 +275,8 @@ class Server(object):
         :param job: 
         :return: 
         """
+        self.augment_redis_scan_job(job)
+
         job_data = job.decoded['data']['json']
         domain = job_data['scan_host']
         logger.debug(job_data)
@@ -309,6 +311,27 @@ class Server(object):
         self.update_job_state(job_data, 'finished')
         pass
 
+    def augment_redis_scan_job(self, job):
+        """
+        Augments job with retry counts, timeouts and so on.
+        :param RedisJob job:
+        :return:
+        """
+        data = job.decoded['data']['json']
+        scan_type = None
+        if 'scan_type' in data:
+            scan_type = data['scan_type']
+
+        sys_params = collections.OrderedDict()
+        sys_params['retry'] = 1
+        sys_params['timeout'] = 4
+
+        if scan_type == 'planner':
+            sys_params['retry'] = 3
+            sys_params['timeout'] = 7
+
+        data['sysparams'] = sys_params
+
     def scan_handshake(self, s, job_data, query, job_db):
         """
         Performs direct handshake if applicable
@@ -319,6 +342,7 @@ class Server(object):
         :return: 
         """
         domain = job_data['scan_host']
+        sys_params = job_data['sysparams']
         if not re.match(r'^[a-zA-Z0-9._-]+$', domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
             return
@@ -331,7 +355,8 @@ class Server(object):
         try:
             resp = None
             try:
-                resp = self.tls_handshaker.try_handshake(domain, port, scheme=scheme)
+                resp = self.tls_handshaker.try_handshake(domain, port, scheme=scheme,
+                                                         attempts=sys_params['retry'], timeout=sys_params['timeout'])
 
             except TlsTimeout as te:
                 logger.debug('Scan timeout: %s' % te)
@@ -364,7 +389,7 @@ class Server(object):
             self.process_handshake_certs(s, resp, scan_db)
 
             # Try direct connect with requests, follow urls
-            self.connect_analysis(s, resp, scan_db, domain, port, scheme)
+            self.connect_analysis(s, sys_params, resp, scan_db, domain, port, scheme)
 
         except Exception as e:
             logger.debug('Exception when scanning: %s' % e)
@@ -573,12 +598,13 @@ class Server(object):
         scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
         s.flush()
 
-    def connect_analysis(self, s, resp, scan_db, domain, port=None, scheme=None, hostname=None):
+    def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
         """
         Connects to the host, performs simple connection analysis - HTTP connect, HTTPS connect, follow redirects.
         :param s: 
-        :param resp: 
-        :param scan_db: 
+        :param sys_params:
+        :param resp:
+        :param scan_db:
         :param domain: 
         :param port: 
         :param scheme: 
@@ -586,17 +612,7 @@ class Server(object):
         :return: 
         """
         # scheme & port setting, params + auto-detection defaults
-        if port is None:
-            if scheme == 'https':
-                port = 443
-            elif scheme == 'http':
-                port = 80
-        port = util.defval(port, 443)
-
-        if port == 80 and scheme is None:
-            scheme = 'http'
-        else:
-            scheme = util.defval(scheme, 'https')
+        scheme, port = TlsDomainTools.scheme_port_detect(scheme, port)
         hostname = util.defval(hostname, domain)
 
         if scheme not in ['http', 'https']:
@@ -610,18 +626,18 @@ class Server(object):
         if resp.handshake_failure not in [TlsHandshakeErrors.CONN_ERR, TlsHandshakeErrors.READ_TO]:
             c_url = '%s://%s:%s' % (scheme, test_domain, port)
 
-            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=False)
+            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], allow_redirects=False)
             scan_db.req_https_result = self.tls_scanner.err2status(error)
             self.http_headers_analysis(s, scan_db, r)
 
-            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, allow_redirects=True)
+            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], allow_redirects=True)
             scan_db.follow_https_result = self.tls_scanner.err2status(error)
             scan_db.follow_https_url = r.url if error is None else None
 
         elif scheme == 'https' and port in [80, 443]:
             c_url = 'http://%s' % test_domain
 
-            r, error = self.tls_scanner.req_connect(c_url, timeout=self.test_timeout, verify=False)
+            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], verify=False)
             scan_db.follow_http_result = self.tls_scanner.err2status(error)
             scan_db.follow_http_url = r.url if error is None else None
         s.flush()

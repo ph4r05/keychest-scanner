@@ -218,3 +218,25 @@ class TlsDomainTools(object):
 
         return ret
 
+    @staticmethod
+    def scheme_port_detect(scheme, port):
+        """
+        Scheme / port detection from one another, https by default.
+        :param scheme:
+        :param port:
+        :return:
+        """
+        if port is None:
+            if scheme == 'https':
+                port = 443
+            elif scheme == 'http':
+                port = 80
+        port = util.defval(port, 443)
+
+        if port == 80 and scheme is None:
+            scheme = 'http'
+        else:
+            scheme = util.defval(scheme, 'https')
+
+        return scheme, port
+
