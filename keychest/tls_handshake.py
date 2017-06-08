@@ -171,6 +171,10 @@ class TlsHandshaker(object):
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.ECDSA),
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.RSA),
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA1, sig_alg=TLSSignatureAlgorithm.RSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.ECDSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.RSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.ECDSA),
+                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.RSA),
             ]),
 
             TLSExtension() /
