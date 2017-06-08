@@ -179,6 +179,25 @@ class DbHandshakeScanJobResult(Base):
     is_ca = Column(SmallInteger, default=0)
 
 
+class DbWatchTarget(Base):
+    """
+    Watching target - scan server host
+    """
+    __tablename__ = 'watch_target'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, nullable=True)
+
+    scan_host = Column(String(255), nullable=False)
+    scan_scheme = Column(String(255), nullable=True)
+    scan_port = Column(String(255), nullable=True)
+    scan_periodicity = Column(BigInteger, nullable=True)
+    scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)
+
+
 class MySQL(object):
     """
     MySQL management, installation & stuff
