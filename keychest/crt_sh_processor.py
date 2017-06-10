@@ -142,8 +142,8 @@ class CrtProcessor(object):
     BASE_URL = 'https://crt.sh/'
 
     def __init__(self):
-        self.timeout = 20
-        self.attempts = 3
+        self.timeout = 3
+        self.attempts = 2
 
     def download_crt(self, crt_id):
         """
