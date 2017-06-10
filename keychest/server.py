@@ -408,6 +408,8 @@ class Server(object):
         """
         crt_sh = self.crt_sh_proc.query(query)
         logger.debug(crt_sh)
+        if crt_sh is None:
+            return
 
         # existing certificates - have pem
         all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
