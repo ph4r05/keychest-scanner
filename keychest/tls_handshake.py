@@ -50,6 +50,10 @@ DEFAULT_CIPHER_SUITES = [
 
     TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
     TLSCipherSuite.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    0xc02c,  # TLSCipherSuite.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    0xc030,  # TLSCipherSuite.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    0xcca9,
+    0xcca8,
 
     TLSCipherSuite.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 ]
@@ -125,7 +129,33 @@ class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
                    XFieldLenField("length", None, length_of="algs", fmt="H"),
                    PacketListField("algs", None, TLSSignatureHashAlgorithm, length_from=lambda x:x.length),
                   ]
+
+
+class TLSExtChannelId(PacketNoPayload):
+    name = "TLS Extension channel id"
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+
+
+class TLSExt2a2a(PacketNoPayload):
+    name = "ext-2a2a"
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+
+
+class TLSExt4a4a(PacketNoPayload):
+    name = "ext-4a4a"
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+
+
+class TLSExtExtendedMasterSecret(PacketNoPayload):
+    name = "TLS Extension ExtendedMasterSecret"
+    fields_desc = [StrLenField("data", '', length_from=lambda x: x.underlayer.length), ]
+
+
 bind_layers(TLSExtension, TLSExtSignatureAndHashAlgorithmFixed, {'type': TLSExtensionType.SIGNATURE_ALGORITHMS})
+bind_layers(TLSExtension, TLSExtChannelId, {'type': 0x7550})
+bind_layers(TLSExtension, TLSExt2a2a, {'type': 0x2a2a})
+bind_layers(TLSExtension, TLSExt4a4a, {'type': 0x4a4a})
+bind_layers(TLSExtension, TLSExtExtendedMasterSecret, {'type': 0x0017})
 
 
 class TlsHandshaker(object):
@@ -158,10 +188,16 @@ class TlsHandshaker(object):
         # SNI
         cl_hello.extensions = [
             TLSExtension() /
+            TLSExt4a4a(),
+
+            TLSExtension() /
             TLSExtRenegotiationInfo(),
 
             TLSExtension() /
             TLSExtServerNameIndication(server_names=server_names),
+
+            TLSExtension() /
+            TLSExtExtendedMasterSecret(),
 
             TLSExtension() /
             TLSExtSessionTicketTLS(),
@@ -175,10 +211,16 @@ class TlsHandshaker(object):
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.RSA),
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.ECDSA),
                 TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.RSA),
+                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x6),
+                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x5),
+                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x4)
             ]),
 
             TLSExtension() /
             TLSExtALPN(protocol_name_list=[TLSALPNProtocol(data="http/1.1")]),
+
+            TLSExtension() /
+            TLSExtChannelId(),
 
             TLSExtension() /
             TLSExtECPointsFormat(ec_point_formats=[TLSEcPointFormat.UNCOMPRESSED]),
@@ -188,7 +230,11 @@ class TlsHandshaker(object):
                 TLSEllipticCurve.ECDH_X25519,
                 TLSEllipticCurve.SECP256R1,
                 TLSEllipticCurve.SECP384R1,
+                0x6a6a
             ]),
+
+            TLSExtension() /
+            TLSExt2a2a(),
         ]
 
         # Complete record with handshake / client hello
