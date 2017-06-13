@@ -95,3 +95,9 @@ class AccessForbiddenError(Error):
     def __init__(self, message=None, cause=None):
         super(AccessForbiddenError, self).__init__(message=message, cause=cause)
 
+
+class RequestError(Error):
+    """Access to the resource was forbidden"""
+    def __init__(self, message=None, cause=None):
+        super(RequestError, self).__init__(message=message, cause=cause)
+

@@ -18,7 +18,7 @@ from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools
-from tls_scanner import TlsScanner, TlsScanResult
+from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 
 import threading
 import pid
@@ -628,20 +628,38 @@ class Server(object):
         if resp.handshake_failure not in [TlsHandshakeErrors.CONN_ERR, TlsHandshakeErrors.READ_TO]:
             c_url = '%s://%s:%s' % (scheme, test_domain, port)
 
+            # Direct request attempt on the url - analyze Request behaviour, headers.
             r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], allow_redirects=False)
             scan_db.req_https_result = self.tls_scanner.err2status(error)
+
+            # Another request for HSTS & pinning detection without cert verify.
+            if error == RequestErrorCode.SSL:
+                r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], allow_redirects=False,
+                                                        verify=False)
             self.http_headers_analysis(s, scan_db, r)
 
-            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], allow_redirects=True)
+            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'])
             scan_db.follow_https_result = self.tls_scanner.err2status(error)
+
+            # Load follow URL if there was a SSL error.
+            if error == RequestErrorCode.SSL:
+                r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], verify=False)
+
             scan_db.follow_https_url = r.url if error is None else None
 
-        elif scheme == 'https' and port in [80, 443]:
+        # simple HTTP check - default connection point when there is no scheme
+        if scheme != 'http' and port != 80:
             c_url = 'http://%s' % test_domain
 
-            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], verify=False)
+            r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'])
             scan_db.follow_http_result = self.tls_scanner.err2status(error)
+
+            # Another request without cert verify, follow url is interesting
+            if error == RequestErrorCode.SSL:
+                r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'], verify=False)
+
             scan_db.follow_http_url = r.url if error is None else None
+
         s.flush()
 
     def http_headers_analysis(self, s, scan_db, r):

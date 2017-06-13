@@ -15,6 +15,7 @@ from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools
+from errors import RequestError
 
 import logging
 from functools import wraps
@@ -32,6 +33,33 @@ class TlsScanResult(object):
     """
     def __init__(self):
         self.tls_res = None  # Tls handshake result
+
+
+class RequestErrorCode(object):
+    """
+    Register of request errors
+    """
+    READ_TIMEOUT = 'READ_TO'
+    CONNECTION_TIMEOUT = 'CONN_TO'
+    SSL = 'SSL_ERR'
+    CONNECTION = 'CONN_FAIL'
+    GENERIC = 'GEN_ERR'
+    IO = 'IO_ERR'
+
+
+class RequestErrorWrapper(object):
+    """
+    Request error - simple category
+    """
+    def __init__(self, code, exc=None):
+        self.code = code
+        self.exc = exc
+
+    def __eq__(self, other):
+        if isinstance(other, RequestErrorWrapper):
+            return self.code == other.code
+        else:
+            return self.code == other
 
 
 class TlsScanner(object):
@@ -73,29 +101,35 @@ class TlsScanner(object):
                     return res, None
 
                 except requests.exceptions.ReadTimeout as rte:
-                    error = 'READ_TO'
+                    error = RequestErrorWrapper(RequestErrorCode.READ_TIMEOUT,
+                                                RequestError('Read timeout', rte))
                     self.trace_logger.log(rte)
 
                 except requests.exceptions.ConnectTimeout as cte:
-                    error = 'CONN_TO'
+                    error = RequestErrorWrapper(RequestErrorCode.CONNECTION_TIMEOUT,
+                                                RequestError('Connect timeout', cte))
                     self.trace_logger.log(cte)
 
                 except requests.exceptions.SSLError as cte:
-                    error = 'SSL_ERR'
+                    error = RequestErrorWrapper(RequestErrorCode.SSL,
+                                                RequestError('SSL Error', cte))
                     self.trace_logger.log(cte)
 
                 except requests.exceptions.ConnectionError as ce:
-                    error = 'CONN_FAIL'
+                    error = RequestErrorWrapper(RequestErrorCode.CONNECTION,
+                                                RequestError('Connection error', ce))
                     logger.debug('Connection error: %s' % ce)
                     self.trace_logger.log(ce)
 
                 except requests.exceptions.RequestException as re:
-                    error = 'GEN_ERR'
+                    error = RequestErrorWrapper(RequestErrorCode.GENERIC,
+                                                RequestError('Generic error', re))
                     logger.debug('Connection error: %s' % re)
                     self.trace_logger.log(re)
 
                 except IOError as ioe:
-                    error = 'IO_ERR'
+                    error = RequestErrorWrapper(RequestErrorCode.IO,
+                                                RequestError('IO Error', ioe))
                     logger.debug('IO error: %s' % ioe)
                     self.trace_logger.log(ioe)
 
