@@ -61,6 +61,12 @@ class RequestErrorWrapper(object):
         else:
             return self.code == other
 
+    def __repr__(self):
+        return '<RequestErrorWrapper(code=%r, exc=%r)>' % (self.code, self.exc)
+
+    def __str__(self):
+        return str(self.code)
+
 
 class TlsScanner(object):
     """
@@ -164,5 +170,5 @@ class TlsScanner(object):
         """
         if err is None:
             return 'OK'
-        return err
+        return str(err)
 
