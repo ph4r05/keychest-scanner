@@ -539,7 +539,7 @@ if __name__ == '__main__':
     # print(repr(ret.resp_bin))
     # print('-' * 80)
 
-    print 'Certificates: \n'
+    print('Certificates (%d) : \n' % len(ret.certificates))
     for x in ret.certificates:
         crt = util.load_x509_der(x)
         cname = util.try_get_cname(crt)
