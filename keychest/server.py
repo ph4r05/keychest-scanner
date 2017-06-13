@@ -648,7 +648,7 @@ class Server(object):
             scan_db.follow_https_url = r.url if error is None else None
 
         # simple HTTP check - default connection point when there is no scheme
-        if scheme != 'http' and port != 80:
+        if port == 443:
             c_url = 'http://%s' % test_domain
 
             r, error = self.tls_scanner.req_connect(c_url, timeout=sys_params['timeout'])
