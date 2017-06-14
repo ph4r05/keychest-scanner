@@ -376,6 +376,7 @@ class Server(object):
             scan_db = DbHandshakeScanJob()
             scan_db.created_at = salch.func.now()
             scan_db.job_id = job_db.id
+            scan_db.ip_scanned = resp.ip
             scan_db.tls_ver = resp.tls_version
             scan_db.status = len(resp.certificates) > 0
             scan_db.err_code = resp.handshake_failure

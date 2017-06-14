@@ -100,6 +100,7 @@ class TlsHandshakeResult(object):
         self.host = None
         self.port = None
         self.domain = None
+        self.ip = None
 
         self.time_start = None
         self.time_connected = None
@@ -292,12 +293,14 @@ class TlsHandshaker(object):
             try:
                 s.connect(target)
                 return_obj.time_connected = time.time()
+                return_obj.ip = self._try_get_peer_ip(s)
 
             except Exception as e:
                 logger.debug('Exception during connect: %s' % e)
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = TlsHandshakeErrors.CONN_ERR
                 return_obj.time_failed = time.time()
+                return_obj.ip = self._try_get_peer_ip(s)
 
                 raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
 
@@ -325,6 +328,17 @@ class TlsHandshaker(object):
 
         finally:
             util.silent_close(s)
+
+    def _try_get_peer_ip(self, s):
+        """
+        Tries to extract IP address of the remote peer from the socket
+        :param s:
+        :return:
+        """
+        try:
+            return s.getpeername()[0]
+        except Exception as e:
+            return None
 
     def _read_while_finished(self, return_obj, s, timeout):
         """
