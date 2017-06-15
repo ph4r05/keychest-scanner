@@ -202,7 +202,8 @@ class DbWatchTarget(Base):
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
-    last_scan_at = Column(DateTime, default=None)
+    last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
+    last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
 
 
 class DbUser(Base):
