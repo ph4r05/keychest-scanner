@@ -129,16 +129,23 @@ class DbHandshakeScanJob(Base):
     """
     __tablename__ = 'scan_handshakes'
     id = Column(BigInteger, primary_key=True)
+
     job_id = Column(BigInteger, nullable=True)
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to
     tls_ver = Column(String(16), nullable=True)  # tls version used to connect
 
     created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
     status = Column(SmallInteger, default=0)
     err_code = Column(SmallInteger, default=0)  # basic error with the handshake (connect err / timeout / TLSAlert)
     time_elapsed = Column(Integer, nullable=True)
 
-    results = Column(Integer, default=0)     # num of certificates in the handshake
+    results = Column(Integer, default=0)      # num of certificates in the handshake
     new_results = Column(Integer, default=0)  # num of new certificates in the handshake
 
     certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
