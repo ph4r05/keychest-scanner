@@ -5,6 +5,8 @@
 Server part of the script
 """
 
+from past.builtins import cmp
+
 from daemon import Daemon
 from core import Core
 from config import Config
@@ -87,13 +89,23 @@ class PeriodicJob(object):
         """
         return self.target.id
 
+    def cmpval(self):
+        """
+        Returns tuple for comparison
+        :return:
+        """
+        return self.attempts, \
+               self.target.last_scan_at is None, \
+               self.target.last_scan_at
+
     def __cmp__(self, other):
         """
         Compare operation for priority queue.
         :param other:
+        :type other: PeriodicJob
         :return:
         """
-        return -1
+        return cmp(self.cmpval(), other.cmpval())
 
     def to_json(self):
         js = collections.OrderedDict()
@@ -661,11 +673,17 @@ class Server(object):
             if job.success_scan:
                 self.periodic_update_last_scan(job)
 
+            # if retry under threshold, add again to the queue
+            elif job.attempts <= 3:
+                self.watcher_job_queue.put(job)
+
+            # job has expired. TODO: make sure job does not return quickly by DB load.
             # remove from processing caches so it can be picked up again later.
             # i.e. remove lock on this item
-            with self.watcher_db_lock:
-                del self.watcher_db_cur_jobs[job.key()]
-                del self.watcher_db_processing[job.key()]
+            else:
+                with self.watcher_db_lock:
+                    del self.watcher_db_cur_jobs[job.key()]
+                    del self.watcher_db_processing[job.key()]
 
     def periodic_update_last_scan(self, job):
         """
@@ -693,8 +711,16 @@ class Server(object):
         :return:
         """
         logger.debug('Processing watcher job: %s' % job)
-        time.sleep(2)
-        job.success_scan = True  # updates last scan record
+        s = self.db.get_session()
+        try:
+            time.sleep(2)
+            job.success_scan = True  # updates last scan record
+
+        except Exception as e:
+            job.attempts += 1
+
+        finally:
+            util.silent_close(s)
 
     #
     # Helpers
