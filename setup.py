@@ -26,6 +26,7 @@ install_requires = [
     'hiredis',
     'phpserialize',
     'scapy-ssl-tls',
+    'mysql-python',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
