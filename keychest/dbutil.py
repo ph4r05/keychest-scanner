@@ -198,6 +198,19 @@ class DbWatchTarget(Base):
     last_scan_at = Column(DateTime, default=None)
 
 
+class DbUser(Base):
+    """
+    Users - Laravel maintained table!
+    """
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(191), nullable=False)
+    email = Column(String(191), nullable=False, unique=True)
+    password = Column(String(191), nullable=True)
+    remember_token = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=None)
+
 class MySQL(object):
     """
     MySQL management, installation & stuff
