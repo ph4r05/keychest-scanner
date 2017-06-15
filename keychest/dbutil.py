@@ -11,6 +11,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.mysql import INTEGER
 from warnings import filterwarnings
 import MySQLdb as MySQLDatabase
 
@@ -211,7 +212,7 @@ class DbUser(Base):
     Users - Laravel maintained table!
     """
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
+    id = Column(INTEGER(10, unsigned=True), primary_key=True)
     name = Column(String(191), nullable=False)
     email = Column(String(191), nullable=False, unique=True)
     password = Column(String(191), nullable=True)
