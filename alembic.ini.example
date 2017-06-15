@@ -1,5 +1,9 @@
 # A generic, single database configuration.
 
+[alembic:exclude]
+# excluding laravel generated/maintained tables
+tables = jobs, users, migrations, social_users, password_resets
+
 [alembic]
 # path to migration scripts
 script_location = alembic
