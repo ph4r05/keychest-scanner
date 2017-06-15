@@ -198,7 +198,7 @@ class DbWatchTarget(Base):
     scan_host = Column(String(255), nullable=False)
     scan_scheme = Column(String(255), nullable=True)
     scan_port = Column(String(255), nullable=True)
-    scan_periodicity = Column(BigInteger, nullable=True)
+    scan_periodicity = Column(BigInteger, nullable=True)  # deprecated, moved to association
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
 
     created_at = Column(DateTime, default=None)
@@ -238,6 +238,38 @@ class DbWatchAssoc(Base):
 
     scan_periodicity = Column(BigInteger, nullable=True)
     scan_type = Column(Integer, nullable=True)
+
+
+class DbBaseDomain(Base):
+    """
+    Base domain for whois lookup.
+    """
+    __tablename__ = 'base_domain'
+    id = Column(BigInteger, primary_key=True)
+    domain_name = Column(String(255), nullable=False, unique=True)
+
+
+class DbWhoisCheck(Base):
+    """
+    Whois check results - aggregation possible
+    """
+    __tablename__ = 'whois_result'
+    id = Column(BigInteger, primary_key=True)
+    domain_id = Column(ForeignKey('base_domain.id'), nullable=False, index=True)
+    registrant_cc = Column(String(255), nullable=True)
+    registrar = Column(String(255), nullable=True)
+    registered_at = Column(DateTime, default=None, nullable=True)
+    expires_at = Column(DateTime, default=None, nullable=True)
+    rec_updated_at = Column(DateTime, default=None, nullable=True)  # whois record updated at
+    dns = Column(Text, default=None, nullable=True)
+    aux = Column(Text, default=None, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+    domain = relationship("DbBaseDomain")
 
 
 class MySQL(object):
