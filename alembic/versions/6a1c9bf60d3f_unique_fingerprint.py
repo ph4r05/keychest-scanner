@@ -38,6 +38,11 @@ class Certificate(Base):
     fprint_sha1 = Column(String(40), index=True, nullable=False)
 
 
+class CertificateAltName(Base):
+    __tablename__ = 'certificate_alt_names'
+    cert_id = Column(BigInteger, index=True, primary_key=True)
+
+
 def upgrade():
     remove_duplicates()
 
@@ -89,3 +94,6 @@ def remove_duplicates():
             .delete(synchronize_session='fetch')
         sess.commit()
 
+        sess.query(CertificateAltName).filter(CertificateAltName.cert_id.in_(list(to_delete_set)))\
+            .delete(synchronize_session='fetch')
+        sess.commit()
