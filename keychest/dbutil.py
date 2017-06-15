@@ -280,6 +280,67 @@ class DbWhoisCheck(Base):
     domain = relationship("DbBaseDomain")
 
 
+class DbScanHistory(Base):
+    """
+    Base scan history, RRD lvl 0, prune periodically.
+    Keeps only last X records / weeks of records.
+    On rotation results out of the window get accumulated to RRD lvl 1.
+    """
+    __tablename__ = "scan_history"
+    id = Column(BigInteger, primary_key=True)
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+    scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
+    scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
+    created_at = Column(DateTime, default=None)
+
+
+class DbScanGaps(Base):
+    """
+    Gaps in the scannings above defined SLA.
+    Periodic scans are assumed to be run in the SLA period - e.g., if SLA 1 hour,
+    we would like to guarantee at least 1 scan in 1 hour. If this scan
+    is voilated due to something we have to have a record about it - gap in scanning.
+    If there is no gap record it is assumed SLA was not violated. Scans stores only
+    result that changes over time.
+    """
+    __tablename__ = "scan_gaps"
+    id = Column(BigInteger, primary_key=True)
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+    scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
+    scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
+    created_at = Column(DateTime, default=None)
+    gap_start = Column(DateTime, default=None)
+    gap_end = Column(DateTime, default=None)
+
+
+class DbSystemLastEvents(Base):
+    """
+    System events table - stores watchdog ticks / network working ticks.
+    If server crashes it can detect how long it has been out.
+    Stores only last occurence of the event.
+    """
+    __tablename__ = "system_last_events"
+    id = Column(BigInteger, primary_key=True)
+    event_key = Column(String(191), nullable=False, unique=True)
+    event_at = Column(DateTime, default=None)
+    aux = Column(Text, default=None, nullable=True)
+
+
+class DbLastRecordCache(Base):
+    """
+    Optimization table for fetching last record for some key - e.g.,
+    last scan for the given watcher.
+    """
+    __tablename__ = "last_record_cache"
+    id = Column(BigInteger, primary_key=True)
+    record_key = Column(String(191), nullable=False, unique=True)
+    record_at = Column(DateTime, default=None)
+    record_id = Column(BigInteger, default=None)
+    record_aux = Column(Text, default=None, nullable=True)
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 class MySQL(object):
     """
     MySQL management, installation & stuff
