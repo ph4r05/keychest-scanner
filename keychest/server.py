@@ -242,7 +242,7 @@ class Server(object):
 
         except Exception as e:
             logger.error('Exception in processing job %s' % (e,))
-            logger.debug(traceback.format_exc())
+            self.trace_logger.log(e)
 
             self.scan_mark_failed_exceeds_attempts(job, 5, e)
             if not job.is_deleted_or_released() and not job.failed:
@@ -875,7 +875,7 @@ class Server(object):
 
             except Exception as e:
                 logger.error('Exception in processing job %s: %s' % (e, job))
-                logger.debug(traceback.format_exc())
+                self.trace_logger.log(e)
 
             finally:
                 self.job_queue.task_done()
@@ -950,7 +950,7 @@ class Server(object):
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e, ))
-                logger.debug(traceback.format_exc())
+                self.trace_logger.log(e)
 
             finally:
                 pass
@@ -979,11 +979,11 @@ class Server(object):
 
                 except Exception as e:
                     logger.error('Exception in DB cleanup: %s' % e)
-                    logger.debug(traceback.format_exc())
+                    self.trace_logger.log(e)
 
         except Exception as e:
             logger.error('Exception: %s' % e)
-            logger.debug(traceback.format_exc())
+            self.trace_logger.log(e)
 
         logger.info('Status loop terminated')
 
@@ -1039,7 +1039,7 @@ class Server(object):
 
         except Exception as e:
             logger.error('Exception: %s' % e)
-            logger.error(traceback.format_exc())
+            self.trace_logger.log(e)
 
         self.terminating()
         logger.info('Work loop terminated')
