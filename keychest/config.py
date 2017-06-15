@@ -122,6 +122,15 @@ class Config(object):
     def workers(self, val):
         self.set_config('workers', val)
 
+    # Redis port number
+    @property
+    def periodic_workers(self):
+        return self.get_config('periodic_workers', 15)
+
+    @periodic_workers.setter
+    def periodic_workers(self, val):
+        self.set_config('periodic_workers', val)
+
 
 
 

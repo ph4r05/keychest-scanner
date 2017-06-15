@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import create_engine, UniqueConstraint
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
-from sqlalchemy.orm import sessionmaker, scoped_session, relationship
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import INTEGER
 from warnings import filterwarnings
@@ -412,6 +412,7 @@ class MySQL(object):
         """
         Returns a new session
         :return:
+        :rtype scoped_session
         """
         return self.session()
 

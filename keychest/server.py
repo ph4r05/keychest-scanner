@@ -9,7 +9,8 @@ from daemon import Daemon
 from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
-    DbHandshakeScanJob, DbHandshakeScanJobResult
+    DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
+    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -39,9 +40,10 @@ import coloredlogs
 import traceback
 import collections
 import signal
-from queue import Queue, Empty as QEmpty
+from queue import Queue, Empty as QEmpty, PriorityQueue
 from datetime import datetime, timedelta
 import sqlalchemy as salch
+from sqlalchemy.orm.query import Query as SaQuery
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
 
 
@@ -60,6 +62,46 @@ class AppDeamon(Daemon):
 
     def run(self, *args, **kwargs):
         self.app.work()
+
+
+class PeriodicJob(object):
+    """
+    Represents periodic job loaded from the db
+    """
+    def __init__(self, target=None, periodicity=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbWatchTarget
+        :param args:
+        :param kwargs:
+        """
+        self.target = target
+        self.periodicity = periodicity
+        self.success_scan = False
+        self.attempts = 0
+
+    def key(self):
+        """
+        Returns hashable key for the job dbs
+        :return:
+        """
+        return self.target.id
+
+    def __cmp__(self, other):
+        """
+        Compare operation for priority queue.
+        :param other:
+        :return:
+        """
+        return -1
+
+    def to_json(self):
+        js = collections.OrderedDict()
+        return js
+
+    def __repr__(self):
+        return '<PeriodicJob(target=<WatcherTarget(id=%r, host=%r, self=%r)>, attempts=%r)>' \
+               % (self.target.id, self.target.scan_host, self.target, self.attempts)
 
 
 class Server(object):
@@ -88,6 +130,15 @@ class Server(object):
         self.job_queue = Queue(50)
         self.local_data = threading.local()
         self.workers = []
+
+        self.watch_last_db_scan = 0
+        self.watch_db_scan_period = 5
+        self.watcher_job_queue = PriorityQueue()
+        self.watcher_db_cur_jobs = {}  # watchid -> job either in queue or processing
+        self.watcher_db_processing = {}  # watchid -> time scan started, protected by lock
+        self.watcher_db_lock = RLock()
+        self.watcher_workers = []
+        self.watcher_thread = None
 
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
@@ -455,6 +506,197 @@ class Server(object):
         crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
 
     #
+    # Periodic scanner
+    #
+
+    def load_active_watch_targets(self, s, last_scan_margin=300):
+        """
+        Loads active jobs to scan, from the oldest.
+        After loading the result is a tuple (DbWatchTarget, min_periodicity).
+
+        select wt.*, min(uw.scan_periodicity) from user_watch_target uw
+            inner join watch_target wt on wt.id = uw.watch_id
+            where uw.deleted_at is null
+            group by wt.id, uw.scan_type
+            order by last_scan_state desc
+            limit 1000;
+        :param s : SaQuery query
+        :type s: SaQuery
+        :param last_scan_margin: margin for filtering out records that were recently processed.
+        :return:
+        """
+        q = s.query(
+                    DbWatchTarget,
+                    salch.func.min(DbWatchAssoc.scan_periodicity).label('min_periodicity')
+        )\
+            .select_from(DbWatchAssoc)\
+            .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id)\
+            .filter(DbWatchAssoc.deleted_at == None)
+
+        if last_scan_margin:
+            cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
+            q = q.filter(salch.or_(
+                DbWatchTarget.last_scan_at < cur_margin,
+                DbWatchTarget.last_scan_at == None
+            ))
+
+        return q.group_by(DbWatchTarget.id, DbWatchAssoc.scan_type)\
+                .order_by(DbWatchTarget.last_scan_at.desc())
+
+    def periodic_feeder_main(self):
+        """
+        Main thread feeding periodic scan job queue from database - according to the records.
+        :return:
+        """
+        while self.is_running():
+            ctime = time.time()
+
+            # trigger if last scan was too old / queue is empty / on event from the interface
+            scan_now = False
+            if self.watch_last_db_scan + self.watch_db_scan_period <= ctime:
+                scan_now = True
+
+            if not scan_now and self.watch_last_db_scan + 0.1 >= ctime \
+                    and self.watcher_job_queue.qsize() <= 100:
+                scan_now = True
+
+            if not scan_now:
+                time.sleep(0.05)
+                continue
+
+            # get the new session
+            try:
+                self.periodic_feeder()
+
+            except Exception as e:
+                logger.error('Exception in processing job %s' % (e, ))
+                self.trace_logger.log(e)
+
+            finally:
+                self.watch_last_db_scan = ctime
+
+        logger.info('Periodic feeder terminated')
+
+    def periodic_feeder(self):
+        """
+        Feeder loop body
+        :return:
+        """
+        if self.watcher_job_queue.full():
+            return
+
+        s = self.db.get_session()
+        try:
+            query = self.load_active_watch_targets(s)
+            iterator = query.yield_per(100)
+            for x in iterator:
+                watch_target, min_periodicity = x
+
+                if self.watcher_job_queue.full():
+                    return
+
+                with self.watcher_db_lock:
+                    # Ignore jobs currently in the progress.
+                    if watch_target.id in self.watcher_db_cur_jobs:
+                        continue
+
+                    job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
+                    self.watcher_db_cur_jobs[job.key()] = job
+                    self.watcher_job_queue.put(job)
+                    logger.debug('Job generated: %s' % str(job))
+
+        finally:
+            util.silent_close(s)
+
+    def periodic_worker(self, idx):
+        """
+        Main periodic job worker
+        :param idx:
+        :return:
+        """
+        self.local_data.idx = idx
+        logger.info('Periodic Scanner Worker %02d started' % idx)
+
+        while self.is_running():
+            job = None
+            try:
+                job = self.watcher_job_queue.get(True, timeout=1.0)
+            except QEmpty:
+                time.sleep(0.1)
+                continue
+
+            try:
+                # Process job in try-catch so it does not break worker
+                logger.debug('[%02d] Processing job' % (idx,))
+                self.periodic_process_job(job)
+
+            except Exception as e:
+                logger.error('Exception in processing job %s: %s' % (e, job))
+                self.trace_logger.log(e)
+
+            finally:
+                self.watcher_job_queue.task_done()
+
+        logger.info('Periodic Worker %02d terminated' % idx)
+
+    def periodic_process_job(self, job):
+        """
+        Processes periodic job - wrapper
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        try:
+            with self.watcher_db_lock:
+                self.watcher_db_processing[job.key()] = job
+
+            self.periodic_process_job_body(job)
+
+        except Exception as e:
+            logger.error('Exception in processing watcher job %s' % (e,))
+            self.trace_logger.log(e)
+
+        finally:
+            # if job is success update db last scan value
+            if job.success_scan:
+                self.periodic_update_last_scan(job)
+
+            # remove from processing caches so it can be picked up again later.
+            # i.e. remove lock on this item
+            with self.watcher_db_lock:
+                del self.watcher_db_cur_jobs[job.key()]
+                del self.watcher_db_processing[job.key()]
+
+    def periodic_update_last_scan(self, job):
+        """
+        Updates last scan time for the job
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            stmt = DbWatchTarget.__table__.update()\
+                .where(DbWatchTarget.id == job.target.id)\
+                .values(last_scan_at=salch.func.now())
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_close(s)
+
+    def periodic_process_job_body(self, job):
+        """
+        Watcher job processing - the body
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        logger.debug('Processing watcher job: %s' % job)
+        time.sleep(2)
+        job.success_scan = True  # updates last scan record
+
+    #
     # Helpers
     #
 
@@ -759,7 +1001,9 @@ class Server(object):
         Updates job state in DB + sends event via redis
         :param job_data: 
         :param state: 
-        :return: 
+        :param s:
+        :type s: SaQuery
+        :return:
         """
         s = None
         s_was_none = s is None
@@ -1065,6 +1309,18 @@ class Server(object):
             self.workers.append(t)
             t.setDaemon(True)
             t.start()
+
+        # periodic worker start
+        for worker_idx in range(0, self.config.periodic_workers):
+            t = threading.Thread(target=self.periodic_worker, args=(worker_idx, ))
+            self.watcher_workers.append(t)
+            t.setDaemon(True)
+            t.start()
+
+        # watcher feeder thread
+        self.watcher_thread = threading.Thread(target=self.periodic_feeder_main, args=())
+        self.watcher_thread.setDaemon(True)
+        self.watcher_thread.start()
 
         # Daemon vs. run mode.
         if self.args.daemon:
