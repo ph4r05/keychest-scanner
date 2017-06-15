@@ -6,6 +6,7 @@ Create Date: 2017-06-15 11:01:37.290446
 
 """
 from alembic import op
+from alembic import context
 import sqlalchemy as sa
 
 from sqlalchemy import event, UniqueConstraint
@@ -13,6 +14,7 @@ from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session as BaseSession, relationship
 from sqlalchemy.dialects.mysql import INTEGER
+import logging
 
 # revision identifiers, used by Alembic.
 revision = '2f5ddc3ac5c7'
@@ -22,6 +24,7 @@ depends_on = None
 
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
 
 
 class DbUser(Base):
@@ -47,8 +50,8 @@ class DbWatchAssoc(Base):
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
 
-    is_enabled = Column(SmallInteger, default=1, nullable=False)
     scan_periodicity = Column(BigInteger, nullable=True)
     scan_type = Column(Integer, nullable=True)
 
@@ -73,7 +76,7 @@ def upgrade():
     sa.Column('watch_id', sa.BigInteger(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('is_enabled', sa.SmallInteger(), nullable=False),
+    sa.Column('user_watch_target', sa.DateTime(), nullable=True),
     sa.Column('scan_periodicity', sa.BigInteger(), nullable=True),
     sa.Column('scan_type', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
@@ -85,7 +88,11 @@ def upgrade():
     op.create_index(op.f('ix_user_watch_target_watch_id'), 'user_watch_target', ['watch_id'], unique=False)
     # ### end Alembic commands ###
 
-    # Data migration
+    # Data migration - online mode only
+    if context.is_offline_mode():
+        logger.warning('Data migration skipped in the offline mode')
+        return
+
     bind = op.get_bind()
     sess = BaseSession(bind=bind)
     it = sess.query(DbWatchTarget).yield_per(1000)
@@ -95,7 +102,6 @@ def upgrade():
 
         assoc = DbWatchAssoc()
         assoc.scan_type = 1
-        assoc.is_enabled = 1
         assoc.created_at = rec.created_at
         assoc.updated_at = rec.updated_at
         assoc.scan_periodicity = rec.scan_periodicity

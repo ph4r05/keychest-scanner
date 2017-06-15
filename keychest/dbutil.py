@@ -234,8 +234,8 @@ class DbWatchAssoc(Base):
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
 
-    is_enabled = Column(SmallInteger, default=1, nullable=False)
     scan_periodicity = Column(BigInteger, nullable=True)
     scan_type = Column(Integer, nullable=True)
 
