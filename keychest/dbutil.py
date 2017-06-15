@@ -88,6 +88,8 @@ class Certificate(Base):
 class CertificateAltName(Base):
     """
     Certificate alt names, simple association table to certificate for DB based search.
+    Normalized version of alt names, used only for SQL searches, the certificate table holds alt names also
+    in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'certificate_alt_names'
     cert_id = Column(BigInteger, index=True, primary_key=True)
@@ -96,7 +98,7 @@ class CertificateAltName(Base):
 
 class DbCrtShQuery(Base):
     """
-    crt.sh search query
+    crt.sh search query + results
     """
     __tablename__ = 'crtsh_query'
     id = Column(BigInteger, primary_key=True)
@@ -112,7 +114,9 @@ class DbCrtShQuery(Base):
 
 class DbCrtShQueryResult(Base):
     """
-    Single response from the crtsh
+    Single response from the crtsh.
+    Normalized version of results, used only for SQL searches, the main result table holds results also
+    in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'crtsh_query_results'
     id = Column(BigInteger, primary_key=True)
@@ -131,10 +135,10 @@ class DbHandshakeScanJob(Base):
     __tablename__ = 'scan_handshakes'
     id = Column(BigInteger, primary_key=True)
 
-    job_id = Column(BigInteger, nullable=True)
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+    job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)  # watch id scan for periodic scanner
 
-    ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to
+    ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP)
     tls_ver = Column(String(16), nullable=True)  # tls version used to connect
 
     created_at = Column(DateTime, default=None)
@@ -174,7 +178,9 @@ class DbHandshakeScanJob(Base):
 
 class DbHandshakeScanJobResult(Base):
     """
-    Single certificate extracted from tls handshake scan
+    Single certificate extracted from tls handshake scan.
+    Normalized version of results, used only for SQL searches, the main result table holds results also
+    in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'scan_handshake_results'
     id = Column(BigInteger, primary_key=True)
@@ -224,6 +230,8 @@ class DbUser(Base):
 class DbWatchAssoc(Base):
     """
     User -> Watch target association
+    Enables to have watch_target id immutable to have valid results with target_id.
+    Also helps with deduplication of watch target scans.
     """
     __tablename__ = 'user_watch_target'
     __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='_user_watcher_uniqe'),)
