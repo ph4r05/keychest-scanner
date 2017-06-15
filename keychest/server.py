@@ -1100,6 +1100,7 @@ class Server(object):
             fprints = [fprints]
             was_array = False
 
+        fprints = util.lower(util.strip(fprints))
         ret = {}
 
         res = s.query(Certificate) \
