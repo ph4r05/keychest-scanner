@@ -6,10 +6,10 @@ import util
 import errors
 import logging
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, UniqueConstraint
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import INTEGER
 from warnings import filterwarnings
@@ -219,6 +219,26 @@ class DbUser(Base):
     remember_token = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=None)
+
+
+class DbWatchAssoc(Base):
+    """
+    User -> Watch target association
+    """
+    __tablename__ = 'user_watch_target'
+    __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='_user_watcher_uniqe'),)
+    id = Column(BigInteger, primary_key=True)
+
+    user_id = Column(ForeignKey('users.id'), nullable=False, index=True)
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    is_enabled = Column(SmallInteger, default=1, nullable=False)
+    scan_periodicity = Column(BigInteger, nullable=True)
+    scan_type = Column(Integer, nullable=True)
+
 
 class MySQL(object):
     """
