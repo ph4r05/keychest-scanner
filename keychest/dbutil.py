@@ -54,11 +54,13 @@ class Certificate(Base):
     Certificate object
     """
     __tablename__ = 'certificates'
+    __table_args__ = (UniqueConstraint('fprint_sha1', name='_fprint_sha1_uniqe'),)
+
     id = Column(BigInteger, primary_key=True)
     crt_sh_id = Column(BigInteger, index=True, nullable=True)
     crt_sh_ca_id = Column(BigInteger, nullable=True)
 
-    fprint_sha1 = Column(String(40), index=True, nullable=True)
+    fprint_sha1 = Column(String(40), index=True, nullable=False)
     fprint_sha256 = Column(String(64), index=True, nullable=True)
 
     valid_from = Column(DateTime, default=None, nullable=True)
