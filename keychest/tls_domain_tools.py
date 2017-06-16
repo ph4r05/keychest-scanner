@@ -393,7 +393,7 @@ class TlsDomainTools(object):
                 port = 443
             elif scheme == 'http':
                 port = 80
-        port = util.defval(port, 443)
+        port = int(util.defval(port, 443))
 
         if port == 80 and scheme is None:
             scheme = 'http'
