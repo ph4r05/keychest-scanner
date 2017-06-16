@@ -1174,7 +1174,7 @@ class Server(object):
 
             ret[util.lower(cur.fprint_sha1)] = cur
 
-        return ret
+        return ret if was_array else None
 
     #
     # Workers
