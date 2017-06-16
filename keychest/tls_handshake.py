@@ -249,7 +249,8 @@ class TlsHandshaker(object):
         :param port: 
         :param attempts: 
         :param kwargs: 
-        :return: 
+        :return:
+        :rtype TlsHandshakeResult
         """
         attempts = util.defval(attempts, self.attempts)
         for attempt in range(attempts):
@@ -270,7 +271,8 @@ class TlsHandshaker(object):
         Performs the handshake
         :param host: 
         :param port: 
-        :return: 
+        :return:
+        :rtype TlsHandshakeResult
         """
         target = (host, port)
         logger.debug('Connecting to: %s' % (target, ))
