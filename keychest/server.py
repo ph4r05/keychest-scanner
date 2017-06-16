@@ -657,7 +657,7 @@ class Server(object):
                 self.periodic_process_job(job)
 
             except Exception as e:
-                logger.error('Exception in processing job %s: %s' % (e, job))
+                logger.error('Exception in processing watch job %s: %s' % (e, job))
                 self.trace_logger.log(e)
 
             finally:
@@ -881,7 +881,7 @@ class Server(object):
         scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
         s.flush()
 
-    def _add_cert_or_fetch(self, s, cert_db):
+    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False):
         """
         Tries to insert new certifiate to the DB.
         If fails due to constraint violation (somebody preempted), it tries to load
@@ -891,23 +891,40 @@ class Server(object):
         :type cert_db: Certificate
         :return:
         """
+        close_after_done = False
+        if s is None:
+            s = self.db.get_session()
+            close_after_done = True
+
+        def _close_s():
+            if s is None:
+                return
+            if close_after_done:
+                util.silent_close(s)
+
         for attempt in range(5):
             done = False
-            try:
-                s.add(cert_db)
-                s.flush()
-                done = True
-            except Exception as e:
-                self.trace_logger.log(e, custom_msg='Probably constraint violation')
+            if not fetch_first or attempt > 0:
+                try:
+                    s.add(cert_db)
+                    s.commit()
+                    done = True
+
+                except Exception as e:
+                    self.trace_logger.log(e, custom_msg='Probably constraint violation')
+                    s.rollback()
 
             if done:
+                _close_s()
                 return cert_db, 1
 
-            loaded = self.cert_load_fprints(s, cert_db.fprint_sha1)
-            if cert_db.fprint_sha1 in loaded:
-                return loaded[cert_db.fprint_sha1], 0
+            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
+            if cert is not None:
+                _close_s()
+                return cert, 0
 
             time.sleep(0.01)
+        _close_s()
         raise Error('Could not store / load certificate')
 
     def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
@@ -1013,7 +1030,7 @@ class Server(object):
             response = self.crt_sh_proc.download_crt(crt_sh_id)
             if not response.success:
                 logger.debug('Download of %s not successful' % crt_sh_id)
-                return
+                return None, None
 
             cert_db = Certificate()
             cert_db.crt_sh_id = crt_sh_id
@@ -1031,7 +1048,7 @@ class Server(object):
                 logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
                 self.trace_logger.log(e)
 
-            cert_db, is_new = self._add_cert_or_fetch(s, cert_db)
+            cert_db, is_new = self._add_cert_or_fetch(s, cert_db, fetch_first=True)
             if is_new:
                 for alt_name in util.stable_uniq(alt_names):
                     alt_db = CertificateAltName()
@@ -1056,6 +1073,7 @@ class Server(object):
         except Exception as e:
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))
             self.trace_logger.log(e)
+        return None, None
 
     def analyze_cert(self, s, job_data, cert):
         """
