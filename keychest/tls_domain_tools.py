@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from past.builtins import basestring    # pip install future
+from six.moves.urllib.parse import urlparse, urlencode
+
 import json
 import logging
 import time
@@ -11,7 +14,6 @@ import traceback
 import errors
 import types
 from trace_logger import Tracelogger
-from six.moves.urllib.parse import urlparse, urlencode
 
 
 logger = logging.getLogger(__name__)
@@ -399,4 +401,24 @@ class TlsDomainTools(object):
             scheme = util.defval(scheme, 'https')
 
         return scheme, port
+
+    @staticmethod
+    def urlize(url):
+        """
+        Returns url object from the given object.
+        :param url:
+        :return:
+        """
+        if isinstance(url, TargetUrl):
+            return url
+        elif isinstance(url, basestring):
+            return TargetUrl(url=url)
+        elif isinstance(url, types.TupleType) and len(url) == 3:
+            return TargetUrl(scheme=url[0], host=url[1], port=url[2])
+        elif url is None:
+            return url
+        elif isinstance(url, (types.IntType, types.LongType, types.FloatType, types.BooleanType)):
+            raise ValueError('Unsupported input - numbers')
+        else:
+            return TargetUrl(url=str(url))
 
