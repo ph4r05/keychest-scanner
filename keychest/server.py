@@ -212,6 +212,10 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
+        self.delta_tls = timedelta(hours=2)
+        self.delta_crtsh = timedelta(hours=8)
+        self.delta_whois = timedelta(hours=24)
+
     def check_pid(self, retry=True):
         """
         Check the PID lock ownership
@@ -811,7 +815,7 @@ class Server(object):
         job_scan = job.scan_tls  # type: ScanResults
 
         last_scan = self.load_last_tls_scan(s, job.watch_id())
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(hours=2):
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_tls):
             job_scan.skip()
             return  # scan is relevant enough
 
@@ -834,7 +838,7 @@ class Server(object):
         job_scan = job.scan_tls  # type: ScanResults
 
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(hours=8):
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
             job_scan.skip()
             return  # scan is relevant enough
 
@@ -863,7 +867,7 @@ class Server(object):
 
         top_domain = TlsDomainTools.get_top_domain(url.host)
         last_scan = self.load_last_whois_scan(s, top_domain)
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(days=1):
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
             job_scan.skip()
             return  # scan is relevant enough
 
