@@ -22,6 +22,7 @@ from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsT
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
+from errors import Error
 
 import threading
 import pid
@@ -766,7 +767,7 @@ class Server(object):
 
         return cert, alt_names
 
-    def process_handshake_certs(self, s, resp, scan_db):
+    def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """
         Processes certificates from the handshake
         :return: 
@@ -798,44 +799,42 @@ class Server(object):
         # store non-existing certificates from the TLS scan to the database
         for endb in reversed(local_db):
             cert_db, cert, alt_names, der = endb
-            cert_db_cur = cert_db
             fprint = cert_db.fprint_sha1
 
             try:
                 cert_db.created_at = salch.func.now()
                 cert_db.pem = '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----' % (base64.b64encode(der),)
                 cert_db.source = 'handshake'
+                if cert_db.parent_id is None:
+                    cert_db.parent_id = prev_id
 
                 # new certificate - add
+                # lockfree - add, if exception on add, try fetch, then again add,
                 if fprint not in cert_existing:
-                    num_new_results += 1
-                    if cert_db.parent_id is None:
-                        cert_db.parent_id = prev_id
-
-                    s.add(cert_db)
-                    s.flush()
-
-                    for alt_name in util.stable_uniq(alt_names):
-                        alt_db = CertificateAltName()
-                        alt_db.cert_id = cert_db.id
-                        alt_db.alt_name = alt_name
-                        s.add(alt_db)
-
-                    s.flush()
+                    cert_db, is_new_cert = self._add_cert_or_fetch(s, cert_db)
+                    if is_new_cert:
+                        num_new_results += 1
+                        for alt_name in util.stable_uniq(alt_names):
+                            alt_db = CertificateAltName()
+                            alt_db.cert_id = cert_db.id
+                            alt_db.alt_name = alt_name
+                            s.add(alt_db)
+                        s.flush()
                 else:
                     cert_db = cert_existing[fprint]
 
                 all_cert_ids.add(cert_db.id)
 
                 # crt.sh scan info
-                sub_res_db = DbHandshakeScanJobResult()
-                sub_res_db.scan_id = scan_db.id
-                sub_res_db.job_id = scan_db.job_id
-                sub_res_db.was_new = fprint not in cert_existing
-                sub_res_db.crt_id = cert_db.id
-                sub_res_db.crt_sh_id = cert_db.crt_sh_id
-                sub_res_db.is_ca = cert_db.is_ca
-                s.add(sub_res_db)
+                if do_job_subres:
+                    sub_res_db = DbHandshakeScanJobResult()
+                    sub_res_db.scan_id = scan_db.id
+                    sub_res_db.job_id = scan_db.job_id
+                    sub_res_db.was_new = fprint not in cert_existing
+                    sub_res_db.crt_id = cert_db.id
+                    sub_res_db.crt_sh_id = cert_db.crt_sh_id
+                    sub_res_db.is_ca = cert_db.is_ca
+                    s.add(sub_res_db)
 
                 if not cert_db.is_ca:
                     leaf_cert_id = cert_db.id
@@ -868,6 +867,35 @@ class Server(object):
         scan_db.new_results = num_new_results
         scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
         s.flush()
+
+    def _add_cert_or_fetch(self, s, cert_db):
+        """
+        Tries to insert new certifiate to the DB.
+        If fails due to constraint violation (somebody preempted), it tries to load
+        certificate with the same fingerprint. If fails, repeats X times.
+        :param s:
+        :param cert_db:
+        :type cert_db: Certificate
+        :return:
+        """
+        for attempt in range(5):
+            done = False
+            try:
+                s.add(cert_db)
+                s.flush()
+                done = True
+            except Exception as e:
+                self.trace_logger.log(e, custom_msg='Probably constraint violation')
+
+            if done:
+                return cert_db, 1
+
+            loaded = self.cert_load_fprints(s, cert_db.fprint_sha1)
+            if cert_db.fprint_sha1 in loaded:
+                return loaded[cert_db.fprint_sha1], 0
+
+            time.sleep(0.01)
+        raise Error('Could not store / load certificate')
 
     def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
         """
