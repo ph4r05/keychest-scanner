@@ -28,6 +28,7 @@ install_requires = [
     'scapy-ssl-tls',
     'mysql-python',
     'tldextract',
+    'python-whois-extended',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
