@@ -419,6 +419,10 @@ class Server(object):
             self.scan_handshake(s, job_data, domain, job_db)
             s.commit()
 
+            # whois scan
+            self.scan_whois(s, job_data, domain, job_db)
+            s.commit()
+
         finally:
             util.silent_close(s)
 
@@ -587,6 +591,67 @@ class Server(object):
 
         crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
         return crtsh_query_db, sub_res_list
+
+    def scan_whois(self, s, job_data, query, job_db, store_to_db=True):
+        """
+        Performs whois scan if applicable
+        :param s:
+        :param job_data:
+        :param query:
+        :param job_db:
+        :type job_db ScanJob
+        :param store_job: stores job to the database in the scanning process.
+                          Not storing the job immediately has meaning for diff scanning (watcher).
+        :return:
+        :rtype DbWhoisCheck
+        """
+        domain = job_data['scan_host']
+        sys_params = job_data['sysparams']
+        if not TlsDomainTools.can_whois(domain):
+            logger.debug('Domain %s not elligible to whois scan' % domain)
+            return
+
+        try:
+            top_domain = TlsDomainTools.get_top_domain(domain)
+            top_domain_db, domain_new = self.load_top_domain(s, top_domain=top_domain)
+
+            last_scan = self.load_last_whois_scan(s, top_domain_db) if not domain_new else None
+            if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
+                if job_db is not None:
+                    job_db.whois_check_id = last_scan.id
+                return last_scan
+
+            scan_db = DbWhoisCheck()
+            scan_db.domain = top_domain_db
+            scan_db.last_scan_at = datetime.now()
+            scan_db.created_at = salch.func.now()
+            scan_db.updated_at = salch.func.now()
+            resp = None
+            try:
+                resp = self.try_whois(top_domain, attempts=sys_params['retry'])
+                scan_db.registrant_cc = resp.registrant_cc
+                scan_db.registrar = resp.registrar
+                scan_db.expires_at = resp.expiration_date
+                scan_db.registered_at = resp.creation_date
+                scan_db.rec_updated_at = resp.last_updated
+                scan_db.dns = json.dumps(util.strip(list(resp.name_servers)))
+                scan_db.result = 1
+
+            except Exception as e:
+                scan_db.result = 0
+                logger.debug('Whois scan fail: %s' % e)
+                self.trace_logger.log(e, custom_msg='Whois exception')
+
+            if store_to_db:
+                s.add(scan_db)
+                s.flush()
+                job_db.whois_check_id = scan_db.id
+
+            return scan_db
+
+        except Exception as e:
+            logger.debug('Exception in whois scan: %s' % e)
+            self.trace_logger.log(e)
 
     #
     # Periodic scanner
@@ -1394,6 +1459,22 @@ class Server(object):
 
         evt = rh.scan_job_progress(evt_data)
         self.redis_queue.event(evt)
+
+    def try_whois(self, top_domain, attempts=3):
+        """
+        Whois call on the topdomain, with retry attempts
+        :param top_domain:
+        :param attempts:
+        :return:
+        """
+        for attempt in range(attempts):
+            try:
+                res = whois.query(top_domain)
+                return res
+
+            except Exception as e:
+                if attempt + 1 >= attempts:
+                    raise
 
     #
     # DB tools
