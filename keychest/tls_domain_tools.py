@@ -35,6 +35,57 @@ class PinningInfo(object):
         self.report_uri = None
 
 
+class TargetUrl(object):
+    """
+    Represents target address (URL).
+    Can return complete URL or its components
+    """
+    def __init__(self, url=None, scheme=None, host=None, port=None, target_url=None):
+        """
+        Assembles URL from the components. Either URL or parts
+        :param url:
+        :param scheme:
+        :param host:
+        :param port:
+        :param target_url:
+        :type target_url: TargetUrl
+        """
+        self.scheme = scheme
+        self.host = host
+        self.port = port
+
+        if url is not None:
+            self.scheme, self.host, self.port = TlsDomainTools.parse_scheme_host_port(url)
+
+        if target_url is not None:
+            self.scheme = target_url.scheme
+            self.host = target_url.host
+            self.port = target_url.port
+
+        self.scheme, self.port = TlsDomainTools.scheme_port_detect(self.scheme, self.port)
+
+    def __repr__(self):
+        return '<TargetUrl(scheme=%r, host=%r, port=%r)>' % (self.scheme, self.host, self.port)
+
+    def __str__(self):
+        return self.url()
+
+    def components(self):
+        """
+        Returns tuple (scheme, host, port)
+        :return:
+        """
+        return self.scheme, self.host, self.port
+
+    def url(self):
+        """
+        Returns URL form
+        :return:
+        """
+        return TlsDomainTools.assemble_url(self.scheme, self.host, self.port)
+
+
+
 class TlsDomainTools(object):
     """
     Domain tools
@@ -52,7 +103,7 @@ class TlsDomainTools(object):
         return urlparse(url)
 
     @staticmethod
-    def base_domain(url):
+    def parse_hostname(url):
         """
         Returns base domain from the url
         :param url: 
@@ -65,7 +116,7 @@ class TlsDomainTools(object):
         return p.hostname
 
     @staticmethod
-    def base_domain_port(url):
+    def parse_hostname_port(url):
         """
         Returns base domain from the url
         :param url: 
@@ -76,6 +127,115 @@ class TlsDomainTools(object):
             p = TlsDomainTools.url_parse('https://%s' % url)
 
         return p.hostname, p.port
+
+    @staticmethod
+    def parse_fqdn(url):
+        """
+        Parses FQDN from the url, removes wildcards
+        :param url:
+        :return:
+        """
+        hostname = TlsDomainTools.parse_hostname(url)
+        return TlsDomainTools.fqdn(hostname)
+
+    @staticmethod
+    def fqdn(hostname):
+        """
+        Removes all wildcards from the hostname
+        :param hostname:
+        :return:
+        """
+        components = hostname.split('.')
+        ret = []
+        for comp in reversed(components):
+            if '*' in comp or '%' in comp:
+                break
+            ret.append(comp)
+
+        return '.'.join(reversed(ret))
+
+    @staticmethod
+    def has_wildcard(hostname):
+        """
+        Returns true if domain has wildcard
+        :param hostname:
+        :return:
+        """
+        return '*.' in hostname or '%' in hostname
+
+    @staticmethod
+    def split_scheme(url):
+        """
+        Splits url to the scheme and the rest. Scheme may be null.
+        :param url:
+        :type url: str
+        :return:
+        """
+        if util.is_empty(url):
+            return url
+
+        parts = url.split('://', 1)
+        return parts if len(parts) == 2 else [None, url]
+
+    @staticmethod
+    def parse_host(url):
+        """
+        Removes path components from the URL, strips also scheme if present.
+        Returns only host (with port optionally).
+        :param url:
+        :type url: str
+        :return:
+        """
+        if util.is_empty(url):
+            return url
+
+        scheme, host = TlsDomainTools.split_scheme(url)
+
+        pos = host.find('/')
+        return host if pos == -1 else host[:pos]
+
+    @staticmethod
+    def parse_scheme_host_port(url):
+        """
+        Parses URL to the scheme, host, port
+        :return:
+        """
+        p = TlsDomainTools.url_parse(url)
+        if p.scheme is not None and p.netloc is not None:
+            scheme, port = TlsDomainTools.scheme_port_detect(p.scheme, p.port)
+            return scheme, p.hostname, port
+
+        scheme, rest = TlsDomainTools.split_scheme(url)
+        hostname, port = TlsDomainTools.parse_hostname_port(rest)
+        scheme, port = TlsDomainTools.scheme_port_detect(scheme, port)
+        return scheme, hostname, port
+
+    @staticmethod
+    def normalize_url(url):
+        """
+        Normalizes url, removes path.
+        Adds default scheme, default port. (https, 443)
+        :param url:
+        :return:
+        """
+        scheme, hostname, port = TlsDomainTools.parse_scheme_host_port(url)
+        return TlsDomainTools.assemble_url(scheme, hostname, port)
+
+    @staticmethod
+    def assemble_url(scheme='https', hostname='127.0.0.1', port=443):
+        """
+        Assembles full URL, even if scheme and port are set to None, default vals are used.
+        :param scheme:
+        :param hostname:
+        :param port:
+        :return:
+        """
+        if scheme is None:
+            scheme = 'https'
+        if port is None:
+            port = 443
+        scheme, port = TlsDomainTools.scheme_port_detect(scheme, port)
+        return '%s://%s:%s' % (scheme, hostname, port)
 
     @staticmethod
     def gen_domain_wildcards(domain):
