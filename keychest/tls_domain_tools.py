@@ -441,6 +441,42 @@ class TlsDomainTools(object):
         return tldextract.extract(hostname).registered_domain
 
     @staticmethod
+    def can_connect(hostname):
+        """
+        Return true if direct connection can be made (either valid IP address or domain name)
+        :param hostname:
+        :return:
+        """
+        if TlsDomainTools.is_ip(hostname):
+            return True
+
+        if '.' not in hostname:
+            return False
+
+        if not re.match(r'^[a-zA-Z0-9._-]+$', hostname):
+            return False
+
+        return True
+
+    @staticmethod
+    def can_whois(hostname):
+        """
+        Returns true if whois can be called on the hostname
+        :param hostname:
+        :return:
+        """
+        if TlsDomainTools.is_ip(hostname):
+            return False
+
+        if '.' not in hostname:
+            return False
+
+        if not re.match(r'^[a-zA-Z0-9._-]+$', hostname):
+            return False
+
+        return True
+
+    @staticmethod
     def urlize(url):
         """
         Returns url object from the given object.

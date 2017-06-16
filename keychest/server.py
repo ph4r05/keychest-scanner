@@ -458,7 +458,7 @@ class Server(object):
         """
         domain = job_data['scan_host']
         sys_params = job_data['sysparams']
-        if not re.match(r'^[a-zA-Z0-9._-]+$', domain):
+        if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
             return
 
@@ -857,7 +857,7 @@ class Server(object):
         url = self.urlize(job)
         job_scan = job.scan_tls  # type: ScanResults
 
-        if TlsDomainTools.is_ip(url.host):
+        if not TlsDomainTools.can_whois(url.host):
             job_scan.skip()
             return  # has IP address only, no whois check
 
