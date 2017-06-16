@@ -949,7 +949,7 @@ class Server(object):
             return
 
         # Raw hostname
-        test_domain = TlsDomainTools.base_domain(hostname)
+        test_domain = TlsDomainTools.parse_hostname(hostname)
 
         # Try raw connect to the tls if the previous failure does not indicate service is not running
         if resp.handshake_failure not in [TlsHandshakeErrors.CONN_ERR, TlsHandshakeErrors.READ_TO]:
