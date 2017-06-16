@@ -20,7 +20,7 @@ import redis_helper as rh
 from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
-from tls_domain_tools import TlsDomainTools
+from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error
 
@@ -48,6 +48,7 @@ from datetime import datetime, timedelta
 import sqlalchemy as salch
 from sqlalchemy.orm.query import Query as SaQuery
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
+import whois
 
 
 __author__ = 'dusanklinec'
@@ -67,6 +68,33 @@ class AppDeamon(Daemon):
         self.app.work()
 
 
+class ScanResults(object):
+    """
+    Generic scan result (tls, CT, whois)
+    """
+    def __init__(self, success=False, code=None, aux=None):
+        self.success = success
+        self.skipped = False  # if skipped test was not performed
+        self.code = code
+        self.attempts = 0
+        self.aux = aux
+
+    def fail(self):
+        self.skipped = False
+        self.success = False
+        self.attempts += 1
+
+    def ok(self):
+        self.skipped = False
+        self.success = True
+
+    def skip(self):
+        self.skipped = True
+
+    def is_failed(self):
+        return not self.success and not self.skipped
+
+
 class PeriodicJob(object):
     """
     Represents periodic job loaded from the db
@@ -83,6 +111,10 @@ class PeriodicJob(object):
         self.success_scan = False
         self.attempts = 0
 
+        self.scan_tls = ScanResults()
+        self.scan_crtsh = ScanResults()
+        self.scan_whois = ScanResults()
+
     def key(self):
         """
         Returns hashable key for the job dbs
@@ -98,6 +130,20 @@ class PeriodicJob(object):
         return self.attempts, \
                self.target.last_scan_at is None, \
                self.target.last_scan_at
+
+    def url(self):
+        """
+        Returns url object from the target
+        :return:
+        """
+        return TargetUrl(scheme=self.target.scan_scheme, host=self.target.scan_host, port=self.target.scan_port)
+
+    def watch_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
 
     def __cmp__(self, other):
         """
@@ -279,7 +325,7 @@ class Server(object):
         return not self.terminate and not self.stop_event.isSet()
 
     #
-    # Interface - redis
+    # Interface - Redis interactive jobs
     #
 
     def process_redis_job(self, job):
@@ -403,9 +449,12 @@ class Server(object):
         :param job_data: 
         :param query: 
         :param job_db:
+        :type job_db ScanJob
         :param store_job: stores job to the database in the scanning process.
-                          Not storing the job immediatelly has meaning for diff scanning (watcher)
+                          Not storing the job immediately has meaning for diff scanning (watcher).
+                          Gathered certificates are stored always.
         :return:
+        :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
         """
         domain = job_data['scan_host']
         sys_params = job_data['sysparams']
@@ -441,7 +490,7 @@ class Server(object):
             # scan record
             scan_db = DbHandshakeScanJob()
             scan_db.created_at = salch.func.now()
-            scan_db.job_id = job_db.id
+            scan_db.job_id = job_db.id if job_db is not None else None
             scan_db.ip_scanned = resp.ip
             scan_db.tls_ver = resp.tls_version
             scan_db.status = len(resp.certificates) > 0
@@ -458,6 +507,7 @@ class Server(object):
 
             # Try direct connect with requests, follow urls
             self.connect_analysis(s, sys_params, resp, scan_db, domain, port, scheme)
+            return resp, scan_db
 
         except Exception as e:
             logger.debug('Exception when scanning: %s' % e)
@@ -473,6 +523,9 @@ class Server(object):
         :param domain: 
         :param job_db:
         :type job_db ScanJob
+        :param store_to_db if true results are stored to the database, otherwise just returned.
+               Gathered certificates are stored always.
+
         :return:
         :rtype Tuple[DbCrtShQuery, List[DbCrtShQueryResult]]
         """
@@ -493,7 +546,7 @@ class Server(object):
         # scan record
         crtsh_query_db = DbCrtShQuery()
         crtsh_query_db.created_at = salch.func.now()
-        crtsh_query_db.job_id = job_db.id
+        crtsh_query_db.job_id = job_db.id if job_db is not None else None
         crtsh_query_db.status = crt_sh.success
         crtsh_query_db.results = len(all_crt_ids)
         crtsh_query_db.new_results = len(new_ids)
@@ -626,6 +679,7 @@ class Server(object):
                     if watch_target.id in self.watcher_db_cur_jobs:
                         continue
 
+                    # TODO: analyze if this job should be processed or results are recent, no refresh is needed
                     job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
                     self.watcher_db_cur_jobs[job.key()] = job
                     self.watcher_job_queue.put(job)
@@ -634,7 +688,7 @@ class Server(object):
         finally:
             util.silent_close(s)
 
-    def periodic_worker(self, idx):
+    def periodic_worker_main(self, idx):
         """
         Main periodic job worker
         :param idx:
@@ -691,7 +745,8 @@ class Server(object):
             elif job.attempts <= 3:
                 self.watcher_job_queue.put(job)
 
-            # job has expired. TODO: make sure job does not return quickly by DB load.
+            # The job has expired.
+            # TODO: make sure job does not return quickly by DB load.
             # remove from processing caches so it can be picked up again later.
             # i.e. remove lock on this item
             else:
@@ -727,8 +782,18 @@ class Server(object):
         logger.debug('Processing watcher job: %s' % job)
         s = self.db.get_session()
         try:
-            time.sleep(0.2)
+            self.periodic_scan_tls(s, job)
+            self.periodic_scan_crtsh(s, job)
+            self.periodic_scan_whois(s, job)
+
             job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.scan_tls.is_failed() \
+                    or job.scan_whois.is_failed() \
+                    or job.scan_crtsh.is_failed():
+                job.attempts += 1
+                job.success_scan = False
 
         except Exception as e:
             job.attempts += 1
@@ -736,9 +801,192 @@ class Server(object):
         finally:
             util.silent_close(s)
 
+    def periodic_scan_tls(self, s, job):
+        """
+        Periodic TLS scan - determines if the check is required, invokes the check
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_tls  # type: ScanResults
+
+        last_scan = self.load_last_tls_scan(s, job.watch_id())
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(hours=2):
+            job_scan.skip()
+            return  # scan is relevant enough
+
+        try:
+            self.wp_scan_tls(job)
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('TLS scan exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='TLS scan')
+
+    def periodic_scan_crtsh(self, s, job):
+        """
+        Periodic CRTsh scan - determines if the check is required, invokes the check
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_tls  # type: ScanResults
+
+        last_scan = self.load_last_crtsh_scan(s, job.watch_id())
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(hours=8):
+            job_scan.skip()
+            return  # scan is relevant enough
+
+        try:
+            self.wp_scan_crtsh(job)
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('CRT sh exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='CRT sh')
+
+    def periodic_scan_whois(self, s, job):
+        """
+        Periodic Whois scan - determines if the check is required, invokes the check
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        url = self.urlize(job)
+        job_scan = job.scan_tls  # type: ScanResults
+
+        if TlsDomainTools.is_ip(url.host):
+            job_scan.skip()
+            return  # has IP address only, no whois check
+
+        top_domain = TlsDomainTools.get_top_domain(url.host)
+        last_scan = self.load_last_whois_scan(s, top_domain)
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(days=1):
+            job_scan.skip()
+            return  # scan is relevant enough
+
+        # initiate new whois check
+        try:
+            self.wp_scan_whois(job, url, top_domain)
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('Whois exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='Whois')
+
+    #
+    # Scan bodies
+    #
+
+    def wp_scan_tls(self, job):
+        """
+        Watcher TLS scan - body
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_tls  # type: ScanResults
+        # TODO: perform the tls check
+        job_scan.ok()
+
+    def wp_scan_crtsh(self, job):
+        """
+        Watcher crt.sh scan - body
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_tls  # type: ScanResults
+        # TODO: perform the crtsh scan
+        job_scan.ok()
+
+    def wp_scan_whois(self, job, url, top_domain):
+        """
+        Watcher whois scan - body
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_tls  # type: ScanResults
+        res = whois.query(top_domain)
+
+        # TODO: construct db result, merge results to the database.
+        job_scan.ok()
+
+    #
+    # Scan helpers
+    #
+
+    def load_last_tls_scan(self, s, watch_id=None, ip=None):
+        """
+        Loads the most recent tls handshake scan result for given watch target id and optionally the IP address.
+        :param s:
+        :param watch_id:
+        :param ip:
+        :return:
+        :rtype DbHandshakeScanJob|None
+        """
+        q = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.watch_id == watch_id)
+        if ip is not None:
+            q = q.filter(DbHandshakeScanJob.ip_scanned == ip)
+        return q.order_by(DbHandshakeScanJob.last_scan_at.desc()).limit(1).first()
+
+    def load_last_crtsh_scan(self, s, watch_id=None):
+        """
+        Loads the latest crtsh scan for the given watch target id
+        :param s:
+        :param watch_id:
+        :return:
+        :rtype DbCrtShQuery|None
+        """
+        q = s.query(DbCrtShQuery).filter(DbCrtShQuery.watch_id == watch_id)
+        return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
+
+    def load_last_whois_scan(self, s, top_domain):
+        """
+        Loads the latest Whois scan for the top domain
+        :param s:
+        :param top_domain:
+        :return:
+        :rtype DbWhoisCheck
+        """
+        q = s.query(DbWhoisCheck).filter(DbWhoisCheck.domain == top_domain)
+        return q.order_by(DbWhoisCheck.last_scan_at.desc()).limit(1).first()
+
     #
     # Helpers
     #
+
+    def _diff_time(self, delta=None, days=None, seconds=None, hours=None):
+        """
+        Returns now - diff time
+        :param delta:
+        :param seconds:
+        :param hours:
+        :return:
+        """
+        now = datetime.now()
+        if delta is not None:
+            return now - delta
+        return now - timedelta(days=days, hours=hours, seconds=seconds)
+
+    def urlize(self, obj):
+        """
+        Extracts URL object
+        :param obj:
+        :return:
+        """
+        if isinstance(obj, PeriodicJob):
+            return obj.url()
+        elif isinstance(obj, DbWatchTarget):
+            return TargetUrl(scheme=obj.scan_scheme, host=obj.scan_host, port=obj.scan_port)
+        elif isinstance(obj, ScanJob):
+            return TargetUrl(scheme=obj.scan_scheme, host=obj.scan_host, port=obj.scan_port)
+        else:
+            return TlsDomainTools.urlize(obj)
 
     def parse_certificate(self, cert_db, pem=None, der=None):
         """
@@ -883,7 +1131,7 @@ class Server(object):
 
     def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False):
         """
-        Tries to insert new certifiate to the DB.
+        Tries to insert new certificate to the DB.
         If fails due to constraint violation (somebody preempted), it tries to load
         certificate with the same fingerprint. If fails, repeats X times.
         :param s:
@@ -1177,7 +1425,7 @@ class Server(object):
         return ret if was_array else None
 
     #
-    # Workers
+    # Workers - Redis interactive jobs
     #
 
     def worker_main(self, idx):
@@ -1401,7 +1649,7 @@ class Server(object):
 
         # periodic worker start
         for worker_idx in range(0, self.config.periodic_workers):
-            t = threading.Thread(target=self.periodic_worker, args=(worker_idx, ))
+            t = threading.Thread(target=self.periodic_worker_main, args=(worker_idx,))
             self.watcher_workers.append(t)
             t.setDaemon(True)
             t.start()
