@@ -965,6 +965,11 @@ class Server(object):
         :return:
         :rtype DbWhoisCheck
         """
+        if not isinstance(top_domain, DbBaseDomain):
+            top_domain, is_new = self.load_top_domain(s, top_domain)
+            if is_new:
+                return None  # non-existing top domain, no result then
+
         q = s.query(DbWhoisCheck).filter(DbWhoisCheck.domain == top_domain)
         return q.order_by(DbWhoisCheck.last_scan_at.desc()).limit(1).first()
 
@@ -1442,13 +1447,13 @@ class Server(object):
         :param s:
         :param top_domain:
         :return:
-        :rtype DbBaseDomain
+        :rtype Tuple[DbBaseDomain, is_new]
         """
         for attempt in range(attempts):
             try:
                 ret = s.query(DbBaseDomain).filter(DbBaseDomain.domain_name == top_domain).first()
                 if ret is not None:
-                    return ret
+                    return ret, 0
 
             except Exception as e:
                 logger.error('Error fetching top domain from DB: %s : %s' % (top_domain, e))
@@ -1460,7 +1465,7 @@ class Server(object):
                 ret.domain_name = top_domain
                 s.add(ret)
                 s.flush()
-                return ret
+                return ret, 1
 
             except Exception as e:
                 s.rollback()
