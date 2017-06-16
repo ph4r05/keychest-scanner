@@ -13,7 +13,10 @@ import datetime
 import traceback
 import errors
 import types
+import re
+import socket
 from trace_logger import Tracelogger
+import tldextract
 
 
 logger = logging.getLogger(__name__)
@@ -401,6 +404,41 @@ class TlsDomainTools(object):
             scheme = util.defval(scheme, 'https')
 
         return scheme, port
+
+    @staticmethod
+    def is_ip(hostname):
+        """
+        Returns true if the hostname is IPv4 or IPv6
+        :param hostname:
+        :return:
+        """
+        r = r'^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$'
+        if re.match(r, hostname):
+            return True
+        return TlsDomainTools.is_valid_ipv6_address(hostname)
+
+    @staticmethod
+    def is_valid_ipv6_address(address):
+        """
+        Simple IPV6 address validation using hacky socket.inet_pton
+        :param address:
+        :return:
+        """
+        try:
+            socket.inet_pton(socket.AF_INET6, address)
+        except socket.error:  # not a valid address
+            return False
+        return True
+
+    @staticmethod
+    def get_top_domain(hostname):
+        """
+        Extracts the top domain from the hostname - removes subdomains.
+        Naive implementation
+        :param hostname:
+        :return:
+        """
+        return tldextract.extract(hostname).registered_domain
 
     @staticmethod
     def urlize(url):

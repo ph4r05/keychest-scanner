@@ -27,6 +27,7 @@ install_requires = [
     'phpserialize',
     'scapy-ssl-tls',
     'mysql-python',
+    'tldextract',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
