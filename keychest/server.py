@@ -1436,6 +1436,40 @@ class Server(object):
 
         return ret if was_array else None
 
+    def load_top_domain(self, s, top_domain, attempts=5):
+        """
+        Loads or creates a new top domain record.
+        :param s:
+        :param top_domain:
+        :return:
+        :rtype DbBaseDomain
+        """
+        for attempt in range(attempts):
+            try:
+                ret = s.query(DbBaseDomain).filter(DbBaseDomain.domain_name == top_domain).first()
+                if ret is not None:
+                    return ret
+
+            except Exception as e:
+                logger.error('Error fetching top domain from DB: %s : %s' % (top_domain, e))
+                self.trace_logger.log(e, custom_msg='top domain fetch error')
+
+            # insert attempt now
+            try:
+                ret = DbBaseDomain()
+                ret.domain_name = top_domain
+                s.add(ret)
+                s.flush()
+                return ret
+
+            except Exception as e:
+                s.rollback()
+                logger.error('Error inserting top domain from DB: %s : %s' % (top_domain, e))
+                self.trace_logger.log(e, custom_msg='top domain fetch error')
+
+            time.sleep(0.01)
+        raise Error('Could not store / load top domain')
+
     #
     # Workers - Redis interactive jobs
     #
