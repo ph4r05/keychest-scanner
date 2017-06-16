@@ -48,6 +48,7 @@ class ScanJob(Base):
     user_ip = Column(String(255), nullable=True)
     user_sess = Column(String(255), nullable=True)
     whois_check_id = Column(ForeignKey('whois_result.id'), nullable=True, index=True)  # whois check ID
+    crtsh_check_id = Column(ForeignKey('crtsh_query.id'), nullable=True, index=True)  # crtsh check ID
 
 
 class Certificate(Base):
