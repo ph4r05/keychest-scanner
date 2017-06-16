@@ -429,13 +429,16 @@ class Server(object):
         self.update_job_state(job_data, 'finished')
         pass
 
-    def augment_redis_scan_job(self, job):
+    def augment_redis_scan_job(self, job=None, data=None):
         """
         Augments job with retry counts, timeouts and so on.
         :param RedisJob job:
+        :param data:
         :return:
         """
-        data = job.decoded['data']['json']
+        if job is not None:
+            data = job.decoded['data']['json']
+
         scan_type = None
         if 'scan_type' in data:
             scan_type = data['scan_type']
@@ -449,6 +452,7 @@ class Server(object):
             sys_params['timeout'] = 7
 
         data['sysparams'] = sys_params
+        return data
 
     def scan_handshake(self, s, job_data, query, job_db, store_job=True):
         """
@@ -520,6 +524,7 @@ class Server(object):
         except Exception as e:
             logger.debug('Exception when scanning: %s' % e)
             self.trace_logger.log(e)
+        return None, None
 
     def scan_crt_sh(self, s, job_data, query, job_db, store_to_db=True):
         """
@@ -949,6 +954,28 @@ class Server(object):
     #
     # Scan bodies
     #
+
+    def _create_job_spec(self, job):
+        """
+        Builds job defs for scan - like job spec coming from frontend
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        data = collections.OrderedDict()
+        data['uuid'] = None
+        data['state'] = 'init'
+        data['scan_type'] = 'planner'
+        data['user_id'] = job.target.user_id
+
+        url = self.urlize(job)
+        data['scan_scheme'] = url.scheme
+        data['scan_host'] = url.host
+        data['scan_port'] = url.port
+        data['scan_url'] = url
+
+        data = self.augment_redis_scan_job(data=data)
+        return data
 
     def wp_scan_tls(self, job, last_scan):
         """
