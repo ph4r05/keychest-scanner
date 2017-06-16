@@ -816,7 +816,7 @@ class Server(object):
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_tls(job)
+            self.wp_scan_tls(job, last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -839,7 +839,7 @@ class Server(object):
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_crtsh(job)
+            self.wp_scan_crtsh(job, last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -869,7 +869,7 @@ class Server(object):
 
         # initiate new whois check
         try:
-            self.wp_scan_whois(job, url, top_domain)
+            self.wp_scan_whois(job, url, top_domain, last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -881,33 +881,41 @@ class Server(object):
     # Scan bodies
     #
 
-    def wp_scan_tls(self, job):
+    def wp_scan_tls(self, job, last_scan):
         """
         Watcher TLS scan - body
         :param job:
         :type job: PeriodicJob
+        :param last_scan:
+        :type last_scan: DbHandshakeScanJob
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
         # TODO: perform the tls check
         job_scan.ok()
 
-    def wp_scan_crtsh(self, job):
+    def wp_scan_crtsh(self, job, last_scan):
         """
         Watcher crt.sh scan - body
         :param job:
         :type job: PeriodicJob
+        :param last_scan:
+        :type last_scan: DbCrtShQuery
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
         # TODO: perform the crtsh scan
         job_scan.ok()
 
-    def wp_scan_whois(self, job, url, top_domain):
+    def wp_scan_whois(self, job, url, top_domain, last_scan):
         """
         Watcher whois scan - body
         :param job:
         :type job: PeriodicJob
+        :param url:
+        :param top_domain:
+        :param last_scan:
+        :type last_scan: DbWhoisCheck
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
@@ -927,7 +935,7 @@ class Server(object):
         :param watch_id:
         :param ip:
         :return:
-        :rtype DbHandshakeScanJob|None
+        :rtype DbHandshakeScanJob
         """
         q = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.watch_id == watch_id)
         if ip is not None:
@@ -940,7 +948,7 @@ class Server(object):
         :param s:
         :param watch_id:
         :return:
-        :rtype DbCrtShQuery|None
+        :rtype DbCrtShQuery
         """
         q = s.query(DbCrtShQuery).filter(DbCrtShQuery.watch_id == watch_id)
         return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
