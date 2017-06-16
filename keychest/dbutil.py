@@ -274,7 +274,7 @@ class DbWhoisCheck(Base):
     id = Column(BigInteger, primary_key=True)
     domain_id = Column(ForeignKey('base_domain.id'), nullable=False, index=True)
 
-    result = Column(SmallInteger, default=0)  # static
+    status = Column(SmallInteger, default=0)  # status code / error
     registrant_cc = Column(String(255), nullable=True)
     registrar = Column(String(255), nullable=True)
     registered_at = Column(DateTime, default=None, nullable=True)
