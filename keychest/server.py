@@ -463,7 +463,7 @@ class Server(object):
             logger.debug('Exception when scanning: %s' % e)
             self.trace_logger.log(e)
 
-    def scan_crt_sh(self, s, job_data, query, job_db):
+    def scan_crt_sh(self, s, job_data, query, job_db, store_to_db=True):
         """
         Performs one simple CRT SH scan with the given query
         stores the resuls.
@@ -471,8 +471,10 @@ class Server(object):
         :param s: 
         :param job_data: 
         :param domain: 
-        :param job_db: 
-        :return: 
+        :param job_db:
+        :type job_db ScanJob
+        :return:
+        :rtype Tuple[DbCrtShQuery, List[DbCrtShQueryResult]]
         """
         crt_sh = self.crt_sh_proc.query(query)
         logger.debug(crt_sh)
@@ -495,10 +497,12 @@ class Server(object):
         crtsh_query_db.status = crt_sh.success
         crtsh_query_db.results = len(all_crt_ids)
         crtsh_query_db.new_results = len(new_ids)
-        s.add(crtsh_query_db)
-        s.flush()
+        if store_to_db:
+            s.add(crtsh_query_db)
+            s.flush()
 
         # existing records
+        sub_res_list = []
         for crt_sh_id in existing_ids:
             crtsh_res_db = DbCrtShQueryResult()
             crtsh_res_db.query_id = crtsh_query_db.id
@@ -506,20 +510,26 @@ class Server(object):
             crtsh_res_db.crt_id = existing_ids[crt_sh_id]
             crtsh_res_db.crt_sh_id = crt_sh_id
             crtsh_res_db.was_new = 0
-            s.add(crtsh_res_db)
+            sub_res_list.append(crtsh_res_db)
+            if store_to_db:
+                s.add(crtsh_res_db)
 
         # load pem for new certificates
         for new_crt_id in sorted(list(new_ids), reverse=True)[:100]:
-            db_cert = self.fetch_new_certs(s, job_data, new_crt_id,
-                                           [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
-                                           crtsh_query_db)
+            db_cert, subres = \
+                self.fetch_new_certs(s, job_data, new_crt_id,
+                                     [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
+                                     crtsh_query_db, store_res=store_to_db)
             if db_cert is not None:
                 certs_ids.append(db_cert.id)
+            if subres is not None:
+                sub_res_list.append(subres)
 
         for cert in crt_sh.results:
             self.analyze_cert(s, job_data, cert)
 
         crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
+        return crtsh_query_db, sub_res_list
 
     #
     # Periodic scanner
@@ -717,7 +727,7 @@ class Server(object):
         logger.debug('Processing watcher job: %s' % job)
         s = self.db.get_session()
         try:
-            time.sleep(2)
+            time.sleep(0.2)
             job.success_scan = True  # updates last scan record
 
         except Exception as e:
@@ -987,7 +997,7 @@ class Server(object):
             scan_db.pinning_report_only = pinn.report_only
             scan_db.pinning_pins = json.dumps(pinn.pins)
 
-    def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db):
+    def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db, store_res=True):
         """
         Fetches the new cert fro crt.sh, parses, inserts to the db
         :param s: 
@@ -995,7 +1005,9 @@ class Server(object):
         :param crt_sh_id: 
         :param index_result: 
         :param crt.sh scan object: 
-        :return:  cert_db
+        :param store_res: true if to store crt sh result
+        :return: cert_db
+        :rtype: Tuple[Certificate, DbCrtShQueryResult]
         """
         try:
             response = self.crt_sh_proc.download_crt(crt_sh_id)
@@ -1015,30 +1027,31 @@ class Server(object):
                 cert, alt_names = self.parse_certificate(cert_db, pem=str(cert_db.pem))
 
             except Exception as e:
+                cert_db.fprint_sha1 = util.try_sha1_pem(str(cert_db.pem))
                 logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
                 self.trace_logger.log(e)
 
-            s.add(cert_db)
-            s.flush()
-
-            for alt_name in util.stable_uniq(alt_names):
-                alt_db = CertificateAltName()
-                alt_db.cert_id = cert_db.id
-                alt_db.alt_name = alt_name
-                s.add(alt_db)
-
-            s.commit()
+            cert_db, is_new = self._add_cert_or_fetch(s, cert_db)
+            if is_new:
+                for alt_name in util.stable_uniq(alt_names):
+                    alt_db = CertificateAltName()
+                    alt_db.cert_id = cert_db.id
+                    alt_db.alt_name = alt_name
+                    s.add(alt_db)
+                s.commit()
 
             # crt.sh scan info
-            crtsh_res_db = DbCrtShQueryResult()
-            crtsh_res_db.query_id = crtsh_query_db.id
-            crtsh_res_db.job_id = crtsh_query_db.job_id
-            crtsh_res_db.was_new = 1
-            crtsh_res_db.crt_id = cert_db.id
-            crtsh_res_db.crt_sh_id = crt_sh_id
-            s.add(crtsh_res_db)
+            crtsh_res_db = None
+            if store_res:
+                crtsh_res_db = DbCrtShQueryResult()
+                crtsh_res_db.query_id = crtsh_query_db.id
+                crtsh_res_db.job_id = crtsh_query_db.job_id
+                crtsh_res_db.was_new = 1
+                crtsh_res_db.crt_id = cert_db.id
+                crtsh_res_db.crt_sh_id = crt_sh_id
+                s.add(crtsh_res_db)
 
-            return cert_db
+            return cert_db, crtsh_res_db
 
         except Exception as e:
             logger.error('Exception when downloading a certificate %s: %s' % (crt_sh_id, e))

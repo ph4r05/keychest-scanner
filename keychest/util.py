@@ -906,3 +906,18 @@ def stip_quotes(x):
 
     return x
 
+
+def try_sha1_pem(x):
+    """
+    Tries to compute certificate digest from the PEM
+    :param x:
+    :return:
+    """
+    try:
+        bin_data = base64.b16decode(x, True)
+        return hashlib.sha1(bin_data).hexdigest()
+
+    except:
+        return hashlib.sha1(x).hexdigest()
+
+
