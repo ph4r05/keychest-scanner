@@ -396,14 +396,16 @@ class Server(object):
 
         data['sysparams'] = sys_params
 
-    def scan_handshake(self, s, job_data, query, job_db):
+    def scan_handshake(self, s, job_data, query, job_db, store_job=True):
         """
         Performs direct handshake if applicable
         :param s: 
         :param job_data: 
         :param query: 
-        :param job_db: 
-        :return: 
+        :param job_db:
+        :param store_job: stores job to the database in the scanning process.
+                          Not storing the job immediatelly has meaning for diff scanning (watcher)
+        :return:
         """
         domain = job_data['scan_host']
         sys_params = job_data['sysparams']
@@ -447,11 +449,12 @@ class Server(object):
             scan_db.time_elapsed = time_elapsed
             scan_db.results = len(resp.certificates)
             scan_db.new_results = 0
-            s.add(scan_db)
-            s.flush()
+            if store_job:
+                s.add(scan_db)
+                s.flush()
 
             # Certificates processing + cert path validation
-            self.process_handshake_certs(s, resp, scan_db)
+            self.process_handshake_certs(s, resp, scan_db, do_job_subres=store_job)
 
             # Try direct connect with requests, follow urls
             self.connect_analysis(s, sys_params, resp, scan_db, domain, port, scheme)
