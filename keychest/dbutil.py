@@ -105,8 +105,14 @@ class DbCrtShQuery(Base):
     __tablename__ = 'crtsh_query'
     id = Column(BigInteger, primary_key=True)
     job_id = Column(BigInteger, nullable=True)
+    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)  # watch id scan for periodic scanner
+
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
 
     created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
     status = Column(SmallInteger, default=0)
     results = Column(Integer, default=0)
     new_results = Column(Integer, default=0)
