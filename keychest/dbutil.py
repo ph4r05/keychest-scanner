@@ -5,8 +5,9 @@ import os
 import util
 import errors
 import logging
+import copy
 
-from sqlalchemy import create_engine, UniqueConstraint
+from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
@@ -351,6 +352,81 @@ class DbLastRecordCache(Base):
     record_aux = Column(Text, default=None, nullable=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
+
+
+class DbHelper(object):
+    """
+    Helper methods
+    """
+    @staticmethod
+    def default_value(col):
+        """
+        Returns default value from the column
+        :param col:
+        :return:
+        """
+        if col is None \
+                or col.default is None \
+                or not isinstance(col.default, ColumnDefault) \
+                or not col.default.is_scalar:
+            return None
+
+        return col.default.arg
+
+    @staticmethod
+    def default_model(obj, projection=None, clone=False):
+        """
+        Fills in default model data from the passed object - fills in missing values.
+        If projection is given the model is projected. Does not support function defaults.
+        :param obj: object to fill in default values to
+        :param projection: iterable of columns to check for the default value
+        :param clone: if true the result is deepcloned from the original - does not modify the original object
+        :return:
+        """
+        if obj is None:
+            return None
+
+        if clone:
+            obj = copy.deepcopy(obj)
+
+        cols = projection
+        if cols is None or len(cols) == 0:
+            cols = obj.__table__.columns
+
+        for col in cols:
+            val = getattr(obj, col.name)
+            if val is None:
+                def_val = DbHelper.default_value(col)
+                if def_val is not None:
+                    val = copy.deepcopy(def_val)
+                    setattr(obj, col.name, val)
+
+        return obj
+
+    @staticmethod
+    def project_model(obj, projection, default_vals=False):
+        """
+        Projection returns tuple of the columns in the projection.
+        :param obj:
+        :param projection: iterable of columns to take to the projection
+        :param default_vals: sets default values
+        :return:
+        """
+        ret = []
+        if obj is None:
+            return None
+
+        if projection is None or len(projection) == 0:
+            return ()
+
+        for col in projection:
+            val = getattr(obj, col.name)
+            if default_vals and val is None:
+                def_val = DbHelper.default_value(col)
+                if def_val is not None:
+                    val = copy.deepcopy(def_val)
+            ret.append(val)
+        return tuple(ret)
 
 
 class MySQL(object):
