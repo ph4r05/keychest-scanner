@@ -94,6 +94,10 @@ class ScanResults(object):
     def is_failed(self):
         return not self.success and not self.skipped
 
+    def __repr__(self):
+        return '<ScanResults(success=%r, skipped=%r, code=%r, attempts=%r, aux=%r)>' \
+               % (self.success, self.skipped, self.code, self.attempts, self.aux)
+
 
 class PeriodicJob(object):
     """
@@ -212,8 +216,8 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
-        self.delta_tls = timedelta(hours=2)
-        self.delta_crtsh = timedelta(hours=8)
+        self.delta_tls = timedelta(seconds=30)  #timedelta(hours=2)
+        self.delta_crtsh = timedelta(seconds=60)  #timedelta(hours=8)
         self.delta_whois = timedelta(hours=24)
 
     def check_pid(self, retry=True):
@@ -740,7 +744,7 @@ class Server(object):
 
         s = self.db.get_session()
         try:
-            query = self.load_active_watch_targets(s)
+            query = self.load_active_watch_targets(s, last_scan_margin=30)
             iterator = query.yield_per(100)
             for x in iterator:
                 watch_target, min_periodicity = x
@@ -857,8 +861,10 @@ class Server(object):
         s = self.db.get_session()
         try:
             self.periodic_scan_tls(s, job)
-            self.periodic_scan_crtsh(s, job)
-            self.periodic_scan_whois(s, job)
+            job.scan_whois.skip()
+            job.scan_crtsh.skip()
+            # self.periodic_scan_crtsh(s, job)
+            # self.periodic_scan_whois(s, job)
 
             job.success_scan = True  # updates last scan record
 
@@ -866,10 +872,14 @@ class Server(object):
             if job.scan_tls.is_failed() \
                     or job.scan_whois.is_failed() \
                     or job.scan_crtsh.is_failed():
+                logger.info('Job failed at least one')
                 job.attempts += 1
                 job.success_scan = False
+            else:
+                job.success_scan = True
 
         except Exception as e:
+            logger.debug('Exception when processing the watcher job: %s' % e)
             job.attempts += 1
 
         finally:
@@ -890,7 +900,7 @@ class Server(object):
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_tls(job, last_scan)
+            self.wp_scan_tls(s, job, last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -913,7 +923,7 @@ class Server(object):
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_crtsh(job, last_scan)
+            self.wp_scan_crtsh(s, job, last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -943,7 +953,7 @@ class Server(object):
 
         # initiate new whois check
         try:
-            self.wp_scan_whois(job, url, top_domain, last_scan)
+            self.wp_scan_whois(s=s, job=job, url=url, top_domain=top_domain, last_scan=last_scan)
 
         except Exception as e:
             job_scan.fail()
@@ -977,7 +987,7 @@ class Server(object):
         data = self.augment_redis_scan_job(data=data)
         return data
 
-    def wp_scan_tls(self, job, last_scan):
+    def wp_scan_tls(self, s, job, last_scan):
         """
         Watcher TLS scan - body
         :param job:
@@ -987,10 +997,47 @@ class Server(object):
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
-        # TODO: perform the tls check
+        job_spec = self._create_job_spec(job)
+        url = self.urlize(job)
+
+        handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
+        if handshake_res is None:
+            return
+
+        # Compare with last result, store if new one or update the old one
+        # LATER: define fields on the model which difference is interesting to store
+        is_same_as_before = self.diff_scan_tls(db_scan, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+            logger.info('TLS scan is the same')
+        else:
+            db_scan.watch_id = job.target.id
+            db_scan.num_scans = 1
+            db_scan.last_scan_at = salch.func.now()
+            db_scan.updated_ad = salch.func.now()
+            s.add(db_scan)
+            logger.info('TLS scan is different, lastscan: %s' % last_scan)
+
+        s.commit()
+
+        # Store scan history
+        hist = DbScanHistory()
+        hist.watch_id = job.target.id
+        hist.scan_type = 1
+        hist.scan_code = 0
+        hist.created_at = salch.func.now()
+        s.add(hist)
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # finished with success
+        time.sleep(2)
         job_scan.ok()
 
-    def wp_scan_crtsh(self, job, last_scan):
+    def wp_scan_crtsh(self, s, job, last_scan):
         """
         Watcher crt.sh scan - body
         :param job:
@@ -1000,10 +1047,41 @@ class Server(object):
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
-        # TODO: perform the crtsh scan
+        job_spec = self._create_job_spec(job)
+        url = self.urlize(job)
+
+        crtsh_query_db, sub_res_list = self.scan_crt_sh(
+            s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
+
+        is_same_as_before = self.diff_scan_crtsh(crtsh_query_db, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+        else:
+            crtsh_query_db.watch_id = job.target.id
+            crtsh_query_db.num_scans = 1
+            crtsh_query_db.updated_ad = salch.func.now()
+            crtsh_query_db.last_scan_at = salch.func.now()
+            s.add(crtsh_query_db)
+
+        s.commit()
+
+        # Store scan history
+        hist = DbScanHistory()
+        hist.watch_id = job.target.id
+        hist.scan_type = 2  # crtsh scan
+        hist.scan_code = 0
+        hist.created_at = salch.func.now()
+        s.add(hist)
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # finished with success
         job_scan.ok()
 
-    def wp_scan_whois(self, job, url, top_domain, last_scan):
+    def wp_scan_whois(self, s, job, url, top_domain, last_scan):
         """
         Watcher whois scan - body
         :param job:
@@ -1015,10 +1093,119 @@ class Server(object):
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
-        res = whois.query(top_domain)
+        job_spec = self._create_job_spec(job)
+        url = self.urlize(job)
+
+        scan_db = self.scan_whois(s=s, job_data=job_spec, query=top_domain, job_db=None, store_to_db=False)
+
+        # Compare with last result, store if new one or update the old one
+        # LATER: define fields on the model which difference is interesting to store
+        is_same_as_before = self.diff_scan_whois(scan_db, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+        else:
+            scan_db.watch_id = job.target.id
+            scan_db.num_scans = 1
+            scan_db.updated_ad = salch.func.now()
+            scan_db.last_scan_at = salch.func.now()
+            s.add(scan_db)
+
+        s.commit()
+
+        # Store scan history
+        hist = DbScanHistory()
+        hist.watch_id = job.target.id
+        hist.scan_type = 3  # whois
+        hist.scan_code = 0
+        hist.created_at = salch.func.now()
+        s.add(hist)
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
         # TODO: construct db result, merge results to the database.
         job_scan.ok()
+
+    #
+    # Scan Results
+    #
+
+    def _tls_scan_tuple(self, x):
+        """
+        X to the tuple for change comparison.
+        :param x:
+        :type x: DbHandshakeScanJob
+        :return:
+        """
+        if x is None:
+            return None
+        return x.ip_scanned, x.tls_ver, x.status, x.err_code, x.results, x.certs_ids, x.cert_id_leaf, \
+               x.valid_path, x.valid_hostname, x.err_validity, x.err_many_leafs,\
+               x.req_https_result, x.follow_http_result, x.follow_https_result, x.follow_http_url, x.follow_https_url, \
+               x.hsts_present, x.hsts_max_age, x.hsts_include_subdomains, x.hsts_preload, \
+               x.pinning_present, x.pinning_report_only, x.pinning_pins
+
+    def diff_scan_tls(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbHandshakeScanJob
+        :param last_scan:
+        :type last_scan: DbHandshakeScanJob
+        :return:
+        """
+        # Uses tuple comparison for now. Later it could do comparison by defining
+        # columns sensitive for a change dbutil.DbHandshakeScanJob.__table__.columns and getattr(model, col).
+        logger.debug(self._tls_scan_tuple(cur_scan))
+        logger.debug(self._tls_scan_tuple(last_scan))
+        return self._tls_scan_tuple(cur_scan) == self._tls_scan_tuple(last_scan)
+
+    def _crtsh_scan_tuple(self, x):
+        """
+        X to the tuple for change comparison.
+        :param x:
+        :type x: DbCrtShQuery
+        :return:
+        """
+        if x is None:
+            return None
+        return x.status, x.results, x.certs_ids
+
+    def diff_scan_crtsh(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbCrtShQuery
+        :param last_scan:
+        :type last_scan: DbCrtShQuery
+        :return:
+        """
+        return self._crtsh_scan_tuple(cur_scan) == self._crtsh_scan_tuple(last_scan)
+
+    def _whois_scan_tuple(self, x):
+        """
+        X to the tuple for change comparison.
+        :param x:
+        :type x: DbWhoisCheck
+        :return:
+        """
+        if x is None:
+            return None
+        return x.status, x.registrant_cc, x.registrar, x.registered_at, x.expires_at, \
+               x.rec_updated_at, x.dns, x.aux
+
+    def diff_scan_whois(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbWhoisCheck
+        :param last_scan:
+        :type last_scan: DbWhoisCheck
+        :return:
+        """
+        return self._whois_scan_tuple(cur_scan) == self._whois_scan_tuple(last_scan)
 
     #
     # Scan helpers
@@ -1026,7 +1213,9 @@ class Server(object):
 
     def load_last_tls_scan(self, s, watch_id=None, ip=None):
         """
-        Loads the most recent tls handshake scan result for given watch target id and optionally the IP address.
+        Loads the most recent tls handshake scan result for given watch
+        target id and optionally the IP address.
+        TODO: all IP addresses
         :param s:
         :param watch_id:
         :param ip:
@@ -1114,7 +1303,7 @@ class Server(object):
             raise ValueError('No certificate provided')
 
         alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
-            
+
         cert_db.cname = util.utf8ize(util.try_get_cname(cert))
         cert_db.fprint_sha1 = util.lower(util.try_get_fprint_sha1(cert))
         cert_db.fprint_sha256 = util.lower(util.try_get_fprint_sha256(cert))

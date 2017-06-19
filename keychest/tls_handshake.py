@@ -87,6 +87,7 @@ class TlsHandshakeErrors(object):
     CONN_ERR = 2
     READ_TO = 3
     HANDSHAKE_ERR = 1
+    GAI_ERROR = 4
 
     def __init__(self):
         pass
