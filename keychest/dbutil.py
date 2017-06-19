@@ -167,7 +167,7 @@ class DbHandshakeScanJob(Base):
     cert_id_leaf = Column(BigInteger, nullable=True)  # id of the leaf certificate.
     valid_path = Column(SmallInteger, default=0)  # cert path validity test
     valid_hostname = Column(SmallInteger, default=0)  # hostname verifier check
-    err_validity = Column(String(64), default=0)  # error with the path validity
+    err_validity = Column(String(64), nullable=True)  # error with the path validity
     err_many_leafs = Column(SmallInteger, default=0)  # error with too many leafs in the handshake
 
     req_https_result = Column(String(64), nullable=True)  # result of HTTPs req - no follow direct request
