@@ -12,7 +12,7 @@ from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
-    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents
+    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -1132,7 +1132,22 @@ class Server(object):
     # Scan Results
     #
 
-    def _tls_scan_tuple(self, x):
+    def _res_compare_cols_tls(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbHandshakeScanJob  # model, alias
+        cols = [
+            m.ip_scanned, m.tls_ver, m.status, m.err_code, m.results, m.certs_ids, m.cert_id_leaf,
+            m.valid_path, m.valid_hostname, m.err_validity, m.err_many_leafs,
+            m.req_https_result, m.follow_http_result, m.follow_https_result, m.follow_http_url, m.follow_https_url,
+            m.hsts_present, m.hsts_max_age, m.hsts_include_subdomains, m.hsts_preload,
+            m.pinning_present, m.pinning_report_only, m.pinning_pins]
+        return cols
+
+    def _scan_tuple_tls(self, x, is_loaded=False):
         """
         X to the tuple for change comparison.
         :param x:
@@ -1141,11 +1156,9 @@ class Server(object):
         """
         if x is None:
             return None
-        return x.ip_scanned, x.tls_ver, x.status, x.err_code, x.results, x.certs_ids, x.cert_id_leaf, \
-               x.valid_path, x.valid_hostname, x.err_validity, x.err_many_leafs,\
-               x.req_https_result, x.follow_http_result, x.follow_https_result, x.follow_http_url, x.follow_https_url, \
-               x.hsts_present, x.hsts_max_age, x.hsts_include_subdomains, x.hsts_preload, \
-               x.pinning_present, x.pinning_report_only, x.pinning_pins
+
+        cols = self._res_compare_cols_tls()
+        return DbHelper.project_model(x, cols, default_vals=True)
 
     def diff_scan_tls(self, cur_scan, last_scan):
         """
@@ -1158,11 +1171,23 @@ class Server(object):
         """
         # Uses tuple comparison for now. Later it could do comparison by defining
         # columns sensitive for a change dbutil.DbHandshakeScanJob.__table__.columns and getattr(model, col).
-        logger.debug(self._tls_scan_tuple(cur_scan))
-        logger.debug(self._tls_scan_tuple(last_scan))
-        return self._tls_scan_tuple(cur_scan) == self._tls_scan_tuple(last_scan)
+        t1 = self._scan_tuple_tls(cur_scan)
+        t2 = self._scan_tuple_tls(last_scan)
+        for i in range(len(t1)):
+            if t1[i] != t2[i]:
+                logger.debug('Diff: %s, %s != %s col %s' % (i, t1[i], t2[i], self._res_compare_cols_tls()[i]))
+        return t1 == t2
 
-    def _crtsh_scan_tuple(self, x):
+    def _res_compare_cols_crtsh(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbCrtShQuery
+        return [m.status, m.results, m.certs_ids]
+
+    def _scan_tuple_crtsh(self, x):
         """
         X to the tuple for change comparison.
         :param x:
@@ -1171,7 +1196,8 @@ class Server(object):
         """
         if x is None:
             return None
-        return x.status, x.results, x.certs_ids
+        cols = self._res_compare_cols_crtsh()
+        return DbHelper.project_model(x, cols, default_vals=True)
 
     def diff_scan_crtsh(self, cur_scan, last_scan):
         """
@@ -1182,9 +1208,19 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        return self._crtsh_scan_tuple(cur_scan) == self._crtsh_scan_tuple(last_scan)
+        return self._scan_tuple_crtsh(cur_scan) == self._scan_tuple_crtsh(last_scan)
 
-    def _whois_scan_tuple(self, x):
+    def _res_compare_cols_whois(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbWhoisCheck
+        return [m.status, m.registrant_cc, m.registrar, m.registered_at, m.expires_at,
+                m.rec_updated_at, m.dns, m.aux]
+
+    def _scan_tuple_whois(self, x):
         """
         X to the tuple for change comparison.
         :param x:
@@ -1193,8 +1229,8 @@ class Server(object):
         """
         if x is None:
             return None
-        return x.status, x.registrant_cc, x.registrar, x.registered_at, x.expires_at, \
-               x.rec_updated_at, x.dns, x.aux
+        cols = self._res_compare_cols_whois()
+        return DbHelper.project_model(x, cols, default_vals=True)
 
     def diff_scan_whois(self, cur_scan, last_scan):
         """
@@ -1205,7 +1241,7 @@ class Server(object):
         :type last_scan: DbWhoisCheck
         :return:
         """
-        return self._whois_scan_tuple(cur_scan) == self._whois_scan_tuple(last_scan)
+        return self._scan_tuple_whois(cur_scan) == self._scan_tuple_whois(last_scan)
 
     #
     # Scan helpers
