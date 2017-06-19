@@ -12,7 +12,7 @@ from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
-    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper
+    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -1136,13 +1136,15 @@ class Server(object):
         """
         Returns list of columns for the result.
         When comparing two different results, these cols should be taken into account.
+        TODO: transform follow urls - strip query path
         :return:
         """
         m = DbHandshakeScanJob  # model, alias
         cols = [
             m.ip_scanned, m.tls_ver, m.status, m.err_code, m.results, m.certs_ids, m.cert_id_leaf,
             m.valid_path, m.valid_hostname, m.err_validity, m.err_many_leafs,
-            m.req_https_result, m.follow_http_result, m.follow_https_result, m.follow_http_url, m.follow_https_url,
+            m.req_https_result, m.follow_http_result, m.follow_https_result,
+            ColTransformWrapper(m.follow_http_url), ColTransformWrapper(m.follow_https_url),
             m.hsts_present, m.hsts_max_age, m.hsts_include_subdomains, m.hsts_preload,
             m.pinning_present, m.pinning_report_only, m.pinning_pins]
         return cols
@@ -1150,6 +1152,8 @@ class Server(object):
     def _scan_tuple_tls(self, x, is_loaded=False):
         """
         X to the tuple for change comparison.
+        TODO: transform function for certain columns - e.g., follow url, strip query path -
+            contains random sessions sometimes
         :param x:
         :type x: DbHandshakeScanJob
         :return:

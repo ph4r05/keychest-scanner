@@ -354,6 +354,42 @@ class DbLastRecordCache(Base):
     updated_at = Column(DateTime, default=func.now())
 
 
+class ColTransformWrapper(object):
+    """
+    Simple column wrapper - for transformation
+    """
+    __slots__ = ('_col', '_tran')
+
+    def __init__(self, col, transform=None):
+        self._col = col
+        self._tran = transform
+
+    def transform(self, val):
+        if self._tran:
+            return self._tran(val)
+        return val
+
+    @property
+    def col(self):
+        return self._col
+
+    def __getitem__(self, item):
+        return self._col[item]
+
+    def __getattr__(self, item):
+        if item in self.__slots__:
+            return object.__getattr__(self, item)
+        return getattr(self._col, item)
+
+    def __setattr__(self, key, value):
+        if key in self.__slots__:
+            return object.__setattr__(self, key, value)
+        return setattr(self._col, key, value)
+
+    def __repr__(self):
+        return repr(self._col)
+
+
 class DbHelper(object):
     """
     Helper methods
@@ -395,10 +431,15 @@ class DbHelper(object):
 
         for col in cols:
             val = getattr(obj, col.name)
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+
             if val is None:
                 def_val = DbHelper.default_value(col)
                 if def_val is not None:
                     val = copy.deepcopy(def_val)
+                    if isinstance(col, ColTransformWrapper):
+                        val = col.transform(val)
                     setattr(obj, col.name, val)
 
         return obj
@@ -425,6 +466,9 @@ class DbHelper(object):
                 def_val = DbHelper.default_value(col)
                 if def_val is not None:
                     val = copy.deepcopy(def_val)
+
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
             ret.append(val)
         return tuple(ret)
 
