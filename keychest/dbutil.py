@@ -9,10 +9,14 @@ import copy
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
+from sqlalchemy import case, literal_column
+from sqlalchemy.sql import expression
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import INTEGER
+import sqlalchemy as sa
 from warnings import filterwarnings
 import MySQLdb as MySQLDatabase
 
@@ -471,6 +475,24 @@ class DbHelper(object):
                 val = col.transform(val)
             ret.append(val)
         return tuple(ret)
+
+
+class assign(expression.FunctionElement):
+    name = 'assign'
+
+
+# @compiles(assign)
+# def generic_assign(element, compiler, **kw):
+#     raise ValueError('Unsupported engine')
+
+
+@compiles(assign)
+def mysql_assign(element, compiler, **kw):
+    arg1, arg2 = list(element.clauses)
+    return "@%s := %s" % (
+        compiler.process(arg1),
+        compiler.process(arg2)
+    )
 
 
 class MySQL(object):
