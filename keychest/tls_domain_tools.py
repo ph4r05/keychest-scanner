@@ -496,3 +496,15 @@ class TlsDomainTools(object):
         else:
             return TargetUrl(url=str(url))
 
+    @staticmethod
+    def strip_query(url):
+        """
+        Strips the query part, if present, from the url string
+        :param url:
+        :return:
+        """
+        if url is None:
+            return None
+        pos = url.find('?')
+        return url if pos == -1 else url[:pos]
+
