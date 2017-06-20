@@ -13,6 +13,7 @@ from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
     DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper
+import dbutil
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -45,8 +46,11 @@ import collections
 import signal
 from queue import Queue, Empty as QEmpty, PriorityQueue
 from datetime import datetime, timedelta
+
 import sqlalchemy as salch
 from sqlalchemy.orm.query import Query as SaQuery
+from sqlalchemy import case, literal_column
+
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
 import whois
 
@@ -880,6 +884,7 @@ class Server(object):
 
         except Exception as e:
             logger.debug('Exception when processing the watcher job: %s' % e)
+            self.trace_logger.log(e)
             job.attempts += 1
 
         finally:
@@ -894,13 +899,16 @@ class Server(object):
         """
         job_scan = job.scan_tls  # type: ScanResults
 
-        last_scan = self.load_last_tls_scan(s, job.watch_id())
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_tls):
+        prev_scans = self.load_last_tls_scan(s, job.watch_id())
+        min_last_scan = min(prev_scans, key=lambda x: x.last_scan_at) if len(prev_scans) > 0 else None
+        prev_scans_map = {x.ip_scanned: x for x in prev_scans}
+
+        if min_last_scan is not None and min_last_scan.last_scan_at > self._diff_time(self.delta_tls):
             job_scan.skip()
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_tls(s, job, last_scan)
+            self.wp_scan_tls(s, job, prev_scans_map)
 
         except Exception as e:
             job_scan.fail()
@@ -987,7 +995,7 @@ class Server(object):
         data = self.augment_redis_scan_job(data=data)
         return data
 
-    def wp_scan_tls(self, s, job, last_scan):
+    def wp_scan_tls(self, s, job, scan_list):
         """
         Watcher TLS scan - body
         :param job:
@@ -999,10 +1007,14 @@ class Server(object):
         job_scan = job.scan_tls  # type: ScanResults
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
+        logger.debug(scan_list)
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
             return
+
+        last_scan = util.defvalkey(scan_list, db_scan.ip_scanned, None)
+        logger.debug(last_scan)
 
         # Compare with last result, store if new one or update the old one
         # LATER: define fields on the model which difference is interesting to store
@@ -1263,10 +1275,58 @@ class Server(object):
         :return:
         :rtype DbHandshakeScanJob
         """
-        q = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.watch_id == watch_id)
         if ip is not None:
+            q = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.watch_id == watch_id)
             q = q.filter(DbHandshakeScanJob.ip_scanned == ip)
-        return q.order_by(DbHandshakeScanJob.last_scan_at.desc()).limit(1).first()
+            return q.order_by(DbHandshakeScanJob.last_scan_at.desc()).limit(1).first()
+
+        dialect = util.lower(str(s.bind.dialect.name))
+        if dialect.startswith('mysql'):
+
+            group_up = dbutil.assign(
+                literal_column('group'),
+                DbHandshakeScanJob.ip_scanned).label('grpx')
+
+            rank = case([(
+                literal_column('@group') != DbHandshakeScanJob.ip_scanned,
+                literal_column('@rownum := 1')
+            )], else_=literal_column('@rownum := @rownum + 1')
+            ).label('rank')
+
+            subq = s.query(DbHandshakeScanJob)\
+                .add_column(rank)\
+                .add_column(group_up)
+
+            subr = s.query(
+                dbutil.assign(literal_column('rownum'),
+                              literal_column('0', type_=salch.types.Numeric())).label('rank'),
+                dbutil.assign(literal_column('group'),
+                              literal_column('-1', type_=salch.types.Numeric())).label('grpx'),
+            ).subquery('r')
+
+            subq = subq.join(subr, salch.sql.expression.literal(True))
+            subq = subq.filter(DbHandshakeScanJob.watch_id == watch_id)
+            subq = subq.order_by(DbHandshakeScanJob.ip_scanned, DbHandshakeScanJob.last_scan_at.desc())
+            subq = subq.subquery('x')
+
+            qq = s.query(DbHandshakeScanJob)\
+                .join(subq, subq.c.id == DbHandshakeScanJob.id)\
+                .filter(subq.c.rank <= 1)
+            res = qq.all()
+            return res
+
+        else:
+            row_number_column = salch.func \
+                .row_number() \
+                .over(partition_by=DbHandshakeScanJob.ip_scanned,
+                      order_by=DbHandshakeScanJob.last_scan_at.desc()) \
+                .label('row_number')
+
+            query = s.query(DbHandshakeScanJob)
+            query = query.add_column(row_number_column)
+            query = query.filter(DbHandshakeScanJob.watch_id == watch_id)
+            query = query.from_self().filter(row_number_column == 1)
+            return query.all()
 
     def load_last_crtsh_scan(self, s, watch_id=None):
         """
