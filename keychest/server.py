@@ -1144,7 +1144,8 @@ class Server(object):
             m.ip_scanned, m.tls_ver, m.status, m.err_code, m.results, m.certs_ids, m.cert_id_leaf,
             m.valid_path, m.valid_hostname, m.err_validity, m.err_many_leafs,
             m.req_https_result, m.follow_http_result, m.follow_https_result,
-            ColTransformWrapper(m.follow_http_url), ColTransformWrapper(m.follow_https_url),
+            ColTransformWrapper(m.follow_http_url, TlsDomainTools.strip_query),
+            ColTransformWrapper(m.follow_https_url, TlsDomainTools.strip_query),
             m.hsts_present, m.hsts_max_age, m.hsts_include_subdomains, m.hsts_preload,
             m.pinning_present, m.pinning_report_only, m.pinning_pins]
         return cols
