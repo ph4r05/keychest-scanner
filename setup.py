@@ -18,7 +18,7 @@ install_requires = [
     'coloredlogs',
     'six',
     'future',
-    'SQLAlchemy',
+    'SQLAlchemy>=1.1.11',
     'shellescape',
     'flask',
     'MarkupSafe>=0.23',  # problem with deps
