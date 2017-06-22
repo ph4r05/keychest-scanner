@@ -123,6 +123,7 @@ class PeriodicJob(object):
         self.success_scan = False
         self.attempts = 0
 
+        self.primary_ip = None
         self.scan_dns = ScanResults()
         self.scan_tls = ScanResults()
         self.scan_crtsh = ScanResults()
@@ -1005,6 +1006,7 @@ class Server(object):
         last_scan = self.load_last_dns_scan(s, job.watch_id())
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_dns):
             job_scan.skip(last_scan)
+            self.wp_process_dns(s, job, job_scan.aux)
             return  # scan is relevant enough
 
         try:
@@ -1026,10 +1028,10 @@ class Server(object):
         job_scan = job.scan_tls  # type: ScanResults
 
         prev_scans = self.load_last_tls_scan(s, job.watch_id())
-        min_last_scan = min(prev_scans, key=lambda x: x.last_scan_at) if len(prev_scans) > 0 else None
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
+        primary_scan = util.defvalkey(prev_scans_map, job.primary_ip) if job.primary_ip is not None else None
 
-        if min_last_scan is not None and min_last_scan.last_scan_at > self._diff_time(self.delta_tls):
+        if primary_scan is not None and primary_scan.last_scan_at > self._diff_time(self.delta_tls):
             job_scan.skip(prev_scans_map)
             return  # scan is relevant enough
 
@@ -1169,7 +1171,24 @@ class Server(object):
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
         # finished with success
+        self.wp_process_dns(s, job, job_scan.aux)
         job_scan.ok()
+
+    def wp_process_dns(self, s, job, last_scan):
+        """
+        Processes DNS scan, sets primary IP address
+        :param s:
+        :param job:
+        :type job: ScanJob
+        :param last_scan:
+        :type last_scan: DbDnsResolve
+        :return:
+        """
+        if last_scan and last_scan.dns_res and len(last_scan.dns_res) > 0:
+            domains = sorted(last_scan.dns_res)
+            job.primary_ip = domains[0][1]
+        else:
+            job.primary_ip = None
 
     def wp_scan_tls(self, s, job, scan_list):
         """
@@ -1189,10 +1208,8 @@ class Server(object):
 
         # For now - scan only first IP address in the lexi ordering
         # TODO: scan all IPs, perform extended handshake test on all resolved IPs
-        dns_res = job.scan_dns.aux  # type: DbDnsResolve
-        if dns_res and dns_res.dns_res and len(dns_res.dns_res) > 0:
-            domains = sorted(dns_res.dns_res)
-            job_spec['scan_host'] = domains[0][1]
+        if job.primary_ip:
+            job_spec['scan_host'] = job.primary_ip
             job_spec['dns_ok'] = True
         else:
             job_spec['dns_ok'] = False
