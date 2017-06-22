@@ -299,13 +299,13 @@ class TlsHandshaker(object):
                 return_obj.ip = self._try_get_peer_ip(s)
 
             except Exception as e:
-                logger.debug('Exception during connect: %s' % e)
+                logger.debug('Exception during connect %s - %s: %s' % (target, domain_sni, e))
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = TlsHandshakeErrors.CONN_ERR
                 return_obj.time_failed = time.time()
                 return_obj.ip = self._try_get_peer_ip(s)
 
-                raise TlsTimeout('Connect timeout', e, scan_result=return_obj)
+                raise TlsTimeout('Connect timeout on %s - %s' % (target, domain_sni), e, scan_result=return_obj)
 
             cl_hello = self._build_client_hello(domain_sni, tls_ver, **kwargs)
             return_obj.cl_hello = cl_hello

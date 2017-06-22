@@ -1219,7 +1219,6 @@ class Server(object):
             return
 
         last_scan = util.defvalkey(scan_list, db_scan.ip_scanned, None)
-        logger.debug(last_scan)
 
         # Compare with last result, store if new one or update the old one
         # LATER: define fields on the model which difference is interesting to store
@@ -1234,7 +1233,7 @@ class Server(object):
             db_scan.last_scan_at = salch.func.now()
             db_scan.updated_ad = salch.func.now()
             s.add(db_scan)
-            logger.info('TLS scan is different, lastscan: %s' % last_scan)
+            logger.info('TLS scan is different, lastscan: %s for %s' % (last_scan, db_scan.ip_scanned))
 
         s.commit()
 
