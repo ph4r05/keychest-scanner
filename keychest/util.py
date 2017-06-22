@@ -921,3 +921,17 @@ def try_sha1_pem(x):
         return hashlib.sha1(x).hexdigest()
 
 
+def try_load_json(x, **kwargs):
+    """
+    Tries to load JSON object
+    :param x:
+    :param kwargs:
+    :return:
+    """
+    try:
+        return json.loads(x, **kwargs)
+    except Exception as e:
+        pass
+    return None
+
+

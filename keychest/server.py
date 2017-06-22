@@ -12,7 +12,8 @@ from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
-    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper
+    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
+    DbDnsResolve
 import dbutil
 
 from redis_client import RedisClient
@@ -27,6 +28,7 @@ from errors import Error
 
 import threading
 import pid
+import socket
 import time
 import re
 import os
@@ -119,6 +121,7 @@ class PeriodicJob(object):
         self.success_scan = False
         self.attempts = 0
 
+        self.scan_dns = ScanResults()
         self.scan_tls = ScanResults()
         self.scan_crtsh = ScanResults()
         self.scan_whois = ScanResults()
@@ -220,6 +223,7 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
+        self.delta_dns = timedelta(seconds=30)  #timedelta(hours=2)
         self.delta_tls = timedelta(seconds=30)  #timedelta(hours=2)
         self.delta_crtsh = timedelta(seconds=60)  #timedelta(hours=8)
         self.delta_whois = timedelta(hours=24)
@@ -457,7 +461,7 @@ class Server(object):
 
         if scan_type == 'planner':
             sys_params['retry'] = 3
-            sys_params['timeout'] = 7
+            sys_params['timeout'] = 20
 
         data['sysparams'] = sys_params
         return data
@@ -477,6 +481,7 @@ class Server(object):
         :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
         """
         domain = job_data['scan_host']
+        domain_sni = util.defvalkey(job_data, 'scan_sni')
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
@@ -491,7 +496,9 @@ class Server(object):
             resp = None
             try:
                 resp = self.tls_handshaker.try_handshake(domain, port, scheme=scheme,
-                                                         attempts=sys_params['retry'], timeout=sys_params['timeout'])
+                                                         attempts=sys_params['retry'],
+                                                         timeout=sys_params['timeout'],
+                                                         domain=domain_sni)
 
             except TlsTimeout as te:
                 logger.debug('Scan timeout: %s' % te)
@@ -664,6 +671,67 @@ class Server(object):
 
         except Exception as e:
             logger.debug('Exception in whois scan: %s' % e)
+            self.trace_logger.log(e)
+
+    def scan_dns(self, s, job_data, query, job_db, store_to_db=True):
+        """
+        Performs DNS scan
+        :param s:
+        :param job_data:
+        :param query:
+        :param job_db:
+        :type job_db Optional[ScanJob]
+        :param store_job: stores job to the database in the scanning process.
+                          Not storing the job immediately has meaning for diff scanning (watcher).
+        :return:
+        :rtype DbDnsResolve
+        """
+        domain = job_data['scan_host']
+        watch_id = util.defvalkey(job_data, 'watch_id')
+        if not TlsDomainTools.can_whois(domain):
+            logger.debug('Domain %s not elligible to DNS scan' % domain)
+            return
+
+        scan_db = DbDnsResolve()
+        scan_db.watch_id = watch_id
+        scan_db.job_id = job_db.id if job_db is not None else None
+        scan_db.last_scan_at = datetime.now()
+        scan_db.created_at = salch.func.now()
+        scan_db.updated_at = salch.func.now()
+
+        try:
+            results = socket.getaddrinfo(domain, 443,
+                                         socket.AF_INET,
+                                         socket.SOCK_STREAM,
+                                         socket.IPPROTO_TCP)
+
+            res = []
+            for cur in results:
+                res.append((cur[0], cur[4][0]))
+
+            res.sort()
+            scan_db.dns_res = res
+            scan_db.dns_status = 0
+            scan_db.status = 0
+            scan_db.dns = json.dumps(res)
+
+            if store_to_db:
+                s.add(scan_db)
+                s.flush()
+                job_db.dns_check_id = scan_db.id
+
+            return scan_db
+
+        except socket.gaierror as gai:
+            logger.debug('GAI error: %s: %s' % (domain, gai))
+            scan_db.status = 1
+            scan_db.dns_status = 1
+            return scan_db
+
+        except Exception as e:
+            logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
+            scan_db.status = 2
+            scan_db.dns_status = 2
             self.trace_logger.log(e)
 
     #
@@ -864,8 +932,9 @@ class Server(object):
         logger.debug('Processing watcher job: %s' % job)
         s = self.db.get_session()
         try:
+            self.periodic_scan_dns(s, job)
             self.periodic_scan_tls(s, job)
-            job.scan_whois.skip()
+            job.scan_whois.skip()  # TODO: enable tests again
             job.scan_crtsh.skip()
             # self.periodic_scan_crtsh(s, job)
             # self.periodic_scan_whois(s, job)
@@ -873,7 +942,8 @@ class Server(object):
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
-            if job.scan_tls.is_failed() \
+            if job.scan_dns.is_failed() \
+                    or job.scan_tls.is_failed() \
                     or job.scan_whois.is_failed() \
                     or job.scan_crtsh.is_failed():
                 logger.info('Job failed at least one')
@@ -889,6 +959,28 @@ class Server(object):
 
         finally:
             util.silent_close(s)
+
+    def periodic_scan_dns(self, s, job):
+        """
+        Periodic DNS scan - determines if the check is required, invokes the check
+        :param job:
+        :type job: PeriodicJob
+        :return:
+        """
+        job_scan = job.scan_dns  # type: ScanResults
+        last_scan = self.load_last_dns_scan(s, job.watch_id())
+        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_dns):
+            job_scan.skip()
+            return  # scan is relevant enough
+
+        try:
+            self.wp_scan_dns(s, job, last_scan)
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('DNS scan exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='DNS scan')
 
     def periodic_scan_tls(self, s, job):
         """
@@ -995,6 +1087,57 @@ class Server(object):
         data = self.augment_redis_scan_job(data=data)
         return data
 
+    def wp_scan_dns(self, s, job, last_scan):
+        """
+        Watcher DNS scan - body
+        :param job:
+        :type job: PeriodicJob
+        :param last_scan:
+        :type last_scan: DbDnsResolve
+        :return:
+        """
+        job_scan = job.scan_dns  # type: ScanResults
+        job_spec = self._create_job_spec(job)
+        url = self.urlize(job)
+
+        cur_scan = self.scan_dns(s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
+        if cur_scan is None:
+            job_scan.fail()
+            return
+
+        is_same_as_before = self.diff_scan_dns(cur_scan, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+            last_scan.dns_res = util.try_load_json(last_scan.dns)
+            job_scan.aux = last_scan
+
+        else:
+            cur_scan.watch_id = job.target.id
+            cur_scan.num_scans = 1
+            cur_scan.updated_ad = salch.func.now()
+            cur_scan.last_scan_at = salch.func.now()
+            s.add(cur_scan)
+
+            job_scan.aux = cur_scan
+
+        s.commit()
+
+        # Store scan history
+        hist = DbScanHistory()
+        hist.watch_id = job.target.id
+        hist.scan_type = 4  # dns scan
+        hist.scan_code = 0
+        hist.created_at = salch.func.now()
+        s.add(hist)
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # finished with success
+        job_scan.ok()
+
     def wp_scan_tls(self, s, job, scan_list):
         """
         Watcher TLS scan - body
@@ -1007,7 +1150,17 @@ class Server(object):
         job_scan = job.scan_tls  # type: ScanResults
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
+
+        if TlsDomainTools.can_whois(url.host):
+            job_spec['scan_sni'] = url.host
+
         logger.debug(scan_list)
+
+        dns_res = job.scan_dns.aux  # type: DbDnsResolve
+        if dns_res and dns_res.dns_res:
+            logger.debug(dns_res.dns_res)
+
+        # TODO: DNS query check, TLS handshake to all IPs detected, store all IPs resolved.
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
@@ -1260,6 +1413,38 @@ class Server(object):
         """
         return self._scan_tuple_whois(cur_scan) == self._scan_tuple_whois(last_scan)
 
+    def _res_compare_cols_dns(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbDnsResolve
+        return [m.status, m.dns]
+
+    def _scan_tuple_dns(self, x):
+        """
+        X to the tuple for change comparison.
+        :param x:
+        :type x: DbDnsResolve
+        :return:
+        """
+        if x is None:
+            return None
+        cols = self._res_compare_cols_dns()
+        return DbHelper.project_model(x, cols, default_vals=True)
+
+    def diff_scan_dns(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbDnsResolve
+        :param last_scan:
+        :type last_scan: DbDnsResolve
+        :return:
+        """
+        return self._scan_tuple_dns(cur_scan) == self._scan_tuple_dns(last_scan)
+
     #
     # Scan helpers
     #
@@ -1354,6 +1539,19 @@ class Server(object):
 
         q = s.query(DbWhoisCheck).filter(DbWhoisCheck.domain == top_domain)
         return q.order_by(DbWhoisCheck.last_scan_at.desc()).limit(1).first()
+
+    def load_last_dns_scan(self, s, watch_id=None):
+        """
+        Loads the latest DNS scan
+        :param s:
+        :param watch_id:
+        :return:
+        :rtype DbDnsResolve
+        """
+        if watch_id is None:
+            return None
+        q = s.query(DbDnsResolve).filter(DbDnsResolve.watch_id == watch_id)
+        return q.order_by(DbDnsResolve.last_scan_at.desc()).limit(1).first()
 
     #
     # Helpers
@@ -2097,7 +2295,7 @@ class Server(object):
             t.start()
 
         # periodic worker start
-        for worker_idx in range(0, self.config.periodic_workers):
+        for worker_idx in range(0, 1): #self.config.periodic_workers):
             t = threading.Thread(target=self.periodic_worker_main, args=(worker_idx,))
             self.watcher_workers.append(t)
             t.setDaemon(True)
