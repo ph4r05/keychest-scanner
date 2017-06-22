@@ -530,7 +530,7 @@ class Server(object):
             scan_db = DbHandshakeScanJob()
             scan_db.created_at = salch.func.now()
             scan_db.job_id = job_db.id if job_db is not None else None
-            scan_db.ip_scanned = resp.ip
+            scan_db.ip_scanned = resp.ip if resp.ip is not None else '-'  # placeholder IP, group by fix
             scan_db.tls_ver = resp.tls_version
             scan_db.status = len(resp.certificates) > 0
             scan_db.err_code = resp.handshake_failure
@@ -1212,7 +1212,8 @@ class Server(object):
             job_spec['scan_host'] = job.primary_ip
             job_spec['dns_ok'] = True
         else:
-            job_spec['dns_ok'] = False
+            job_scan.skip(scan_list)  # skip TLS handshake check totally if DNS is not valid
+            return
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
@@ -1544,6 +1545,7 @@ class Server(object):
 
             subq = subq.join(subr, salch.sql.expression.literal(True))
             subq = subq.filter(DbHandshakeScanJob.watch_id == watch_id)
+            subq = subq.filter(DbHandshakeScanJob.ip_scanned != None)
             subq = subq.order_by(DbHandshakeScanJob.ip_scanned, DbHandshakeScanJob.last_scan_at.desc())
             subq = subq.subquery('x')
 
@@ -1563,6 +1565,7 @@ class Server(object):
             query = s.query(DbHandshakeScanJob)
             query = query.add_column(row_number_column)
             query = query.filter(DbHandshakeScanJob.watch_id == watch_id)
+            query = query.filter(DbHandshakeScanJob.ip_scanned != None)
             query = query.from_self().filter(row_number_column == 1)
             return query.all()
 
