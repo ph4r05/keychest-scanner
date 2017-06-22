@@ -796,7 +796,7 @@ class Server(object):
             ))
 
         return q.group_by(DbWatchTarget.id, DbWatchAssoc.scan_type)\
-                .order_by(DbWatchTarget.last_scan_at.desc())
+                .order_by(DbWatchTarget.last_scan_at)  # select the oldest scanned first
 
     def periodic_feeder_main(self):
         """
