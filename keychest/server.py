@@ -1969,15 +1969,15 @@ class Server(object):
         :type s: SaQuery
         :return:
         """
-        s = None
         s_was_none = s is None
         try:
             if s is None:
                 s = self.db.get_session()
 
             if isinstance(job_data, ScanJob):
-                job_data.status = state
+                job_data.state = state
                 job_data.updated_at = datetime.now()
+                job_data = s.merge(job_data)
                 s.flush()
 
             else:
