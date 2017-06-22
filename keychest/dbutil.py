@@ -9,7 +9,7 @@ import copy
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
-from sqlalchemy import case, literal_column
+from sqlalchemy import case, literal_column, orm
 from sqlalchemy.sql import expression
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
@@ -395,6 +395,11 @@ class DbDnsResolve(Base):
     def __init__(self):
         self.dns_res = []
         self.dns_status = 0
+
+    @orm.reconstructor
+    def init_on_load(self):
+        self.dns_res = util.defval(util.try_load_json(self.dns), [])
+        self.dns_status = self.status
 
 
 class ColTransformWrapper(object):

@@ -1143,7 +1143,6 @@ class Server(object):
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
-            last_scan.dns_res = util.try_load_json(last_scan.dns)
             job_scan.aux = last_scan
 
         else:
