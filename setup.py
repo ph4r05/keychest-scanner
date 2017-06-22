@@ -18,7 +18,7 @@ install_requires = [
     'coloredlogs',
     'six',
     'future',
-    'SQLAlchemy>=1.1.11',
+    'SQLAlchemy>=1.1',
     'shellescape',
     'flask',
     'MarkupSafe>=0.23',  # problem with deps
@@ -28,7 +28,7 @@ install_requires = [
     'scapy-ssl-tls',
     'mysql-python',
     'tldextract',
-    'python-whois-extended',
+    'ph4-python-whois>=0.6.8',
 ]
 
 # env markers in extras_require cause problems with older pip: #517

@@ -935,3 +935,20 @@ def try_load_json(x, **kwargs):
     return None
 
 
+def first(x):
+    """
+    Gets the first element of the array, if array.
+    Returns the input otherwise
+    :param x:
+    :return:
+    """
+    if x is None:
+        return x
+
+    if isinstance(x, types.ListType):
+        if len(x) > 0:
+            return x[0]
+        return None
+    return x
+
+

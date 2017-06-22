@@ -54,7 +54,7 @@ from sqlalchemy.orm.query import Query as SaQuery
 from sqlalchemy import case, literal_column
 
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
-import whois
+import ph4whois
 
 
 __author__ = 'dusanklinec'
@@ -655,12 +655,14 @@ class Server(object):
             resp = None
             try:
                 resp = self.try_whois(top_domain, attempts=sys_params['retry'])
-                scan_db.registrant_cc = resp.registrant_cc
-                scan_db.registrar = resp.registrar
-                scan_db.expires_at = resp.expiration_date
-                scan_db.registered_at = resp.creation_date
-                scan_db.rec_updated_at = resp.last_updated
-                scan_db.dns = json.dumps(util.strip(list(resp.name_servers)))
+                scan_db.registrant_cc = util.first(resp.country)
+                scan_db.registrar = util.first(resp.registrar)
+                scan_db.expires_at = util.first(resp.expiration_date)
+                scan_db.registered_at = util.first(resp.creation_date)
+                scan_db.rec_updated_at = util.first(resp.updated_date)
+                scan_db.dnssec = not util.is_empty(resp.dnssec) and resp.dnssec != 'unsigned'
+                scan_db.dns = json.dumps(util.lower(util.strip(sorted(list(resp.name_servers)))))
+                scan_db.emails = json.dumps(util.lower(util.strip(sorted(list(resp.emails)))))
                 scan_db.result = 1
 
             except Exception as e:
@@ -1990,8 +1992,22 @@ class Server(object):
         """
         for attempt in range(attempts):
             try:
-                res = whois.query(top_domain)
+                res = ph4whois.whois(top_domain)
                 return res
+
+            except ph4whois.parser.PywhoisError as pe:
+                return None  # not found
+
+            except ph4whois.parser.PywhoisTldError as pe:
+                return None  # unknown TLD
+
+            except ph4whois.parser.PywhoisNoWhoisError as pe:
+                return None  # no whois server found
+
+            except ph4whois.parser.PywhoisSlowDownError as pe:
+                time.sleep(1)
+                if attempt + 1 >= attempts:
+                    raise
 
             except Exception as e:
                 if attempt + 1 >= attempts:
