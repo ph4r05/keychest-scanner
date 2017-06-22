@@ -952,7 +952,10 @@ class Server(object):
                     or job.scan_tls.is_failed() \
                     or job.scan_whois.is_failed() \
                     or job.scan_crtsh.is_failed():
-                logger.info('Job failed at least one')
+                logger.info('Job failed, dns: %s, tls: %s, whois: %s, crtsh: %s'
+                            % (job.scan_dns.is_failed(), job.scan_tls.is_failed(),
+                               job.scan_whois.is_failed(), job.scan_crtsh.is_failed()))
+
                 job.attempts += 1
                 job.success_scan = False
             else:
