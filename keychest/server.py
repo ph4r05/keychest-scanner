@@ -94,8 +94,10 @@ class ScanResults(object):
         self.skipped = False
         self.success = True
 
-    def skip(self):
+    def skip(self, aux=0xdeadbeef):
         self.skipped = True
+        if aux != 0xdeadbeef:
+            self.aux = aux
 
     def is_failed(self):
         return not self.success and not self.skipped
@@ -1002,7 +1004,7 @@ class Server(object):
         job_scan = job.scan_dns  # type: ScanResults
         last_scan = self.load_last_dns_scan(s, job.watch_id())
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_dns):
-            job_scan.skip()
+            job_scan.skip(last_scan)
             return  # scan is relevant enough
 
         try:
@@ -1028,7 +1030,7 @@ class Server(object):
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
 
         if min_last_scan is not None and min_last_scan.last_scan_at > self._diff_time(self.delta_tls):
-            job_scan.skip()
+            job_scan.skip(prev_scans_map)
             return  # scan is relevant enough
 
         try:
@@ -1051,7 +1053,7 @@ class Server(object):
 
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
-            job_scan.skip()
+            job_scan.skip(last_scan)
             return  # scan is relevant enough
 
         try:
@@ -1080,7 +1082,7 @@ class Server(object):
         top_domain = TlsDomainTools.get_top_domain(url.host)
         last_scan = self.load_last_whois_scan(s, top_domain)
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
-            job_scan.skip()
+            job_scan.skip(last_scan)
             return  # scan is relevant enough
 
         # initiate new whois check
