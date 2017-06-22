@@ -1219,7 +1219,7 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        job_scan = job.scan_tls  # type: ScanResults
+        job_scan = job.scan_crtsh  # type: ScanResults
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
 
