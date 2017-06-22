@@ -420,6 +420,7 @@ class Server(object):
 
             # DNS scan
             self.scan_dns(s, job_data, domain, job_db)
+            s.commit()
 
             self.update_job_state(job_db, 'dns-done', s)
 
@@ -591,6 +592,9 @@ class Server(object):
         if store_to_db:
             s.add(crtsh_query_db)
             s.flush()
+            if job_db is not None:
+                job_db.crtsh_check_id = crtsh_query_db.id
+                job_db = s.merge(job_db)
 
         # existing records
         sub_res_list = []
@@ -630,7 +634,7 @@ class Server(object):
         :param query:
         :param job_db:
         :type job_db ScanJob
-        :param store_job: stores job to the database in the scanning process.
+        :param store_to_db: stores job to the database in the scanning process.
                           Not storing the job immediately has meaning for diff scanning (watcher).
         :return:
         :rtype DbWhoisCheck
@@ -649,6 +653,7 @@ class Server(object):
             if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
                 if job_db is not None:
                     job_db.whois_check_id = last_scan.id
+                    job_db = s.merge(job_db)
                 return last_scan
 
             scan_db = DbWhoisCheck()
@@ -682,7 +687,9 @@ class Server(object):
             if store_to_db:
                 s.add(scan_db)
                 s.flush()
-                job_db.whois_check_id = scan_db.id
+                if job_db is not None:
+                    job_db.whois_check_id = scan_db.id
+                    job_db = s.merge(job_db)
 
             return scan_db
 
@@ -735,7 +742,9 @@ class Server(object):
             if store_to_db:
                 s.add(scan_db)
                 s.flush()
-                job_db.dns_check_id = scan_db.id
+                if job_db is not None:
+                    job_db.dns_check_id = scan_db.id
+                    job_db = s.merge(job_db)
 
             return scan_db
 
@@ -1195,7 +1204,7 @@ class Server(object):
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
-            logger.info('TLS scan is the same')
+            last_scan = s.merge(last_scan)
         else:
             db_scan.watch_id = job.target.id
             db_scan.num_scans = 1
@@ -1242,6 +1251,7 @@ class Server(object):
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
+            last_scan = s.merge(last_scan)
         else:
             crtsh_query_db.watch_id = job.target.id
             crtsh_query_db.num_scans = 1
@@ -1289,6 +1299,7 @@ class Server(object):
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
+            last_scan = s.merge(last_scan)
         else:
             scan_db.watch_id = job.target.id
             scan_db.num_scans = 1
