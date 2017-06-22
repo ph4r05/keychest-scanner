@@ -418,6 +418,9 @@ class Server(object):
             # TODO: scan CT database
             # ...
 
+            # DNS scan
+            self.scan_dns(s, job_data, domain, job_db)
+
             # crt.sh scan
             self.scan_crt_sh(s, job_data, domain, job_db)
             s.commit()
@@ -481,7 +484,7 @@ class Server(object):
         :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
         """
         domain = job_data['scan_host']
-        domain_sni = util.defvalkey(job_data, 'scan_sni')
+        domain_sni = util.defvalkey(job_data, 'scan_sni', domain)
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
@@ -533,7 +536,7 @@ class Server(object):
             self.process_handshake_certs(s, resp, scan_db, do_job_subres=store_job)
 
             # Try direct connect with requests, follow urls
-            self.connect_analysis(s, sys_params, resp, scan_db, domain, port, scheme)
+            self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme)
             return resp, scan_db
 
         except Exception as e:
@@ -1154,13 +1157,12 @@ class Server(object):
         if TlsDomainTools.can_whois(url.host):
             job_spec['scan_sni'] = url.host
 
-        logger.debug(scan_list)
-
+        # For now - scan only first IP address in the lexi ordering
+        # TODO: scan all IPs, perform extended handshake test on all resolved IPs
         dns_res = job.scan_dns.aux  # type: DbDnsResolve
-        if dns_res and dns_res.dns_res:
-            logger.debug(dns_res.dns_res)
-
-        # TODO: DNS query check, TLS handshake to all IPs detected, store all IPs resolved.
+        if dns_res and dns_res.dns_res and len(dns_res.dns_res) > 0:
+            domains = sorted(dns_res.dns_res)
+            job_spec['scan_host'] = domains[0][1]
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
@@ -1344,7 +1346,7 @@ class Server(object):
         t1 = self._scan_tuple_tls(cur_scan)
         t2 = self._scan_tuple_tls(last_scan)
         for i in range(len(t1)):
-            if t1[i] != t2[i]:
+            if t1 and t2 and t1[i] != t2[i]:
                 logger.debug('Diff: %s, %s != %s col %s' % (i, t1[i], t2[i], self._res_compare_cols_tls()[i]))
         return t1 == t2
 
