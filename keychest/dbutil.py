@@ -56,6 +56,9 @@ class ScanJob(Base):
                             nullable=True, index=True)  # whois check ID
     crtsh_check_id = Column(ForeignKey('crtsh_query.id', name='crtsh_query_id'),
                             nullable=True, index=True)  # crtsh check ID
+    dns_check_id = Column(ForeignKey('scan_dns.id', name='scan_dns_id'),
+                          nullable=True, index=True)  # dns check ID
+    crtsh_checks = Column(String(255), nullable=True)  # json of crtsh checks
 
 
 class Certificate(Base):
@@ -365,6 +368,30 @@ class DbLastRecordCache(Base):
     record_aux = Column(Text, default=None, nullable=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
+
+
+class DbDnsResolve(Base):
+    """
+    DNS resolve results
+    """
+    __tablename__ = "scan_dns"
+    id = Column(BigInteger, primary_key=True)
+
+    job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=True, index=True)  # watch id scan for periodic scanner
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    status = Column(SmallInteger, default=0)
+    dns = Column(Text, nullable=True)  # normalized json with dns results
+
+    def __init__(self):
+        self.dns_res = []
+        self.dns_status = 0
 
 
 class ColTransformWrapper(object):
