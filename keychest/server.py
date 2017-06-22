@@ -172,8 +172,8 @@ class PeriodicJob(object):
         return js
 
     def __repr__(self):
-        return '<PeriodicJob(target=<WatcherTarget(id=%r, host=%r, self=%r)>, attempts=%r)>' \
-               % (self.target.id, self.target.scan_host, self.target, self.attempts)
+        return '<PeriodicJob(target=<WatcherTarget(id=%r, host=%r, self=%r)>, attempts=%r, last_scan_at=%r)>' \
+               % (self.target.id, self.target.scan_host, self.target, self.attempts, self.target.last_scan_at)
 
 
 class Server(object):
@@ -863,7 +863,7 @@ class Server(object):
                     job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
                     self.watcher_db_cur_jobs[job.key()] = job
                     self.watcher_job_queue.put(job)
-                    logger.debug('Job generated: %s' % str(job))
+                    logger.debug('Job generated: %s, qsize: %s' % (str(job), self.watcher_job_queue.qsize()))
 
         finally:
             util.silent_close(s)
