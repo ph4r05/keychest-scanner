@@ -19,6 +19,8 @@ from scapy.layers.ssl_tls import *
 from scapy.packet import NoPayload
 import socket
 
+from tls_domain_tools import TlsDomainTools
+
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +288,8 @@ class TlsHandshaker(object):
         return_obj.host = host
         return_obj.port = port
         return_obj.domain = domain_sni
+        if TlsDomainTools.is_ip(host):
+            return_obj.ip = host
 
         # create simple tcp socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
