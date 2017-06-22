@@ -295,8 +295,11 @@ class DbWhoisCheck(Base):
     registrar = Column(String(255), nullable=True)
     registered_at = Column(DateTime, default=None, nullable=True)
     expires_at = Column(DateTime, default=None, nullable=True)
+    dnssec = Column(SmallInteger, default=0)  # DNSsec enabled
+
     rec_updated_at = Column(DateTime, default=None, nullable=True)  # whois record updated at
     dns = Column(Text, default=None, nullable=True)
+    emails = Column(Text, default=None, nullable=True)
     aux = Column(Text, default=None, nullable=True)
 
     created_at = Column(DateTime, default=None)
