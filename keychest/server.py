@@ -940,10 +940,8 @@ class Server(object):
         try:
             self.periodic_scan_dns(s, job)
             self.periodic_scan_tls(s, job)
-            job.scan_whois.skip()  # TODO: enable tests again
-            job.scan_crtsh.skip()
-            # self.periodic_scan_crtsh(s, job)
-            # self.periodic_scan_whois(s, job)
+            self.periodic_scan_crtsh(s, job)
+            self.periodic_scan_whois(s, job)
 
             job.success_scan = True  # updates last scan record
 
@@ -1021,7 +1019,7 @@ class Server(object):
         :type job: PeriodicJob
         :return:
         """
-        job_scan = job.scan_tls  # type: ScanResults
+        job_scan = job.scan_crtsh  # type: ScanResults
 
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
@@ -1045,7 +1043,7 @@ class Server(object):
         :return:
         """
         url = self.urlize(job)
-        job_scan = job.scan_tls  # type: ScanResults
+        job_scan = job.scan_whois  # type: ScanResults
 
         if not TlsDomainTools.can_whois(url.host):
             job_scan.skip()
@@ -1265,7 +1263,7 @@ class Server(object):
         :type last_scan: DbWhoisCheck
         :return:
         """
-        job_scan = job.scan_tls  # type: ScanResults
+        job_scan = job.scan_whois  # type: ScanResults
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
 
