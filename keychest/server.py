@@ -421,6 +421,8 @@ class Server(object):
             # DNS scan
             self.scan_dns(s, job_data, domain, job_db)
 
+            self.update_job_state(job_db, 'dns-done', s)
+
             # crt.sh scan
             self.scan_crt_sh(s, job_data, domain, job_db)
             s.commit()
@@ -433,6 +435,8 @@ class Server(object):
             # direct host scan
             self.scan_handshake(s, job_data, domain, job_db)
             s.commit()
+
+            self.update_job_state(job_db, 'tls-done', s)
 
             # whois scan
             self.scan_whois(s, job_data, domain, job_db)
