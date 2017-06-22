@@ -52,8 +52,10 @@ class ScanJob(Base):
     user_id = Column(BigInteger, nullable=True)
     user_ip = Column(String(255), nullable=True)
     user_sess = Column(String(255), nullable=True)
-    whois_check_id = Column(ForeignKey('whois_result.id'), nullable=True, index=True)  # whois check ID
-    crtsh_check_id = Column(ForeignKey('crtsh_query.id'), nullable=True, index=True)  # crtsh check ID
+    whois_check_id = Column(ForeignKey('whois_result.id', name='whois_result_id'),
+                            nullable=True, index=True)  # whois check ID
+    crtsh_check_id = Column(ForeignKey('crtsh_query.id', name='crtsh_query_id'),
+                            nullable=True, index=True)  # crtsh check ID
 
 
 class Certificate(Base):
@@ -112,7 +114,8 @@ class DbCrtShQuery(Base):
     __tablename__ = 'crtsh_query'
     id = Column(BigInteger, primary_key=True)
     job_id = Column(BigInteger, nullable=True)
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)  # watch id scan for periodic scanner
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=True, index=True)  # watch id scan for periodic scanner
 
     last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
@@ -151,7 +154,8 @@ class DbHandshakeScanJob(Base):
     id = Column(BigInteger, primary_key=True)
 
     job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)  # watch id scan for periodic scanner
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=True, index=True)  # watch id scan for periodic scanner
 
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP)
     tls_ver = Column(String(16), nullable=True)  # tls version used to connect
@@ -252,8 +256,10 @@ class DbWatchAssoc(Base):
     __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='_user_watcher_uniqe'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id'), nullable=False, index=True)
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=False, index=True)
+    user_id = Column(ForeignKey('users.id', name='users_id'),
+                     nullable=False, index=True)
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -278,7 +284,8 @@ class DbWhoisCheck(Base):
     """
     __tablename__ = 'whois_result'
     id = Column(BigInteger, primary_key=True)
-    domain_id = Column(ForeignKey('base_domain.id'), nullable=False, index=True)
+    domain_id = Column(ForeignKey('base_domain.id', name='base_domain_id'),
+                       nullable=False, index=True)
 
     status = Column(SmallInteger, default=0)  # status code / error
     registrant_cc = Column(String(255), nullable=True)
@@ -305,7 +312,8 @@ class DbScanHistory(Base):
     """
     __tablename__ = "scan_history"
     id = Column(BigInteger, primary_key=True)
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=True, index=True)
     scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
     scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
     created_at = Column(DateTime, default=None)
@@ -322,7 +330,8 @@ class DbScanGaps(Base):
     """
     __tablename__ = "scan_gaps"
     id = Column(BigInteger, primary_key=True)
-    watch_id = Column(ForeignKey('watch_target.id'), nullable=True, index=True)
+    watch_id = Column(ForeignKey('watch_target.id', name='watch_target_id'),
+                      nullable=True, index=True)
     scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
     scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
     created_at = Column(DateTime, default=None)
