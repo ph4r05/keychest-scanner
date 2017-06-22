@@ -661,8 +661,8 @@ class Server(object):
                 scan_db.registered_at = util.first(resp.creation_date)
                 scan_db.rec_updated_at = util.first(resp.updated_date)
                 scan_db.dnssec = not util.is_empty(resp.dnssec) and resp.dnssec != 'unsigned'
-                scan_db.dns = json.dumps(util.lower(util.strip(sorted(list(resp.name_servers)))))
-                scan_db.emails = json.dumps(util.lower(util.strip(sorted(list(resp.emails)))))
+                scan_db.dns = json.dumps(util.lower(util.strip(sorted(util.try_list(resp.name_servers)))))
+                scan_db.emails = json.dumps(util.lower(util.strip(sorted(util.try_list(resp.emails)))))
                 scan_db.result = 1
 
             except Exception as e:
@@ -1734,7 +1734,7 @@ class Server(object):
         # update main scan result entry
         scan_db.cert_id_leaf = leaf_cert_id
         scan_db.new_results = num_new_results
-        scan_db.certs_ids = json.dumps(sorted(list(all_cert_ids)))
+        scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
         s.flush()
 
     def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False):

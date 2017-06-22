@@ -952,3 +952,16 @@ def first(x):
     return x
 
 
+def try_list(x):
+    """
+    Tries to call list(x)
+    :param x:
+    :return:
+    """
+    if x is None:
+        return []
+    try:
+        return list(x)
+    except:
+        return [x]
+
