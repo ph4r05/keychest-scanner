@@ -655,15 +655,20 @@ class Server(object):
             resp = None
             try:
                 resp = self.try_whois(top_domain, attempts=sys_params['retry'])
-                scan_db.registrant_cc = util.first(resp.country)
-                scan_db.registrar = util.first(resp.registrar)
-                scan_db.expires_at = util.first(resp.expiration_date)
-                scan_db.registered_at = util.first(resp.creation_date)
-                scan_db.rec_updated_at = util.first(resp.updated_date)
-                scan_db.dnssec = not util.is_empty(resp.dnssec) and resp.dnssec != 'unsigned'
-                scan_db.dns = json.dumps(util.lower(util.strip(sorted(util.try_list(resp.name_servers)))))
-                scan_db.emails = json.dumps(util.lower(util.strip(sorted(util.try_list(resp.emails)))))
-                scan_db.result = 1
+                if resp is None:  # not found
+                    scan_db.result = 2
+                else:
+                    scan_db.registrant_cc = util.first(resp.country)
+                    scan_db.registrar = util.first(resp.registrar)
+                    scan_db.expires_at = util.first(resp.expiration_date)
+                    scan_db.registered_at = util.first(resp.creation_date)
+                    scan_db.rec_updated_at = util.first(resp.updated_date)
+                    scan_db.dnssec = not util.is_empty(resp.dnssec) and resp.dnssec != 'unsigned'
+                    scan_db.dns = json.dumps(util.lower(util.strip(
+                        sorted(util.try_list(resp.name_servers)))))
+                    scan_db.emails = json.dumps(util.lower(util.strip(
+                        sorted(util.try_list(resp.emails)))))
+                    scan_db.result = 1
 
             except Exception as e:
                 scan_db.result = 0
