@@ -490,7 +490,7 @@ class Server(object):
         """
         domain = job_data['scan_host']
         domain_sni = util.defvalkey(job_data, 'scan_sni', domain)
-        dns_ok = util.defvalkey(job_data, 'dns_ok', True)
+        dns_ok = util.defvalkey(job_data, 'dns_ok', True, take_none=False)
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
@@ -544,6 +544,8 @@ class Server(object):
             # Try direct connect with requests, follow urls
             if dns_ok:
                 self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme)
+            else:
+                logger.debug('Connect analysis skipped for %s' % domain_sni)
 
             return resp, scan_db
 
