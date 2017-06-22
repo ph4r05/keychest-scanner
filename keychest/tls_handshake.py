@@ -300,14 +300,14 @@ class TlsHandshaker(object):
             try:
                 s.connect(target)
                 return_obj.time_connected = time.time()
-                return_obj.ip = self._try_get_peer_ip(s)
+                return_obj.ip = util.defval(self._try_get_peer_ip(s), return_obj.ip)
 
             except Exception as e:
                 logger.debug('Exception during connect %s - %s: %s' % (target, domain_sni, e))
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = TlsHandshakeErrors.CONN_ERR
                 return_obj.time_failed = time.time()
-                return_obj.ip = self._try_get_peer_ip(s)
+                return_obj.ip = util.defval(self._try_get_peer_ip(s), return_obj.ip)
 
                 raise TlsTimeout('Connect timeout on %s - %s' % (target, domain_sni), e, scan_result=return_obj)
 
