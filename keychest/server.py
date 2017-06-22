@@ -225,7 +225,7 @@ class Server(object):
 
         self.delta_dns = timedelta(seconds=30)  #timedelta(hours=2)
         self.delta_tls = timedelta(seconds=30)  #timedelta(hours=2)
-        self.delta_crtsh = timedelta(seconds=60)  #timedelta(hours=8)
+        self.delta_crtsh = timedelta(hours=8)  #timedelta(seconds=60)
         self.delta_whois = timedelta(hours=24)
 
     def check_pid(self, retry=True):
