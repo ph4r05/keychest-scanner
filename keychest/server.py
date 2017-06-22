@@ -913,6 +913,8 @@ class Server(object):
             self.trace_logger.log(e)
 
         finally:
+            remove_job = True
+
             # if job is success update db last scan value
             if job.success_scan:
                 self.periodic_update_last_scan(job)
@@ -920,12 +922,13 @@ class Server(object):
             # if retry under threshold, add again to the queue
             elif job.attempts <= 3:
                 self.watcher_job_queue.put(job)
+                remove_job = False
 
             # The job has expired.
-            # TODO: make sure job does not return quickly by DB load.
+            # TODO: make sure job does not return quickly by DB load - add backoff / num of fails / last fail
             # remove from processing caches so it can be picked up again later.
             # i.e. remove lock on this item
-            else:
+            if remove_job:
                 with self.watcher_db_lock:
                     del self.watcher_db_cur_jobs[job.key()]
                     del self.watcher_db_processing[job.key()]
