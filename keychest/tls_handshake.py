@@ -278,7 +278,7 @@ class TlsHandshaker(object):
         target = (host, port)
         logger.debug('Connecting to: %s' % (target, ))
         tls_ver = kwargs.get('tls_version', self.tls_version)
-        domain_sni = kwargs.get('domain', host)
+        domain_sni = util.defval(kwargs.get('domain', host), host)
         timeout = float(kwargs.get('timeout', self.timeout))
 
         return_obj = TlsHandshakeResult()
