@@ -822,12 +822,12 @@ class Server(object):
             if self.watch_last_db_scan + self.watch_db_scan_period <= ctime:
                 scan_now = True
 
-            if not scan_now and self.watch_last_db_scan + 0.1 >= ctime \
+            if not scan_now and self.watch_last_db_scan + 2 <= ctime \
                     and self.watcher_job_queue.qsize() <= 100:
                 scan_now = True
 
             if not scan_now:
-                time.sleep(0.05)
+                time.sleep(0.5)
                 continue
 
             # get the new session
