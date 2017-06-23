@@ -226,9 +226,9 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
-        self.delta_dns = timedelta(seconds=30)  #timedelta(hours=2)
-        self.delta_tls = timedelta(seconds=30)  #timedelta(hours=2)
-        self.delta_crtsh = timedelta(hours=8)  #timedelta(seconds=60)
+        self.delta_dns = timedelta(minutes=10)
+        self.delta_tls = timedelta(hours=2)
+        self.delta_crtsh = timedelta(hours=8)
         self.delta_whois = timedelta(hours=24)
 
     def check_pid(self, retry=True):
@@ -778,8 +778,7 @@ class Server(object):
             inner join watch_target wt on wt.id = uw.watch_id
             where uw.deleted_at is null
             group by wt.id, uw.scan_type
-            order by last_scan_state desc
-            limit 1000;
+            order by last_scan_state desc;
         :param s : SaQuery query
         :type s: SaQuery
         :param last_scan_margin: margin for filtering out records that were recently processed.
@@ -802,6 +801,13 @@ class Server(object):
 
         return q.group_by(DbWatchTarget.id, DbWatchAssoc.scan_type)\
                 .order_by(DbWatchTarget.last_scan_at)  # select the oldest scanned first
+
+    def _min_scan_margin(self):
+        """
+        Computes minimal scan margin from the scan timeouts
+        :return:
+        """
+        return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).seconds
 
     def periodic_feeder_main(self):
         """
@@ -846,8 +852,9 @@ class Server(object):
             return
 
         s = self.db.get_session()
+        min_scan_margin = self._min_scan_margin()
         try:
-            query = self.load_active_watch_targets(s, last_scan_margin=30)
+            query = self.load_active_watch_targets(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
                 watch_target, min_periodicity = x
@@ -1251,7 +1258,6 @@ class Server(object):
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
         # finished with success
-        time.sleep(2)
         job_scan.ok()
 
     def wp_scan_crtsh(self, s, job, last_scan):
@@ -2365,7 +2371,7 @@ class Server(object):
             t.start()
 
         # periodic worker start
-        for worker_idx in range(0, 1): #self.config.periodic_workers):
+        for worker_idx in range(self.config.periodic_workers):
             t = threading.Thread(target=self.periodic_worker_main, args=(worker_idx,))
             self.watcher_workers.append(t)
             t.setDaemon(True)
