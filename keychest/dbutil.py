@@ -229,6 +229,7 @@ class DbWatchTarget(Base):
     scan_periodicity = Column(BigInteger, nullable=True)  # deprecated, moved to association
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
 
+    top_domain_id = Column(ForeignKey('base_domain.id', name='base_domain_id'), nullable=True, index=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
