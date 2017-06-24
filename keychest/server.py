@@ -1089,7 +1089,8 @@ class Server(object):
             return  # has IP address only, no whois check
 
         top_domain = TlsDomainTools.get_top_domain(url.host)
-        last_scan = self.load_last_whois_scan(s, top_domain)
+        top_domain, is_new = self.load_top_domain(s, top_domain)
+        last_scan = self.load_last_whois_scan(s, top_domain) if not is_new else None
         if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
@@ -1311,6 +1312,7 @@ class Server(object):
         :type job: PeriodicJob
         :param url:
         :param top_domain:
+        :type top_domain: DbBaseDomain
         :param last_scan:
         :type last_scan: DbWhoisCheck
         :return:
@@ -1334,6 +1336,10 @@ class Server(object):
             scan_db.last_scan_at = salch.func.now()
             s.add(scan_db)
 
+        # top domain assoc
+        if job.target.top_domain_id != top_domain.id:
+            job.target.top_domain_id = top_domain.id
+            s.merge(job.target)
         s.commit()
 
         # Store scan history
