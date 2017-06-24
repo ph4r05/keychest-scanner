@@ -229,7 +229,7 @@ class Server(object):
         self.delta_dns = timedelta(minutes=10)
         self.delta_tls = timedelta(hours=2)
         self.delta_crtsh = timedelta(hours=8)
-        self.delta_whois = timedelta(hours=24)
+        self.delta_whois = timedelta(hours=48)
 
     def check_pid(self, retry=True):
         """
@@ -2063,7 +2063,8 @@ class Server(object):
                 return None  # no whois server found
 
             except ph4whois.parser.PywhoisSlowDownError as pe:
-                time.sleep(1)
+                logger.debug('Slow down whois warning')
+                time.sleep(1.5)
                 if attempt + 1 >= attempts:
                     raise
 
