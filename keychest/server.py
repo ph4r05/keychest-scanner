@@ -1229,7 +1229,6 @@ class Server(object):
         last_scan = util.defvalkey(scan_list, db_scan.ip_scanned, None)
 
         # Compare with last result, store if new one or update the old one
-        # LATER: define fields on the model which difference is interesting to store
         is_same_as_before = self.diff_scan_tls(db_scan, last_scan)
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
@@ -1323,7 +1322,6 @@ class Server(object):
         scan_db = self.scan_whois(s=s, job_data=job_spec, query=top_domain, job_db=None, store_to_db=False)
 
         # Compare with last result, store if new one or update the old one
-        # LATER: define fields on the model which difference is interesting to store
         is_same_as_before = self.diff_scan_whois(scan_db, last_scan)
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
