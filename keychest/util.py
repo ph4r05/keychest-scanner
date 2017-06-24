@@ -952,14 +952,19 @@ def first(x):
     return x
 
 
-def try_list(x):
+def try_list(x, take_string=False):
     """
     Tries to call list(x)
     :param x:
+    :param take_string: if True list(str) is applied which splits string per characters. default is False
     :return:
     """
     if x is None:
         return []
+
+    if not take_string and isinstance(x, basestring):
+        return [x]
+
     try:
         return list(x)
     except:
