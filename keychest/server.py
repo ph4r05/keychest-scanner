@@ -655,7 +655,9 @@ class Server(object):
             top_domain_db, domain_new = self.load_top_domain(s, top_domain=top_domain)
 
             last_scan = self.load_last_whois_scan(s, top_domain_db) if not domain_new else None
-            if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
+            if last_scan is not None \
+                    and last_scan.last_scan_at \
+                    and last_scan.last_scan_at > self._diff_time(self.delta_whois):
                 if job_db is not None:
                     job_db.whois_check_id = last_scan.id
                     job_db = s.merge(job_db)
@@ -1016,7 +1018,9 @@ class Server(object):
         """
         job_scan = job.scan_dns  # type: ScanResults
         last_scan = self.load_last_dns_scan(s, job.watch_id())
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_dns):
+        if last_scan is not None \
+                and last_scan.last_scan_at \
+                and last_scan.last_scan_at > self._diff_time(self.delta_dns):
             job_scan.skip(last_scan)
             self.wp_process_dns(s, job, job_scan.aux)
             return  # scan is relevant enough
@@ -1043,7 +1047,9 @@ class Server(object):
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
         primary_scan = util.defvalkey(prev_scans_map, job.primary_ip) if job.primary_ip is not None else None
 
-        if primary_scan is not None and primary_scan.last_scan_at > self._diff_time(self.delta_tls):
+        if primary_scan is not None \
+                and primary_scan.last_scan_at \
+                and primary_scan.last_scan_at > self._diff_time(self.delta_tls):
             job_scan.skip(prev_scans_map)
             return  # scan is relevant enough
 
@@ -1066,7 +1072,9 @@ class Server(object):
         job_scan = job.scan_crtsh  # type: ScanResults
 
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
+        if last_scan is not None \
+                and last_scan.last_scan_at \
+                and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1096,7 +1104,9 @@ class Server(object):
         top_domain = TlsDomainTools.get_top_domain(url.host)
         top_domain, is_new = self.load_top_domain(s, top_domain)
         last_scan = self.load_last_whois_scan(s, top_domain) if not is_new else None
-        if last_scan is not None and last_scan.last_scan_at > self._diff_time(self.delta_whois):
+        if last_scan is not None \
+                and last_scan.last_scan_at \
+                and last_scan.last_scan_at > self._diff_time(self.delta_whois):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
