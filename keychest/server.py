@@ -670,7 +670,7 @@ class Server(object):
             try:
                 resp = self.try_whois(top_domain, attempts=sys_params['retry'])
                 if resp is None:  # not found
-                    scan_db.result = 2
+                    scan_db.status = 2
                 else:
                     scan_db.registrant_cc = util.first(resp.country)
                     scan_db.registrar = util.first(resp.registrar)
@@ -682,19 +682,19 @@ class Server(object):
                         sorted(util.try_list(resp.name_servers)))))
                     scan_db.emails = json.dumps(util.lower(util.strip(
                         sorted(util.try_list(resp.emails)))))
-                    scan_db.result = 1
+                    scan_db.status = 1
 
             except ph4whois.parser.PywhoisSlowDownError as se:
-                scan_db.result = 3
+                scan_db.status = 3
                 logger.debug('Whois scan fail - slow down: %s' % se)
                 self.trace_logger.log(se, custom_msg='Whois exception')
 
             except Exception as e:
-                scan_db.result = 0
+                scan_db.status = 0
                 logger.debug('Whois scan fail: %s' % e)
                 self.trace_logger.log(e, custom_msg='Whois exception')
 
-            if store_to_db and scan_db.result != 3:
+            if store_to_db and scan_db.status != 3:
                 s.add(scan_db)
                 s.flush()
                 if job_db is not None:
