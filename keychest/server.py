@@ -2371,6 +2371,7 @@ class Server(object):
         self.init_log()
         self.init_db()
         self.init_misc()
+        util.monkey_patch_asn1_time()
 
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
         self.cleanup_thread.setDaemon(True)
