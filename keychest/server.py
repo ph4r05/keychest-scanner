@@ -975,7 +975,7 @@ class Server(object):
         :type job: PeriodicJob
         :return:
         """
-        logger.debug('Processing watcher job: %s' % job)
+        logger.debug('Processing watcher job: %s, qsize: %s' % (job, self.watcher_job_queue.qsize()))
         s = self.db.get_session()
         try:
             self.periodic_scan_dns(s, job)
