@@ -684,12 +684,17 @@ class Server(object):
                         sorted(util.try_list(resp.emails)))))
                     scan_db.result = 1
 
+            except ph4whois.parser.PywhoisSlowDownError as se:
+                scan_db.result = 3
+                logger.debug('Whois scan fail - slow down: %s' % se)
+                self.trace_logger.log(se, custom_msg='Whois exception')
+
             except Exception as e:
                 scan_db.result = 0
                 logger.debug('Whois scan fail: %s' % e)
                 self.trace_logger.log(e, custom_msg='Whois exception')
 
-            if store_to_db:
+            if store_to_db and scan_db.result != 3:
                 s.add(scan_db)
                 s.flush()
                 if job_db is not None:
@@ -1322,6 +1327,9 @@ class Server(object):
         url = self.urlize(job)
 
         scan_db = self.scan_whois(s=s, job_data=job_spec, query=top_domain, job_db=None, store_to_db=False)
+        if scan_db.status == 3:  # too fast
+            job_scan.fail()
+            return
 
         # Compare with last result, store if new one or update the old one
         is_same_as_before = self.diff_scan_whois(scan_db, last_scan)
