@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 # Base for schema definitions
 Base = declarative_base()
 
+# TODO: foreign keys have to be named! otherwise no downgrade can be made. refactor!
+
 
 class ScanJob(Base):
     """
