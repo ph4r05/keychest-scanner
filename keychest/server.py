@@ -747,30 +747,29 @@ class Server(object):
 
             res.sort()
             scan_db.dns_res = res
-            scan_db.dns_status = 0
-            scan_db.status = 0
+            scan_db.dns_status = 1
+            scan_db.status = 1
             scan_db.dns = json.dumps(res)
-
-            if store_to_db:
-                s.add(scan_db)
-                s.flush()
-                if job_db is not None:
-                    job_db.dns_check_id = scan_db.id
-                    job_db = s.merge(job_db)
-
-            return scan_db
 
         except socket.gaierror as gai:
             logger.debug('GAI error: %s: %s' % (domain, gai))
-            scan_db.status = 1
-            scan_db.dns_status = 1
-            return scan_db
+            scan_db.status = 2
+            scan_db.dns_status = 2
 
         except Exception as e:
             logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
-            scan_db.status = 2
-            scan_db.dns_status = 2
+            scan_db.status = 3
+            scan_db.dns_status = 3
             self.trace_logger.log(e)
+
+        if store_to_db:
+            s.add(scan_db)
+            s.flush()
+            if job_db is not None:
+                job_db.dns_check_id = scan_db.id
+                job_db = s.merge(job_db)
+
+        return scan_db
 
     #
     # Periodic scanner
