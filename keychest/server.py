@@ -1376,7 +1376,6 @@ class Server(object):
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
-        # TODO: construct db result, merge results to the database.
         job_scan.ok()
 
     #
@@ -1387,7 +1386,6 @@ class Server(object):
         """
         Returns list of columns for the result.
         When comparing two different results, these cols should be taken into account.
-        TODO: transform follow urls - strip query path
         :return:
         """
         m = DbHandshakeScanJob  # model, alias
@@ -1404,8 +1402,6 @@ class Server(object):
     def _scan_tuple_tls(self, x, is_loaded=False):
         """
         X to the tuple for change comparison.
-        TODO: transform function for certain columns - e.g., follow url, strip query path -
-            contains random sessions sometimes
         :param x:
         :type x: DbHandshakeScanJob
         :return:
