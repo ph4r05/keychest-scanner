@@ -1163,6 +1163,11 @@ class Server(object):
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
 
+        if not TlsDomainTools.can_whois(url.host):
+            logger.debug('Domain %s not eligible to DNS scan' % url.host)
+            job_scan.skip()
+            return
+
         cur_scan = self.scan_dns(s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
         if cur_scan is None:
             job_scan.fail()
