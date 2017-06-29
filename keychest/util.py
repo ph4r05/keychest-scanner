@@ -337,7 +337,10 @@ def silent_close(c):
 def unix_time(dt):
     if dt is None:
         return None
-    return (dt - datetime.datetime.utcfromtimestamp(0)).total_seconds()
+    cur = datetime.datetime.utcfromtimestamp(0)
+    if dt.tzinfo is not None:
+        cur.replace(tzinfo=dt.tzinfo)
+    return (dt - cur).total_seconds()
 
 
 def flush_file(data, filepath):
