@@ -30,8 +30,6 @@ logger = logging.getLogger(__name__)
 # Base for schema definitions
 Base = declarative_base()
 
-# TODO: foreign keys have to be named! otherwise no downgrade can be made. refactor!
-
 
 class ScanJob(Base):
     """
@@ -405,6 +403,12 @@ class DbDnsResolve(Base):
         self.dns_status = self.status
 
 
+#
+# DB helper objects
+#  - query building, model comparison, projections
+#
+
+
 class ColTransformWrapper(object):
     """
     Simple column wrapper - for transformation
@@ -540,6 +544,11 @@ def mysql_assign(element, compiler, **kw):
         compiler.process(arg1),
         compiler.process(arg2)
     )
+
+
+#
+# MySQL engine management class
+#
 
 
 class MySQL(object):
