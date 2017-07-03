@@ -364,14 +364,18 @@ class TlsHandshaker(object):
         try:
             results = socket.getaddrinfo(res.host, res.port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP)
             if len(results) == 0:
-                raise TlsResolutionError('DNS resolution error on %s - %s, no data' % (res.host, res.domain), None,
-                                         scan_result=res)
+                raise errors.Error('DNS returned empty result')
 
             res.dns_results = results
             res.connect_target = results[0][4]
             res.socket_family = results[0][0]
 
         except Exception as e:
+            res.dns_failure = e
+            res.handshake_failure = TlsHandshakeErrors.GAI_ERROR
+            res.socket_family = None
+            res.connect_target = None
+
             raise TlsResolutionError('DNS resolution error on %s - %s' % (res.host, res.domain), e, scan_result=res)
 
     def _try_get_peer_ip(self, s):
