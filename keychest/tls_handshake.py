@@ -302,11 +302,11 @@ class TlsHandshaker(object):
 
         if TlsDomainTools.is_ip(host):
             return_obj.ip = host
+
+            if TlsDomainTools.is_valid_ipv6_address(host):
+                return_obj.socket_family = socket.AF_INET6
         else:
             self._resolve_ip(return_obj)
-
-        if TlsDomainTools.is_valid_ipv6_address(host):
-            return_obj.socket_family = socket.AF_INET6
 
         # create simple tcp socket
         s = socket.socket(return_obj.socket_family, socket.SOCK_STREAM)
