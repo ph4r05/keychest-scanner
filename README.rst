@@ -37,3 +37,42 @@ State is stored in MySQL database.
     GRANT ALL PRIVILEGES ON keychest.* TO 'keychest'@'localhost' IDENTIFIED BY 'keychest_passwd';
     FLUSH PRIVILEGES;
 
+
+Supervisor
+----------
+
+We recommend using supervisor to keep scanner server alive
+
+::
+
+    pip install supervisord
+
+Configuration file for the supervisor :code:`/etc/supervisord.d/keychest.conf`:
+
+::
+
+    [program:keychest]
+    directory=/tmp
+    command=/usr/bin/epiper keychest-server --debug --server-debug
+    user=root
+    autostart=true
+    autorestart=true
+    stderr_logfile=/var/log/keychest-server.err.log
+    stdout_logfile=/var/log/keychest-server.out.log
+
+
+Update configuration
+
+::
+
+    epiper supervisorctl reread
+    epiper supervisorctl update
+
+
+Operation
+
+::
+
+    epiper supervisorctl restart keychest
+    epiper supervisorctl status
+
