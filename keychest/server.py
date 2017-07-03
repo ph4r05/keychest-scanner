@@ -742,7 +742,7 @@ class Server(object):
 
         try:
             results = socket.getaddrinfo(domain, 443,
-                                         socket.AF_INET,
+                                         0,
                                          socket.SOCK_STREAM,
                                          socket.IPPROTO_TCP)
 
