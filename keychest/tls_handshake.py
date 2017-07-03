@@ -75,6 +75,13 @@ class TlsTimeout(errors.Error):
         self.scan_result = scan_result
 
 
+class TlsResolutionError(errors.Error):
+    """Handshake read timeout"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(TlsResolutionError, self).__init__(message=message, cause=cause)
+        self.scan_result = scan_result
+
+
 class TlsException(errors.Error):
     """General exception"""
     def __init__(self, message=None, cause=None, scan_result=None):
@@ -104,6 +111,9 @@ class TlsHandshakeResult(object):
         self.port = None
         self.domain = None
         self.ip = None
+        self.connect_target = None
+        self.socket_family = None
+        self.dns_results = None
 
         self.time_start = None
         self.time_connected = None
@@ -116,15 +126,16 @@ class TlsHandshakeResult(object):
         self.resp_bin = None
         self.resp_record = None
 
+        self.dns_failure = False
         self.handshake_failure = False
         self.cipher_suite = None
         self.certificates = []
 
     def __repr__(self):
         return '<TlsHandshakeResult(time_start=%r, time_connected=%r, time_sent=%r, time_finished=%r, failure=%r, ' \
-               'cipher_suite=%r, certificates_len=%r)>' \
+               'dns_failure=%r, cipher_suite=%r, certificates_len=%r, ip=%r, socket=%r)>' \
                % (self.time_start, self.time_connected, self.time_sent, self.time_finished, self.handshake_failure,
-                  self.cipher_suite, len(self.certificates))
+                  self.dns_failure, self.cipher_suite, len(self.certificates), self.ip, self.socket_family)
 
 
 class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
@@ -277,39 +288,47 @@ class TlsHandshaker(object):
         :return:
         :rtype TlsHandshakeResult
         """
-        target = (host, port)
-        logger.debug('Connecting to: %s' % (target, ))
+        return_obj = TlsHandshakeResult()
+        return_obj.connect_target = (host, port)
         tls_ver = kwargs.get('tls_version', self.tls_version)
         domain_sni = util.defval(kwargs.get('domain', host), host)
         timeout = float(kwargs.get('timeout', self.timeout))
 
-        return_obj = TlsHandshakeResult()
         return_obj.tls_version = tls_ver
         return_obj.host = host
         return_obj.port = port
         return_obj.domain = domain_sni
+        return_obj.socket_family = socket.AF_INET
+
         if TlsDomainTools.is_ip(host):
             return_obj.ip = host
+        else:
+            self._resolve_ip(return_obj)
+
+        if TlsDomainTools.is_valid_ipv6_address(host):
+            return_obj.socket_family = socket.AF_INET6
 
         # create simple tcp socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s = socket.socket(return_obj.socket_family, socket.SOCK_STREAM)
         try:
             s.settimeout(timeout)
 
             return_obj.time_start = time.time()
             try:
-                s.connect(target)
+                logger.debug('Connecting to: %s, %s, %s' % (return_obj.connect_target, host, domain_sni))
+                s.connect(return_obj.connect_target)
+
                 return_obj.time_connected = time.time()
                 return_obj.ip = util.defval(self._try_get_peer_ip(s), return_obj.ip)
 
             except Exception as e:
-                logger.debug('Exception during connect %s - %s: %s' % (target, domain_sni, e))
+                logger.debug('Exception during connect %s - %s: %s' % (return_obj.connect_target, domain_sni, e))
                 self.trace_logger.log(e)
                 return_obj.handshake_failure = TlsHandshakeErrors.CONN_ERR
                 return_obj.time_failed = time.time()
                 return_obj.ip = util.defval(self._try_get_peer_ip(s), return_obj.ip)
 
-                raise TlsTimeout('Connect timeout on %s - %s' % (target, domain_sni), e, scan_result=return_obj)
+                raise TlsTimeout('Connect timeout on %s - %s' % (return_obj.connect_target, domain_sni), e, scan_result=return_obj)
 
             cl_hello = self._build_client_hello(domain_sni, tls_ver, **kwargs)
             return_obj.cl_hello = cl_hello
@@ -335,6 +354,25 @@ class TlsHandshaker(object):
 
         finally:
             util.silent_close(s)
+
+    def _resolve_ip(self, res):
+        """
+        Resolves IP address of the target
+        :param res:
+        :return:
+        """
+        try:
+            results = socket.getaddrinfo(res.host, res.port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+            if len(results) == 0:
+                raise TlsResolutionError('DNS resolution error on %s - %s, no data' % (res.host, res.domain), None,
+                                         scan_result=res)
+
+            res.dns_results = results
+            res.connect_target = results[0][4]
+            res.socket_family = results[0][0]
+
+        except Exception as e:
+            raise TlsResolutionError('DNS resolution error on %s - %s' % (res.host, res.domain), e, scan_result=res)
 
     def _try_get_peer_ip(self, s):
         """

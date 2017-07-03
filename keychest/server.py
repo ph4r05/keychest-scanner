@@ -20,7 +20,7 @@ from redis_client import RedisClient
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
-from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException, TlsHandshakeErrors
+from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsResolutionError, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
@@ -519,6 +519,9 @@ class Server(object):
 
             except TlsTimeout as te:
                 logger.debug('Scan timeout: %s' % te)
+                resp = te.scan_result
+            except TlsResolutionError as te:
+                logger.debug('Scan resolution errors: %s' % te)
                 resp = te.scan_result
             except TlsException as te:
                 logger.debug('Scan fail: %s' % te)
