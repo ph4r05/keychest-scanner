@@ -130,7 +130,11 @@ class DbCrtShQuery(Base):
     results = Column(Integer, default=0)
     new_results = Column(Integer, default=0)
 
+    newest_cert_id = Column(BigInteger, nullable=True)  # updated from the last scan?
+    newest_cert_sh_id = Column(BigInteger, nullable=True)  # updated from the last scan? raw id
+
     certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
+    certs_sh_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
 
 
 class DbCrtShQueryResult(Base):
