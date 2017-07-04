@@ -110,6 +110,41 @@ class CertificateAltName(Base):
     alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
 
 
+class DbSubdomainScanBlacklist(Base):
+    """
+    Blacklist for subdomain scanning
+    Excluding too popular services not to overhelm scanning engine just by trying it on google, facebook, ...
+    """
+    __tablename__ = 'subdomain_scan_blacklist'
+    id = Column(BigInteger, primary_key=True)
+    rule = Column(String(255), nullable=False)  # usually domain suffix to match
+    rule_type = Column(SmallInteger, default=0)  # suffix / exact / regex match
+
+    detection_code = Column(SmallInteger, default=0)  # for auto-detection
+    detection_value = Column(Integer, default=0)  # auto-detection threshold, e.g., 5000 certificates
+    detection_first_at = Column(DateTime, default=None)  # first auto-detection
+    detection_last_at = Column(DateTime, default=None)  # last auto-detection
+    detection_num = Column(Integer, default=0)  # number of auto-detection triggers
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbCrtShQueryInput(Base):
+    """
+    crt.sh search query input
+    4 basic types: domain, *.domain, %.domain, RAW
+    Identifies the particular search. Is used as a search key for the results search.
+    """
+    __tablename__ = 'crtsh_input'
+    id = Column(BigInteger, primary_key=True)
+    sld_id = Column(ForeignKey('base_domain.id', name='crtsh_input_base_domain_id'),
+                    nullable=True, index=True)  # SLD index, aux info for search
+    iquery = Column(String(255), nullable=False)
+    itype = Column(SmallInteger, default=0)
+    created_at = Column(DateTime, default=None)
+
+
 class DbCrtShQuery(Base):
     """
     crt.sh search query + results
@@ -119,6 +154,10 @@ class DbCrtShQuery(Base):
     job_id = Column(BigInteger, nullable=True)
     watch_id = Column(ForeignKey('watch_target.id', name='crtsh_watch_target_id'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
+    input_id = Column(ForeignKey('crtsh_input.id', name='crtsh_watch_input_id'),
+                      nullable=True, index=True)  # input id - easy search, defines the search itself
+    sub_watch_id = Column(ForeignKey('subdomain_watch_target.id', name='crtsh_watch_sub_target_id'),
+                          nullable=True, index=True)  # watch id scan for periodic sub domain scanner
 
     last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
@@ -409,6 +448,71 @@ class DbDnsResolve(Base):
     def init_on_load(self):
         self.dns_res = util.defval(util.try_load_json(self.dns), [])
         self.dns_status = self.status
+
+
+class DbSubdomainWatchTarget(Base):
+    """
+    Watching target for subdomain auto-detection.
+    """
+    __tablename__ = 'subdomain_watch_target'
+    id = Column(BigInteger, primary_key=True)
+
+    scan_host = Column(String(255), nullable=False)
+    scan_ports = Column(Text, nullable=True)  # optional, json encoded port list for basic liveness check
+
+    top_domain_id = Column(ForeignKey('base_domain.id', name='sub_wt_base_domain_id'), nullable=True, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
+    last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
+
+
+class DbSubdomainWatchAssoc(Base):
+    """
+    User -> subdomain Watch target association
+    Enables to have watch_target id immutable to have valid results with target_id.
+    Also helps with deduplication of watch target scans.
+    """
+    __tablename__ = 'user_subdomain_watch_target'
+    __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='wa_user_sub_watcher_uniqe'),)
+    id = Column(BigInteger, primary_key=True)
+
+    user_id = Column(ForeignKey('users.id', name='wa_sub_users_id'),
+                     nullable=False, index=True)
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_watch_target_id'),
+                      nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
+    disabled_at = Column(DateTime, default=None, nullable=True)
+    auto_scan_added_at = Column(DateTime, default=None, nullable=True)
+
+    scan_periodicity = Column(BigInteger, nullable=True)
+    scan_type = Column(Integer, nullable=True)
+
+
+class DbSubdomainResultCache(Base):
+    """
+    Caching subdomain enumeration scan results
+    """
+    __tablename__ = 'subdomain_results'
+    id = Column(BigInteger, primary_key=True)
+
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_res_watch_target_id'),
+                      nullable=False, index=True)
+
+    scan_type = Column(SmallInteger, default=0)  # CT log / sublist3r / subbrute / ...
+    scan_status = Column(SmallInteger, default=0)  # result code of the scan
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    last_scan_idx = Column(BigInteger, nullable=True)  # newest element in the scan, e.g., certificate ID
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    result = Column(Text, nullable=True)  # JSON result data, normalized for easy comparison. Sorted list of subdomains.
 
 
 #
