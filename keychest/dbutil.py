@@ -270,6 +270,8 @@ class DbWatchAssoc(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None, nullable=True)
+    disabled_at = Column(DateTime, default=None, nullable=True)  # user disables this entry
+    auto_scan_added_at = Column(DateTime, default=None, nullable=True)  # date of the auto-detection added this entry
 
     scan_periodicity = Column(BigInteger, nullable=True)
     scan_type = Column(Integer, nullable=True)
