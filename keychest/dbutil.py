@@ -126,7 +126,7 @@ class DbCrtShQuery(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
 
-    status = Column(SmallInteger, default=0)
+    status = Column(SmallInteger, default=0)  # response status, OK, timeout, error
     results = Column(Integer, default=0)
     new_results = Column(Integer, default=0)
 
@@ -217,11 +217,13 @@ class DbHandshakeScanJobResult(Base):
 
 class DbWatchTarget(Base):
     """
-    Watching target - scan server host
+    Watching target - scan server host.
+    Watch target is immutable w.r.t (scan_host, scan_scheme, scan_port)
+     i.e., it has always the same ID for the results consistency.
     """
     __tablename__ = 'watch_target'
     id = Column(BigInteger, primary_key=True)
-    user_id = Column(BigInteger, nullable=True)
+    user_id = Column(BigInteger, nullable=True)  # deprecated, using user assoc now
 
     scan_host = Column(String(255), nullable=False)
     scan_scheme = Column(String(255), nullable=True)
