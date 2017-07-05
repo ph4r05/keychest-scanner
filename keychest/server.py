@@ -2192,6 +2192,32 @@ class Server(object):
 
         return ret
 
+    def cert_load_by_id(self, s, certs_id):
+        """
+        Loads certificates by IDs
+        :param s:
+        :param certs_id:
+        :return:
+        """
+        was_array = True
+        if not isinstance(certs_id, types.ListType):
+            certs_id = [certs_id]
+            was_array = False
+
+        certs_id = [int(x) for x in util.compact(certs_id)]
+        ret = {}
+
+        res = s.query(Certificate) \
+            .filter(Certificate.id.in_(list(certs_id))).all()
+
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[cur.id] = cur
+
+        return ret if was_array else None
+
     def cert_load_fprints(self, s, fprints):
         """
         Load certificate by sha1 fprint
