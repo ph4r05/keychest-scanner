@@ -973,3 +973,12 @@ def try_list(x, take_string=False):
     except:
         return [x]
 
+
+def compact(arr):
+    """
+    Compacts array - removes all Nones
+    :param arr:
+    :return:
+    """
+    return [x for x in arr if x is not None]
+

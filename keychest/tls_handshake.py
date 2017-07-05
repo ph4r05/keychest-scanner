@@ -25,44 +25,8 @@ from tls_domain_tools import TlsDomainTools
 logger = logging.getLogger(__name__)
 
 
-# Default cipher suites provided in client hello
-DEFAULT_CIPHER_SUITES = [
-    TLSCipherSuite.RSA_WITH_AES_256_CBC_SHA256,
-    TLSCipherSuite.RSA_WITH_AES_256_CBC_SHA,
-
-    TLSCipherSuite.RSA_WITH_AES_128_CBC_SHA,
-    TLSCipherSuite.RSA_WITH_AES_128_CBC_SHA256,
-
-    TLSCipherSuite.RSA_WITH_3DES_EDE_CBC_SHA,
-
-    TLSCipherSuite.DHE_RSA_WITH_AES_128_CBC_SHA,
-    TLSCipherSuite.DHE_RSA_WITH_AES_256_CBC_SHA,
-    TLSCipherSuite.DHE_RSA_WITH_AES_128_CBC_SHA256,
-    TLSCipherSuite.DHE_RSA_WITH_AES_256_CBC_SHA256,
-
-    TLSCipherSuite.DHE_DSS_WITH_AES_256_CBC_SHA,
-    TLSCipherSuite.DHE_DSS_WITH_AES_256_CBC_SHA256,
-
-    TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA,
-    TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-    TLSCipherSuite.ECDHE_RSA_WITH_AES_256_CBC_SHA,
-    TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-    TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-    TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-
-    TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-    TLSCipherSuite.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-    0xc02c,  # TLSCipherSuite.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-    0xc030,  # TLSCipherSuite.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-    0xcca9,
-    0xcca8,
-
-    TLSCipherSuite.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-]
-
-
 class TlsIncomplete(errors.Error):
-    """Incomplete data stream"""
+    """Incomplete data stream, invalid read"""
     def __init__(self, message=None, cause=None, scan_result=None):
         super(TlsIncomplete, self).__init__(message=message, cause=cause)
         self.scan_result = scan_result
@@ -89,14 +53,43 @@ class TlsException(errors.Error):
         self.scan_result = scan_result
 
 
+class TlsHandshakeFailure(TlsException):
+    """Handshake failure - probably not TLS compliant, no server-done or fatal alert"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(TlsHandshakeFailure, self).__init__(message=message, cause=cause, scan_result=scan_result)
+
+
+class TlsHandshakeAbort(TlsException):
+    """Handshake error - alert"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(TlsHandshakeAbort, self).__init__(message=message, cause=cause, scan_result=scan_result)
+
+
+class TlsHandshakeAlert(object):
+    """
+    Simple handshake alert wrapper
+    """
+    def __init__(self, level=None, desc=None, alert=None):
+        self.alert = alert
+        self.level = level
+        self.desc = desc
+
+    def __repr__(self):
+        return '<TlsHandshakeAlert(%r, %r)>' % (self.level, self.desc)
+
+    def __str__(self):
+        return 'Alert level=%s: desc=%s' % (self.level, self.desc)
+
+
 class TlsHandshakeErrors(object):
     """
     Basic handshake errors
     """
-    CONN_ERR = 2
-    READ_TO = 3
-    HANDSHAKE_ERR = 1
-    GAI_ERROR = 4
+    CONN_ERR = 2       # Connection error
+    READ_TO = 3        # Read timeout
+    HANDSHAKE_ERR = 1  # Handshake failed according to the TLS protocol - alert
+    GAI_ERROR = 4      # DNS resolution problem
+    NO_TLS = 5         # Not compliant to TLS protocol (no alert nor server done)
 
     def __init__(self):
         pass
@@ -128,6 +121,7 @@ class TlsHandshakeResult(object):
 
         self.dns_failure = False
         self.handshake_failure = False
+        self.alert = None
         self.cipher_suite = None
         self.certificates = []
 
@@ -186,22 +180,84 @@ class TlsHandshaker(object):
         self.attempts = int(util.defval(attempts, self.DEFAULT_ATTEMPTS))
         self.trace_logger = trace_logger.Tracelogger(logger)
 
-    def _build_client_hello(self, hostname, tls_ver, **kwargs):
+    def _get_cipher_suites(self, ecc=True, rsa=True, dhe=True, dss=True, ecdhe=True):
+        """
+        Returns list of ciphersuites for use in TLS handshake
+        :param ecc:
+        :param rsa:
+        :param dhe:
+        :param dss:
+        :param ecdhe:
+        :return:
+        """
+        # Default cipher suites provided in client hello
+        return util.compact([
+            TLSCipherSuite.RSA_WITH_AES_256_CBC_SHA256 if rsa else None,
+            TLSCipherSuite.RSA_WITH_AES_256_CBC_SHA if rsa else None,
+
+            TLSCipherSuite.RSA_WITH_AES_128_CBC_SHA if rsa else None,
+            TLSCipherSuite.RSA_WITH_AES_128_CBC_SHA256 if rsa else None,
+
+            TLSCipherSuite.RSA_WITH_3DES_EDE_CBC_SHA if rsa else None,
+
+            TLSCipherSuite.DHE_RSA_WITH_AES_128_CBC_SHA if dhe and rsa else None,
+            TLSCipherSuite.DHE_RSA_WITH_AES_256_CBC_SHA if dhe and rsa else None,
+            TLSCipherSuite.DHE_RSA_WITH_AES_128_CBC_SHA256 if dhe and rsa else None,
+            TLSCipherSuite.DHE_RSA_WITH_AES_256_CBC_SHA256 if dhe and rsa else None,
+
+            TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA if ecdhe and rsa else None,
+            TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256 if ecdhe and rsa else None,
+            TLSCipherSuite.ECDHE_RSA_WITH_AES_256_CBC_SHA if ecdhe and rsa else None,
+            TLSCipherSuite.ECDHE_RSA_WITH_AES_128_CBC_SHA256 if ecdhe and rsa else None,
+            TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA if ecdhe and ecc else None,
+            TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 if ecdhe and ecc else None,
+
+            TLSCipherSuite.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 if ecdhe and ecc else None,
+            TLSCipherSuite.ECDHE_RSA_WITH_AES_128_GCM_SHA256 if ecdhe and rsa else None,
+            0xc02c if ecdhe and ecc else None,  # TLSCipherSuite.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            0xc030 if ecdhe and rsa else None,  # TLSCipherSuite.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            0xcca9,
+            0xcca8,
+
+            TLSCipherSuite.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 if ecdhe and ecc else None,
+
+            TLSCipherSuite.DHE_DSS_WITH_AES_256_CBC_SHA if dhe and dss else None,
+            TLSCipherSuite.DHE_DSS_WITH_AES_256_CBC_SHA256 if dhe and dss else None,
+        ])
+
+    def _build_client_hello(self, hostname, tls_ver, ecc=None, **kwargs):
         """
         Builds client hello packet for the handshake init
-        :param kwargs: 
-        :return: 
+        :param tls_ver:
+        :param ecc: if None both RSA & ECC are allowed, otherwise either ECC or RSA
+        :param kwargs:
+        :return:
         """
+        f_ecc = ecc is None or ecc
+        f_rsa = ecc is None or not ecc
         cl_hello = TLSClientHello(version=tls_ver)
-        cl_hello.cipher_suites = DEFAULT_CIPHER_SUITES
+        cl_hello.cipher_suites = self._get_cipher_suites(ecc=f_ecc, rsa=f_rsa)
 
         if not isinstance(hostname, types.ListType):
             hostname = [hostname]
 
         server_names = [TLSServerName(data=x) for x in hostname]
 
+        signature_algs = util.compact([
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.ECDSA) if f_ecc else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.RSA) if f_rsa else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA1, sig_alg=TLSSignatureAlgorithm.RSA) if f_rsa else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.ECDSA) if f_ecc else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.RSA) if f_rsa else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.ECDSA) if f_ecc else None,
+            TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.RSA) if f_rsa else None,
+            TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x6),
+            TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x5),
+            TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x4)
+        ])
+
         # SNI
-        cl_hello.extensions = [
+        cl_hello.extensions = util.compact([
             TLSExtension() /
             TLSExt4a4a(),
 
@@ -218,18 +274,7 @@ class TlsHandshaker(object):
             TLSExtSessionTicketTLS(),
 
             TLSExtension() /
-            TLSExtSignatureAndHashAlgorithmFixed(algs=[
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.ECDSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA256, sig_alg=TLSSignatureAlgorithm.RSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA1, sig_alg=TLSSignatureAlgorithm.RSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.ECDSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA384, sig_alg=TLSSignatureAlgorithm.RSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.ECDSA),
-                TLSSignatureHashAlgorithm(hash_alg=TLSHashAlgorithm.SHA512, sig_alg=TLSSignatureAlgorithm.RSA),
-                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x6),
-                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x5),
-                TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x4)
-            ]),
+            TLSExtSignatureAndHashAlgorithmFixed(algs=signature_algs),
 
             TLSExtension() /
             TLSExtALPN(protocol_name_list=[TLSALPNProtocol(data="http/1.1")]),
@@ -237,20 +282,20 @@ class TlsHandshaker(object):
             TLSExtension() /
             TLSExtChannelId(),
 
-            TLSExtension() /
-            TLSExtECPointsFormat(ec_point_formats=[TLSEcPointFormat.UNCOMPRESSED]),
+            (TLSExtension() /
+            TLSExtECPointsFormat(ec_point_formats=[TLSEcPointFormat.UNCOMPRESSED])) if f_ecc else None,
 
-            TLSExtension() /
+            (TLSExtension() /
             TLSExtEllipticCurves(elliptic_curves=[
                 TLSEllipticCurve.ECDH_X25519,
                 TLSEllipticCurve.SECP256R1,
                 TLSEllipticCurve.SECP384R1,
                 0x6a6a
-            ]),
+            ])) if f_ecc else None,
 
             TLSExtension() /
             TLSExt2a2a(),
-        ]
+        ])
 
         # Complete record with handshake / client hello
         p = TLSRecord(version=tls_ver) / TLSHandshake() / cl_hello
@@ -415,18 +460,30 @@ class TlsHandshaker(object):
                 rec = SSL(resp_bin_tot)
                 return_obj.resp_record = rec
 
-                if self._is_failure(rec):
+                alert_record = self._get_failure(rec)
+                if alert_record is not None:
                     return_obj.handshake_failure = TlsHandshakeErrors.HANDSHAKE_ERR
                     return_obj.time_failed = time.time()
-                    break
+                    return_obj.alert = TlsHandshakeAlert(level=alert_record.level, desc=alert_record.description, alert=alert_record)
+                    raise TlsHandshakeAbort('Handshake alert received: %s' % return_obj.alert, scan_result=return_obj)
 
                 if self._test_hello_done(rec):
                     break
+                elif not read_more:
+                    return_obj.handshake_failure = TlsHandshakeErrors.NO_TLS
+                    return_obj.time_failed = time.time()
+                    raise TlsHandshakeFailure('No TLS termination', scan_result=return_obj)
 
             except TlsIncomplete as e:
                 logger.debug(e)
                 if not read_more:
                     raise
+
+            except TlsHandshakeAbort:
+                raise
+
+            except TlsHandshakeFailure:
+                raise
 
         return_obj.resp_bin = resp_bin_tot
         return_obj.time_finished = time.time()
@@ -442,11 +499,12 @@ class TlsHandshaker(object):
                and type(payload) is not PacketNoPayload \
                and type(payload) is not NoPayload
 
-    def _is_failure(self, packet):
+    def _get_failure(self, packet):
         """
-        True if SSL failure has been detected
+        Alert record if SSL failure has been detected - fatal error
         :param packet: 
-        :return: 
+        :return:
+        :rtype: TLSAlert
         """
         if packet is None:
             raise ValueError('Packet is None')
@@ -463,9 +521,9 @@ class TlsHandshaker(object):
                 raise TlsIncomplete('Alert declared but no alert found')
 
             if alert.level == TLSAlertLevel.FATAL:
-                return True
+                return alert
 
-        return False
+        return None
 
     def _test_hello_done(self, packet, recursive_search=True):
         """
