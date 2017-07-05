@@ -42,6 +42,7 @@ def upgrade():
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_index(op.f('ix_crtsh_input_sld_id'), 'crtsh_input', ['sld_id'], unique=False)
+    op.create_unique_constraint('crtsh_input_key_unique', 'crtsh_input', ['iquery', 'itype'])
 
     op.create_table('subdomain_watch_target',
                     sa.Column('id', sa.BigInteger(), nullable=False),

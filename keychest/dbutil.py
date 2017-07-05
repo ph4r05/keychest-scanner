@@ -137,6 +137,7 @@ class DbCrtShQueryInput(Base):
     Identifies the particular search. Is used as a search key for the results search.
     """
     __tablename__ = 'crtsh_input'
+    __table_args__ = (UniqueConstraint('iquery', 'itype', name='crtsh_input_key_unique'),)
     id = Column(BigInteger, primary_key=True)
     sld_id = Column(ForeignKey('base_domain.id', name='crtsh_input_base_domain_id'),
                     nullable=True, index=True)  # SLD index, aux info for search
