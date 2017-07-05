@@ -174,16 +174,16 @@ class CrtProcessor(object):
 
         return None
 
-    def query(self, domain):
+    def query(self, query):
         """
         Query domain on crt.sh
-        :param domain: 
+        :param query: 
         :return: 
         """
-        ret = CrtShIndexResponse(query=domain)
+        ret = CrtShIndexResponse(query=query)
         for attempt in range(self.attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'q': domain}, timeout=self.timeout)
+                res = requests.get(self.BASE_URL, params={'q': query}, timeout=self.timeout)
                 res.raise_for_status()
                 data = res.text
 

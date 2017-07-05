@@ -572,7 +572,7 @@ class Server(object):
         
         :param s: 
         :param job_data: 
-        :param domain: 
+        :param query:
         :param job_db:
         :type job_db ScanJob
         :param store_to_db if true results are stored to the database, otherwise just returned.
@@ -1953,7 +1953,7 @@ class Server(object):
 
     def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db, store_res=True):
         """
-        Fetches the new cert fro crt.sh, parses, inserts to the db
+        Fetches the new cert from crt.sh, parses, inserts to the db
         :param s: 
         :param job_data: 
         :param crt_sh_id: 
