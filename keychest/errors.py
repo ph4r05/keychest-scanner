@@ -101,3 +101,9 @@ class RequestError(Error):
     def __init__(self, message=None, cause=None):
         super(RequestError, self).__init__(message=message, cause=cause)
 
+
+class InvalidHostname(Error):
+    """Cannot connect to the host"""
+    def __init__(self, message=None, cause=None):
+        super(InvalidHostname, self).__init__(message=message, cause=cause)
+

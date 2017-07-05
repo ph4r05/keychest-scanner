@@ -25,7 +25,7 @@ from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsT
 from cert_path_validator import PathValidator, ValidationException
 from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
-from errors import Error
+from errors import Error, InvalidHostname
 
 import threading
 import pid
@@ -996,8 +996,15 @@ class Server(object):
         :return:
         """
         logger.debug('Processing watcher job: %s, qsize: %s' % (job, self.watcher_job_queue.qsize()))
-        s = self.db.get_session()
+        s = None
+        url = None
+
         try:
+            url = self.urlize(job)
+            if not TlsDomainTools.can_connect(url.host):
+                raise InvalidHostname('Invalid host name')
+
+            s = self.db.get_session()
             self.periodic_scan_dns(s, job)
             self.periodic_scan_tls(s, job)
             self.periodic_scan_crtsh(s, job)
@@ -1018,6 +1025,10 @@ class Server(object):
                 job.success_scan = False
             else:
                 job.success_scan = True
+
+        except InvalidHostname as ih:
+            logger.debug('Invalid host: %s' % url)
+            job.success_scan = True  # TODO: back-off / disable, fatal error
 
         except Exception as e:
             logger.debug('Exception when processing the watcher job: %s' % e)
