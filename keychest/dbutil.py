@@ -98,6 +98,13 @@ class Certificate(Base):
 
     pem = Column(Text, nullable=True)
 
+    def __init__(self):
+        self.alt_names_arr = []
+
+    @orm.reconstructor
+    def init_on_load(self):
+        self.alt_names_arr = util.defval(util.try_load_json(self.alt_names), [])
+
 
 class CertificateAltName(Base):
     """
@@ -191,6 +198,9 @@ class DbCrtShQueryResult(Base):
     crt_id = Column(BigInteger, nullable=True)
     crt_sh_id = Column(BigInteger, nullable=True)
     was_new = Column(SmallInteger, default=0)
+
+    def __init__(self):
+        self.cert_db = None
 
 
 class DbHandshakeScanJob(Base):
