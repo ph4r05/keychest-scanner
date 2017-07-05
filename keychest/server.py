@@ -75,6 +75,11 @@ class AppDeamon(Daemon):
         self.app.work()
 
 
+#
+# Job, scans
+#
+
+
 class ScanResults(object):
     """
     Generic scan result (tls, CT, whois)
@@ -108,21 +113,90 @@ class ScanResults(object):
                % (self.success, self.skipped, self.code, self.attempts, self.aux)
 
 
-class PeriodicJob(object):
+class JobTypes(object):
+    TARGET = 1
+    SUB = 2
+
+    def __init__(self):
+        pass
+
+
+class BaseJob(object):
+    """
+    Base periodic job class
+    """
+    def __init__(self, type=None, *args, **kwargs):
+        """
+        :param type:
+        :param args:
+        :param kwargs:
+        """
+        self.type = type
+        self.attempts = 0
+        self.later = 0
+        self.success_scan = False
+
+    def reset_later(self):
+        """
+        Resets later counter
+        :return:
+        """
+        self.later = 0
+
+    def inclater(self):
+        """
+        Increments later counter for priority counting
+        :return:
+        """
+        self.later += 1
+
+    def key(self):
+        """
+        Returns hashable key for the job dbs
+        :return:
+        """
+        return None
+
+    def cmpval(self):
+        """
+        Returns tuple for comparison
+        :return:
+        """
+        return self.attempts, self.later
+
+    def __cmp__(self, other):
+        """
+        Compare operation for priority queue.
+        :param other:
+        :type other: BaseJob
+        :return:
+        """
+        return cmp(self.cmpval(), other.cmpval())
+
+    def to_json(self):
+        js = collections.OrderedDict()
+        return js
+
+    def __repr__(self):
+        return '<BaseJob(type=%r, attempts=%r, later=%r)>' % (self.type, self.attempts, self.later)
+
+
+class PeriodicJob(BaseJob):
     """
     Represents periodic job loaded from the db
     """
-    def __init__(self, target=None, periodicity=None, *args, **kwargs):
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
         """
         :param target:
         :type target: DbWatchTarget
         :param args:
         :param kwargs:
         """
+        super(PeriodicJob, self).__init__(type=JobTypes.TARGET)
+
         self.target = target
         self.periodicity = periodicity
-        self.success_scan = False
-        self.attempts = 0
 
         self.primary_ip = None
         self.scan_dns = ScanResults()
@@ -131,18 +205,11 @@ class PeriodicJob(object):
         self.scan_whois = ScanResults()
 
     def key(self):
-        """
-        Returns hashable key for the job dbs
-        :return:
-        """
-        return self.target.id
+        return 'w%s' % self.target.id
 
     def cmpval(self):
-        """
-        Returns tuple for comparison
-        :return:
-        """
         return self.attempts, \
+               self.later, \
                self.target.last_scan_at is None, \
                self.target.last_scan_at
 
@@ -160,22 +227,55 @@ class PeriodicJob(object):
         """
         return self.target.id
 
-    def __cmp__(self, other):
-        """
-        Compare operation for priority queue.
-        :param other:
-        :type other: PeriodicJob
-        :return:
-        """
-        return cmp(self.cmpval(), other.cmpval())
-
-    def to_json(self):
-        js = collections.OrderedDict()
-        return js
-
     def __repr__(self):
         return '<PeriodicJob(target=<WatcherTarget(id=%r, host=%r, self=%r)>, attempts=%r, last_scan_at=%r)>' \
                % (self.target.id, self.target.scan_host, self.target, self.attempts, self.target.last_scan_at)
+
+
+class PeriodicReconJob(BaseJob):
+    """
+    Represents periodic job loaded from the db - recon
+    """
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbSubdomainWatchTarget
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicReconJob, self).__init__(type=JobTypes.SUB)
+
+        self.target = target
+        self.periodicity = periodicity
+        self.scan_crtsh_wildcard = ScanResults()
+
+    def key(self):
+        return 'r%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.last_scan_at is None, \
+               self.target.last_scan_at
+
+    def watch_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<PeriodicReconJob(target=<DbSubdomainWatchTarget(id=%r, host=%r, self=%r)>, attempts=%r, later=%r,' \
+               'last_scan_at=%r)>' \
+               % (self.target.id, self.target.scan_host, self.target, self.attempts, self.later,
+                  self.target.last_scan_at)
+
+
+#
+# Servers
+#
 
 
 class Server(object):
@@ -201,7 +301,7 @@ class Server(object):
         self.redis = None
         self.redis_queue = None
 
-        self.job_queue = Queue(50)
+        self.job_queue = Queue(300)
         self.local_data = threading.local()
         self.workers = []
 
@@ -213,6 +313,7 @@ class Server(object):
         self.watcher_db_lock = RLock()
         self.watcher_workers = []
         self.watcher_thread = None
+        self.watcher_job_semaphores = {}  # semaphores for particular tasks
 
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
@@ -231,6 +332,7 @@ class Server(object):
         self.delta_tls = timedelta(hours=2)
         self.delta_crtsh = timedelta(hours=8)
         self.delta_whois = timedelta(hours=48)
+        self.delta_wildcard = timedelta(days=2)
 
     def check_pid(self, retry=True):
         """
@@ -827,12 +929,61 @@ class Server(object):
         return q.group_by(DbWatchTarget.id, DbWatchAssoc.scan_type)\
                 .order_by(DbWatchTarget.last_scan_at)  # select the oldest scanned first
 
+    def load_active_recon_targets(self, s, last_scan_margin=300):
+        """
+        Loads active jobs to scan, from the oldest.
+        After loading the result is a tuple (DbSubdomainWatchTarget, min_periodicity).
+
+        :param s : SaQuery query
+        :type s: SaQuery
+        :param last_scan_margin: margin for filtering out records that were recently processed.
+        :return:
+        """
+        q = s.query(
+            DbSubdomainWatchTarget,
+                    salch.func.min(DbSubdomainWatchAssoc.scan_periodicity).label('min_periodicity')
+        )\
+            .select_from(DbSubdomainWatchAssoc)\
+            .join(DbSubdomainWatchTarget, DbSubdomainWatchAssoc.watch_id == DbSubdomainWatchTarget.id)\
+            .filter(DbSubdomainWatchAssoc.deleted_at == None)
+
+        if last_scan_margin:
+            cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
+            q = q.filter(salch.or_(
+                DbSubdomainWatchTarget.last_scan_at < cur_margin,
+                DbSubdomainWatchTarget.last_scan_at == None
+            ))
+
+        return q.group_by(DbSubdomainWatchTarget.id, DbSubdomainWatchAssoc.scan_type)\
+                .order_by(DbSubdomainWatchTarget.last_scan_at)  # select the oldest scanned first
+
     def _min_scan_margin(self):
         """
         Computes minimal scan margin from the scan timeouts
         :return:
         """
         return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).seconds
+
+    def periodic_feeder_init(self):
+        """
+        Initializes data structures required for data processing
+        :return:
+        """
+        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.2 + 1))
+        num_max_watch = self.config.periodic_workers
+
+        # semaphore array init
+        self.watcher_job_semaphores = {
+            JobTypes.TARGET: threading.Semaphore(num_max_watch),
+            JobTypes.SUB: threading.Semaphore(num_max_recon)
+        }
+
+        # periodic worker start
+        for worker_idx in range(self.config.periodic_workers):
+            t = threading.Thread(target=self.periodic_worker_main, args=(worker_idx,))
+            self.watcher_workers.append(t)
+            t.setDaemon(True)
+            t.start()
 
     def periodic_feeder_main(self):
         """
@@ -877,8 +1028,25 @@ class Server(object):
             return
 
         s = self.db.get_session()
-        min_scan_margin = self._min_scan_margin()
+
         try:
+            self._periodic_feeder_watch(s)
+            self._periodic_feeder_recon(s)
+
+        finally:
+            util.silent_close(s)
+
+    def _periodic_feeder_watch(self, s):
+        """
+        Load watcher jobs
+        :param s:
+        :return:
+        """
+        if self.watcher_job_queue.full():
+            return
+
+        try:
+            min_scan_margin = self._min_scan_margin()
             query = self.load_active_watch_targets(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
@@ -887,19 +1055,58 @@ class Server(object):
                 if self.watcher_job_queue.full():
                     return
 
-                with self.watcher_db_lock:
-                    # Ignore jobs currently in the progress.
-                    if watch_target.id in self.watcher_db_cur_jobs:
-                        continue
+                job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
+                self._periodic_add_job(job)
 
-                    # TODO: analyze if this job should be processed or results are recent, no refresh is needed
-                    job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
-                    self.watcher_db_cur_jobs[job.key()] = job
-                    self.watcher_job_queue.put(job)
-                    logger.debug('Job generated: %s, qsize: %s' % (str(job), self.watcher_job_queue.qsize()))
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
 
-        finally:
-            util.silent_close(s)
+    def _periodic_feeder_recon(self, s):
+        """
+        Load watcher jobs - recon jobs
+        :param s:
+        :return:
+        """
+        if self.watcher_job_queue.full():
+            return
+
+        try:
+            min_scan_margin = int(self.delta_wildcard.seconds)
+            query = self.load_active_recon_targets(s, last_scan_margin=min_scan_margin)
+            iterator = query.yield_per(100)
+            for x in iterator:
+                watch_target, min_periodicity = x
+
+                if self.watcher_job_queue.full():
+                    return
+
+                # TODO: analyze if this job should be processed or results are recent, no refresh is needed
+                job = PeriodicReconJob(target=watch_target, periodicity=min_periodicity)
+                self._periodic_add_job(job)
+
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
+
+    def _periodic_add_job(self, job):
+        """
+        Adds job to the queue
+        :param job:
+        :return:
+        """
+        with self.watcher_db_lock:
+            # Ignore jobs currently in the progress.
+            if job.key() in self.watcher_db_cur_jobs:
+                return
+
+            self.watcher_db_cur_jobs[job.key()] = job
+            self.watcher_job_queue.put(job)
+            logger.debug('Job generated: %s, qsize: %s' % (str(job), self.watcher_job_queue.qsize()))
 
     def periodic_worker_main(self, idx):
         """
@@ -936,14 +1143,24 @@ class Server(object):
         """
         Processes periodic job - wrapper
         :param job:
-        :type job: PeriodicJob
+        :type job: BaseJob
         :return:
         """
+        sem = self.watcher_job_semaphores[job.type]  # type: threading.Semaphore
+        sem_acquired = False
         try:
             with self.watcher_db_lock:
                 self.watcher_db_processing[job.key()] = job
 
-            self.periodic_process_job_body(job)
+            sem_acquired = sem.acquire(False)  # simple job type scheduling
+            if sem_acquired:
+                job.reset_later()
+                if job.type == JobTypes.TARGET:
+                    self.periodic_process_job_body(job)
+                elif job.type == JobTypes.SUB:
+                    self.periodic_process_recon_job_body(job)
+                else:
+                    raise ValueError('Unrecognized job type: %s' % job.type)
 
         except Exception as e:
             logger.error('Exception in processing watcher job %s' % (e,))
@@ -951,9 +1168,18 @@ class Server(object):
 
         finally:
             remove_job = True
+            if sem_acquired:
+                sem.release()
+
+            # Later? re-enqueue
+            if not sem_acquired:
+                remove_job = False
+                job.inclater()
+                self.watcher_job_queue.put(job)
+                logger.debug('Semaphore not acquired for type: %s' % job.type)
 
             # if job is success update db last scan value
-            if job.success_scan:
+            elif job.success_scan:
                 self.periodic_update_last_scan(job)
 
             # if retry under threshold, add again to the queue
@@ -968,7 +1194,9 @@ class Server(object):
             if remove_job:
                 with self.watcher_db_lock:
                     del self.watcher_db_cur_jobs[job.key()]
-                    del self.watcher_db_processing[job.key()]
+
+            with self.watcher_db_lock:
+                del self.watcher_db_processing[job.key()]
 
     def periodic_update_last_scan(self, job):
         """
@@ -977,10 +1205,40 @@ class Server(object):
         :type job: PeriodicJob
         :return:
         """
+        if job.type == JobTypes.TARGET:
+            self._periodic_update_last_scan_watch(job)
+        elif job.type == JobTypes.SUB:
+            self._periodic_update_last_scan_recon(job)
+        else:
+            raise ValueError('Unverognized job type')
+
+    def _periodic_update_last_scan_watch(self, job):
+        """
+        Updates watcher job specifically
+        :param job:
+        :return:
+        """
         s = self.db.get_session()
         try:
             stmt = DbWatchTarget.__table__.update()\
                 .where(DbWatchTarget.id == job.target.id)\
+                .values(last_scan_at=salch.func.now())
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_close(s)
+
+    def _periodic_update_last_scan_recon(self, job):
+        """
+        Updates watcher job specifically
+        :param job:
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            stmt = DbSubdomainWatchTarget.__table__.update()\
+                .where(DbSubdomainWatchTarget.id == job.target.id)\
                 .values(last_scan_at=salch.func.now())
             s.execute(stmt)
             s.commit()
@@ -1032,6 +1290,41 @@ class Server(object):
 
         except Exception as e:
             logger.debug('Exception when processing the watcher job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_close(s)
+
+    def periodic_process_recon_job_body(self, job):
+        """
+        Watcher recon job processing - the body
+        :param job:
+        :type job: PeriodicReconJob
+        :return:
+        """
+        logger.debug('Processing watcher recon job: %s, qsize: %s' % (job, self.watcher_job_queue.qsize()))
+        s = None
+        url = None
+
+        try:
+            url = self.urlize(job)
+
+            s = self.db.get_session()
+            self.periodic_scan_subdomain(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.scan_crtsh_wildcard.is_failed():
+                logger.info('Job failed, wildcard: %s' % (job.scan_crtsh_wildcard.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except Exception as e:
+            logger.debug('Exception when processing the watcher recon job: %s' % e)
             self.trace_logger.log(e)
             job.attempts += 1
 
@@ -1149,6 +1442,31 @@ class Server(object):
             logger.error('Whois exception: %s' % e)
             self.trace_logger.log(e, custom_msg='Whois')
 
+    def periodic_scan_subdomain(self, s, job):
+        """
+        Periodic CRTsh wildcard scan
+        :param job:
+        :type job: PeriodicReconJob
+        :return:
+        """
+        job_scan = job.scan_crtsh_wildcard  # type: ScanResults
+
+        last_scan = self.load_last_crtsh_wildcard_scan(s, job.watch_id())
+        if last_scan is not None \
+                and last_scan.last_scan_at \
+                and last_scan.last_scan_at > self._diff_time(self.delta_wildcard):
+            job_scan.skip(last_scan)
+            return  # scan is relevant enough
+
+        try:
+            self.wp_scan_crtsh_wildcard(s, job, last_scan)
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('CRT sh wildcard exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='CRT sh wildcard')
+
     #
     # Scan bodies
     #
@@ -1164,7 +1482,7 @@ class Server(object):
         data['uuid'] = None
         data['state'] = 'init'
         data['scan_type'] = 'planner'
-        data['user_id'] = job.target.user_id
+        data['user_id'] = None
 
         url = self.urlize(job)
         data['scan_scheme'] = url.scheme
@@ -1343,6 +1661,94 @@ class Server(object):
         hist = DbScanHistory()
         hist.watch_id = job.target.id
         hist.scan_type = 2  # crtsh scan
+        hist.scan_code = 0
+        hist.created_at = salch.func.now()
+        s.add(hist)
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # finished with success
+        job_scan.ok()
+
+    def wp_scan_crtsh_wildcard(self, s, job, last_scan):
+        """
+        Watcher crt.sh wildcard scan - body
+        :param job:
+        :type job: PeriodicReconJob
+        :param last_scan:
+        :type last_scan: DbCrtShQuery
+        :return:
+        """
+        job_scan = job.scan_crtsh_wildcard  # type: ScanResults
+        job_spec = self._create_job_spec(job)
+
+        # define wildcard scan input
+        query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
+
+        # TODO: blacklisting.
+        # TODO: add top domain id if missing in DB to the job
+
+        # crtsh search
+        crtsh_query_db, sub_res_list = self.scan_crt_sh(
+            s=s, job_data=job_spec, query=query, job_db=None, store_to_db=False)
+
+        is_same_as_before = self.diff_scan_crtsh_wildcard(crtsh_query_db, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+            last_scan = s.merge(last_scan)
+        else:
+            crtsh_query_db.sub_watch_id = job.target.id
+            crtsh_query_db.num_scans = 1
+            crtsh_query_db.updated_ad = salch.func.now()
+            crtsh_query_db.last_scan_at = salch.func.now()
+            s.add(crtsh_query_db)
+
+        s.commit()
+
+        # new result - store new subdomain data, invalidate old results
+        if not is_same_as_before:
+            # - extract domains to the result cache....
+            # - load previously saved certs, not loaded now, from db
+            # TODO: load previous result, just add altnames added in new certificates.
+            certs_to_load = [x.crt_id for x in sub_res_list
+                             if x is not None and x.crt_sh_id is not None and x.cert_db is None]
+            certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
+            certs_downloaded = [x.cert_db for x in sub_res_list
+                                if x is not None and x.cert_db is not None]
+
+            all_alt_names = set()
+            for cert in (certs_loaded + certs_downloaded):  # type: Certificate
+                for alt in cert.alt_names_arr:
+                    all_alt_names.add(alt)
+
+            # - filter out alt names not ending on the target
+            suffix = '.%s' % query.iquery
+            suffix_alts = []
+            for alt in all_alt_names:
+                if alt.endswith(suffix):
+                    suffix_alts.append(alt)
+
+            # Result
+            db_sub = DbSubdomainResultCache()
+            db_sub.watch_id = job.watch_id()
+            db_sub.created_at = salch.func.now()
+            db_sub.updated_at = salch.func.now()
+            db_sub.last_scan_at = salch.func.now()
+            db_sub.last_scan_idx = crtsh_query_db.newest_cert_sh_id
+            db_sub.num_scans = 1
+            db_sub.scan_type = 1  # crtsh
+            db_sub.result = json.dumps(sorted(list(suffix_alts)))
+            s.add(db_sub)
+
+        # TODO: add new watcher targets automatically - depends on the assoc model, if enabled
+
+        # Store scan history
+        hist = DbScanHistory()
+        hist.watch_id = job.target.id
+        hist.scan_type = 20  # crtsh w scan
         hist.scan_code = 0
         hist.created_at = salch.func.now()
         s.add(hist)
@@ -1557,6 +1963,38 @@ class Server(object):
         """
         return self._scan_tuple_dns(cur_scan) == self._scan_tuple_dns(last_scan)
 
+    def _res_compare_cols_crtsh_wildcard(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbCrtShQuery
+        return [m.status, m.results, m.newest_cert_sh_id, m.certs_ids]
+
+    def _scan_tuple_crtsh_wildcard(self, x):
+        """
+        X to the tuple for change comparison.
+        :param x:
+        :type x: DbCrtShQuery
+        :return:
+        """
+        if x is None:
+            return None
+        cols = self._res_compare_cols_crtsh_wildcard()
+        return DbHelper.project_model(x, cols, default_vals=True)
+
+    def diff_scan_crtsh_wildcard(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbCrtShQuery
+        :param last_scan:
+        :type last_scan: DbCrtShQuery
+        :return:
+        """
+        return self._scan_tuple_crtsh_wildcard(cur_scan) == self._scan_tuple_crtsh_wildcard(last_scan)
+
     #
     # Scan helpers
     #
@@ -1635,7 +2073,22 @@ class Server(object):
         :return:
         :rtype DbCrtShQuery
         """
-        q = s.query(DbCrtShQuery).filter(DbCrtShQuery.watch_id == watch_id)
+        q = s.query(DbCrtShQuery)\
+            .filter(DbCrtShQuery.watch_id == watch_id)\
+            .filter(DbCrtShQuery.sub_watch_id == None)
+        return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
+
+    def load_last_crtsh_wildcard_scan(self, s, watch_id=None):
+        """
+        Loads the latest crtsh scan for the given watch target id
+        :param s:
+        :param watch_id:
+        :return:
+        :rtype DbCrtShQuery
+        """
+        q = s.query(DbCrtShQuery)\
+            .filter(DbCrtShQuery.watch_id == None)\
+            .filter(DbCrtShQuery.sub_watch_id == watch_id)
         return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
 
     def load_last_whois_scan(self, s, top_domain):
@@ -1692,6 +2145,8 @@ class Server(object):
         """
         if isinstance(obj, PeriodicJob):
             return obj.url()
+        elif isinstance(obj, PeriodicReconJob):
+            return TargetUrl(scheme=None, host=obj.target.scan_host, port=None)
         elif isinstance(obj, DbWatchTarget):
             return TargetUrl(scheme=obj.scan_scheme, host=obj.scan_host, port=obj.scan_port)
         elif isinstance(obj, ScanJob):
@@ -1735,9 +2190,10 @@ class Server(object):
             alt_name_test.append(cert_db.cname)
 
         cert_db.is_cloudflare = len([x for x in alt_name_test if '.cloudflaressl.com' in x]) > 0
+        cert_db.alt_names_arr = alt_names
         cert_db.alt_names = json.dumps(alt_names)
 
-        return cert, alt_names
+        return cert
 
     def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """
@@ -1753,8 +2209,9 @@ class Server(object):
         for der in resp.certificates:
             try:
                 cert_db = Certificate()
-                cert, alt_names = self.parse_certificate(cert_db, der=der)
-                local_db.append((cert_db, cert, alt_names, der))
+                cert = self.parse_certificate(cert_db, der=der)
+
+                local_db.append((cert_db, cert, cert_db.alt_names_arr, der))
                 fprints_handshake.add(cert_db.fprint_sha1)
 
             except Exception as e:
@@ -2000,7 +2457,8 @@ class Server(object):
             alt_names = []
 
             try:
-                cert, alt_names = self.parse_certificate(cert_db, pem=str(cert_db.pem))
+                cert = self.parse_certificate(cert_db, pem=str(cert_db.pem))
+                alt_names = cert_db.alt_names_arr
 
             except Exception as e:
                 cert_db.fprint_sha1 = util.try_sha1_pem(str(cert_db.pem))
@@ -2025,6 +2483,7 @@ class Server(object):
                 crtsh_res_db.was_new = 1
                 crtsh_res_db.crt_id = cert_db.id
                 crtsh_res_db.crt_sh_id = crt_sh_id
+                crtsh_res_db.cert_db = cert_db
                 s.add(crtsh_res_db)
 
             return cert_db, crtsh_res_db
@@ -2042,6 +2501,7 @@ class Server(object):
         :param cert: 
         :return: 
         """
+        return None
 
     def update_job_state(self, job_data, state, s=None):
         """
@@ -2156,10 +2616,10 @@ class Server(object):
         :param s:
         :param query:
         :param query_type:
-        :return: Tuple[DbCrtShQueryInput, is_new]
+        :return: Tuple[DbCrtShQueryInput, Boolean]
         """
         if isinstance(query, DbCrtShQueryInput):
-            return query
+            return query, 0
 
         query_input = None
         if isinstance(query, types.TupleType):
@@ -2581,14 +3041,8 @@ class Server(object):
             t.setDaemon(True)
             t.start()
 
-        # periodic worker start
-        for worker_idx in range(self.config.periodic_workers):
-            t = threading.Thread(target=self.periodic_worker_main, args=(worker_idx,))
-            self.watcher_workers.append(t)
-            t.setDaemon(True)
-            t.start()
-
         # watcher feeder thread
+        self.periodic_feeder_init()
         self.watcher_thread = threading.Thread(target=self.periodic_feeder_main, args=())
         self.watcher_thread.setDaemon(True)
         self.watcher_thread.start()
