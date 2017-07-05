@@ -13,7 +13,8 @@ from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
     DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
-    DbDnsResolve
+    DbDnsResolve, DbCrtShQueryInput, \
+    DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget
 import dbutil
 
 from redis_client import RedisClient
@@ -581,7 +582,8 @@ class Server(object):
         :return:
         :rtype Tuple[DbCrtShQuery, List[DbCrtShQueryResult]]
         """
-        crt_sh = self.crt_sh_proc.query(query)
+        raw_query = self.get_crtsh_text_query(query)
+        crt_sh = self.crt_sh_proc.query(raw_query)
         logger.debug(crt_sh)
         if crt_sh is None:
             return
@@ -602,6 +604,12 @@ class Server(object):
         crtsh_query_db.status = crt_sh.success
         crtsh_query_db.results = len(all_crt_ids)
         crtsh_query_db.new_results = len(new_ids)
+
+        # input
+        db_input, inp_is_new = self.get_crtsh_input(s, query)
+        if db_input is not None:
+            crtsh_query_db.input_id = db_input.id
+
         if store_to_db:
             s.add(crtsh_query_db)
             s.flush()
@@ -637,6 +645,9 @@ class Server(object):
             self.analyze_cert(s, job_data, cert)
 
         crtsh_query_db.certs_ids = json.dumps(sorted(certs_ids))
+        crtsh_query_db.certs_sh_ids = json.dumps(sorted(all_crt_ids))
+        crtsh_query_db.newest_cert_id = max(certs_ids) if not util.is_empty(certs_ids) else None
+        crtsh_query_db.newest_cert_sh_id = max(all_crt_ids) if not util.is_empty(certs_ids) else None
         return crtsh_query_db, sub_res_list
 
     def scan_whois(self, s, job_data, query, job_db, store_to_db=True):
@@ -2098,6 +2109,58 @@ class Server(object):
                 if attempt + 1 >= attempts:
                     raise
 
+    def get_crtsh_text_query(self, query, query_type=None):
+        """
+        Generates CRTSH input query to use from the input object
+        :param query:
+        :return:
+        """
+        query_input = None
+
+        if isinstance(query, DbCrtShQueryInput):
+            query_input = query.iquery
+            if query_type is None:
+                query_type = query.itype
+
+        elif isinstance(query, types.TupleType):
+            query_input, query_type = query[0], query[1]
+
+        else:
+            query_input = query
+
+        if query_type is None or query_type == 0:
+            return str(query_input)
+        elif query_type == 1:
+            return '*.%s' % query_input
+        elif query_type == 2:
+            return '%%.%s' % query_input
+        elif query_type == 3:
+            return str(query_input)
+        else:
+            raise ValueError('Unknown CRTSH query type %s, input %s' % (query_type, query_input))
+
+    def get_crtsh_input(self, s, query, query_type=None):
+        """
+        CRTSH loads input
+        :param s:
+        :param query:
+        :param query_type:
+        :return: Tuple[DbCrtShQueryInput, is_new]
+        """
+        if isinstance(query, DbCrtShQueryInput):
+            return query
+
+        query_input = None
+        if isinstance(query, types.TupleType):
+            query_input, query_type = query[0], query[1]
+
+        else:
+            query_input = query
+        if query_type is None:
+            query_type = 0
+
+        return self.load_crtsh_input(s, query_input, query_type)
+
     #
     # DB tools
     #
@@ -2177,6 +2240,85 @@ class Server(object):
 
             time.sleep(0.01)
         raise Error('Could not store / load top domain')
+
+    def load_crtsh_input(self, s, domain, query_type=0, attempts=5, **kwargs):
+        """
+        Loads CRTSH query type from DB or creates a new record
+        :param s:
+        :param domain:
+        :param query_type:
+        :param attempts:
+        :return
+        :rtype Tuple[DbCrtShQueryInput, is_new]
+        """
+        for attempt in range(attempts):
+            try:
+                ret = s.query(DbCrtShQueryInput)\
+                    .filter(DbCrtShQueryInput.iquery == domain)\
+                    .filter(DbCrtShQueryInput.itype == query_type)\
+                    .first()
+                if ret is not None:
+                    return ret, 0
+
+            except Exception as e:
+                logger.error('Error fetching crtsh query from DB: %s-%s : %s' % (domain, query_type, e))
+                self.trace_logger.log(e, custom_msg='crtsh input fetch error')
+
+            # insert attempt now
+            try:
+                ret = DbCrtShQueryInput()
+                ret.iquery = domain
+                ret.itype = query_type
+                ret.created_at = salch.func.now()
+
+                # top domain
+                top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain))
+                if top_domain_obj is not None:
+                    ret.sld_id = top_domain_obj.id
+
+                s.add(ret)
+                s.flush()
+                return ret, 1
+
+            except Exception as e:
+                s.rollback()
+                logger.error('Error inserting crtsh input to DB: %s : %s' % (domain, e))
+                self.trace_logger.log(e, custom_msg='crtsh input fetch error')
+
+            time.sleep(0.01)
+        raise Error('Could not store / load crtsh input')
+
+    def try_get_top_domain(self, domain):
+        """
+        try-catched top domain load
+        :param domain:
+        :return:
+        """
+        try:
+            return TlsDomainTools.get_top_domain(domain)
+        except:
+            pass
+
+    def try_load_top_domain(self, s, domain):
+        """
+        Determines top domain & loads / inserts it to the DB
+        :param s:
+        :param domain:
+        :return:
+        """
+        try:
+            if util.is_empty(domain):
+                return None, None
+
+            top_domain = TlsDomainTools.get_top_domain(domain)
+            if util.is_empty(top_domain):
+                return None, None
+
+            top_domain, is_new = self.load_top_domain(s, top_domain)
+            return top_domain, is_new
+
+        except:
+            return None, None
 
     #
     # Workers - Redis interactive jobs
