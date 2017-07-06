@@ -55,7 +55,7 @@ import sqlalchemy as salch
 from sqlalchemy.orm.query import Query as SaQuery
 from sqlalchemy import case, literal_column
 
-from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse
+from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShTimeoutException
 import ph4whois
 
 
@@ -122,7 +122,7 @@ class Server(object):
         self.sub_blacklist_lock = RLock()
 
         self.trace_logger = Tracelogger(logger)
-        self.crt_sh_proc = CrtProcessor()
+        self.crt_sh_proc = CrtProcessor(timeout=5, attempts=2)
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
         self.crt_validator = PathValidator()
         self.domain_tools = TlsDomainTools()
@@ -491,9 +491,15 @@ class Server(object):
         :return:
         :rtype Tuple[DbCrtShQuery, List[DbCrtShQueryResult]]
         """
+        crt_sh = None
         raw_query = self.get_crtsh_text_query(query)
-        crt_sh = self.crt_sh_proc.query(raw_query)
-        logger.debug(crt_sh)
+        try:
+            crt_sh = self.crt_sh_proc.query(raw_query)
+
+        except CrtShTimeoutException as tex:
+            logger.warning('CRTSH timeout for: %s' % raw_query)
+            raise
+
         if crt_sh is None:
             return
 
