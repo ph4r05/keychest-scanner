@@ -2893,6 +2893,16 @@ class Server(object):
             util.silent_close(s)
 
     #
+    # Migration
+    #
+
+    def migrate_main(self):
+        """
+        Live data migration to minimize downtime
+        :return:
+        """
+
+    #
     # Server
     #
 
@@ -2964,6 +2974,10 @@ class Server(object):
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
         self.cleanup_thread.setDaemon(True)
         self.cleanup_thread.start()
+
+        migrate_thread = threading.Thread(target=self.migrate_main, args=())
+        migrate_thread.setDaemon(True)
+        migrate_thread.start()
 
         # Worker start
         for worker_idx in range(0, self.config.workers):
