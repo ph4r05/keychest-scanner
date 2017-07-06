@@ -31,6 +31,16 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 
+class AlembicDataMigration(Base):
+    """
+    Alembic data migration
+    """
+    __tablename__ = 'alembic_version_data'
+    id = Column(BigInteger, primary_key=True)
+    schema_ver = Column(BigInteger)
+    data_ver = Column(BigInteger)
+
+
 class ScanJob(Base):
     """
     Github repositories for the user
