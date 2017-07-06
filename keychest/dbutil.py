@@ -720,6 +720,47 @@ class DbHelper(object):
         return t1 == t2
 
 
+class ResultModelUpdater(object):
+    @staticmethod
+    def insert_or_update(s, select_cols, cmp_cols, obj,
+                         last_scan_update_fnc=None,
+                         obj_update_fnc=None):
+        """
+        Works on a generic results model changing diffs.
+        Selects model from DB using select_cols, based on obj table.
+        required columns: last_scan_at, num_scans for result aggregation
+        :param s:
+        :param select_cols:
+        :param cmp_cols:
+        :param obj:
+        :param last_scan_update_fnc:
+        :param obj_update_fnc:
+        :return:
+        """
+        q = s.query(obj.__class__)
+        q = DbHelper.query_filter_model(q, select_cols, obj)
+        q = q.order_by(obj.__class__.last_scan_at.desc()).limit(1)
+
+        last_scan = q.first()
+        is_same = DbHelper.models_tuples_compare(obj, last_scan, cmp_cols)
+        if is_same:
+            last_scan.last_scan_at = sa.func.now()
+            last_scan.num_scans += 1
+            if last_scan_update_fnc is not None:
+                last_scan_update_fnc(last_scan)
+
+        else:
+            obj.num_scans = 1
+            obj.updated_ad = sa.func.now()
+            obj.last_scan_at = sa.func.now()
+            if obj_update_fnc is not None:
+                obj_update_fnc(obj, last_scan=last_scan)
+            s.add(obj)
+        s.commit()
+
+        return is_same, obj, last_scan
+
+
 class assign(expression.FunctionElement):
     name = 'assign'
 
