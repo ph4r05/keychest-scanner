@@ -671,7 +671,7 @@ class Server(object):
     def scan_crt_sh(self, s, job_data, query, job_db, store_to_db=True):
         """
         Performs one simple CRT SH scan with the given query
-        stores the resuls.
+        stores the results.
         
         :param s: 
         :param job_data: 
@@ -1647,7 +1647,11 @@ class Server(object):
         if is_same_as_before:
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
+
+            if last_scan.input_id is None:  # migration to input ids
+                last_scan.input_id = crtsh_query_db.input_id
             last_scan = s.merge(last_scan)
+
         else:
             crtsh_query_db.watch_id = job.target.id
             crtsh_query_db.num_scans = 1
