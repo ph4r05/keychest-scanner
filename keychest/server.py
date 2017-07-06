@@ -451,6 +451,7 @@ class Server(object):
             scan_db.tls_ver = resp.tls_version
             scan_db.status = len(resp.certificates) > 0
             scan_db.err_code = resp.handshake_failure
+            scan_db.tls_alert_code = resp.alert.desc if resp.alert else None
             scan_db.time_elapsed = time_elapsed
             scan_db.results = len(resp.certificates)
             scan_db.new_results = 0
