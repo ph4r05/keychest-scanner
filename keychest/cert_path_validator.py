@@ -26,8 +26,8 @@ class ValidationResult(object):
     """
     def __init__(self):
         self.valid = False
-        self.ca_validation = None  # SubValidationResult
-        self.leaf_validation = None  # SubValidationResult
+        self.ca_validation = None  # type: SubValidationResult
+        self.leaf_validation = None  # type: SubValidationResult
 
         # Cryptography loaded certificates
         self.ca_certs = []
@@ -167,7 +167,8 @@ class PathValidator(object):
         """
         Chain of certificates, incremental validation
         :param chain: 
-        :return: 
+        :return:
+        :rtype: ValidationResult
         """
         result = ValidationResult()
         if not isinstance(chain, types.ListType):
