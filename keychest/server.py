@@ -118,6 +118,9 @@ class Server(object):
         self.watcher_thread = None
         self.watcher_job_semaphores = {}  # semaphores for particular tasks
 
+        self.sub_blacklist = {}
+        self.sub_blacklist_lock = RLock()
+
         self.trace_logger = Tracelogger(logger)
         self.crt_sh_proc = CrtProcessor()
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
@@ -1493,11 +1496,16 @@ class Server(object):
         job_scan = job.scan_crtsh_wildcard  # type: ScanResults
         job_spec = self._create_job_spec(job)
 
+        # blacklisting check
+        if self.is_blacklisted(job.target.scan_host) is not None:
+            job_scan.ok()
+            return
+
         # define wildcard & base scan input
         query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
         query_base, is_new = self.get_crtsh_input(s, job.target.scan_host, 0)
 
-        # TODO: blacklisting.
+        # perform crtsh queries, result management
         is_same_as_before, crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base = \
             self.wp_scan_wildcard_query(s, query=query, query_base=query_base,
                                         job=job, job_spec=job_spec, last_scan=last_scan)
@@ -2492,6 +2500,26 @@ class Server(object):
 
         return self.load_crtsh_input(s, query_input, query_type)
 
+    def is_blacklisted(self, domain):
+        """
+        Returns true if domain is blacklisted by some blacklist rule
+        :param domain:
+        :return:
+        """
+        blcopy = []
+        with self.sub_blacklist_lock:
+            blcopy = list(self.sub_blacklist)
+
+        for rule in blcopy:
+            if rule.rule_type == 0:
+                if domain.endswith(rule.rule):
+                    return rule
+            elif rule.rule_type == 1:
+                if domain == rule.rule:
+                    return rule
+
+        return None
+
     #
     # DB tools
     #
@@ -2808,7 +2836,7 @@ class Server(object):
                     if self.cleanup_last_check + self.cleanup_check_time > cur_time:
                         continue
 
-                    # TODO: implement
+                    self.reload_blacklist()
                     self.cleanup_last_check = cur_time
 
                 except Exception as e:
@@ -2820,6 +2848,22 @@ class Server(object):
             self.trace_logger.log(e)
 
         logger.info('Status loop terminated')
+
+    def reload_blacklist(self):
+        """
+        Reloads sub-blacklist
+        :return:
+        """
+        s = None
+        try:
+            s = self.db.get_session()
+            blacklist_db = s.query(DbSubdomainScanBlacklist).all()
+
+            with self.sub_blacklist_lock:
+                self.sub_blacklist = blacklist_db
+
+        finally:
+            util.silent_close(s)
 
     #
     # Server
