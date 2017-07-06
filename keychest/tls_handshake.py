@@ -70,9 +70,9 @@ class TlsHandshakeAlert(object):
     Simple handshake alert wrapper
     """
     def __init__(self, level=None, desc=None, alert=None):
-        self.alert = alert
-        self.level = level
-        self.desc = desc
+        self.alert = alert  # type: TLSAlert
+        self.level = level  # type: int
+        self.desc = desc  # type: int
 
     def __repr__(self):
         return '<TlsHandshakeAlert(%r, %r)>' % (self.level, self.desc)
@@ -121,7 +121,7 @@ class TlsHandshakeResult(object):
 
         self.dns_failure = False
         self.handshake_failure = False
-        self.alert = None
+        self.alert = None  # type: TlsHandshakeAlert
         self.cipher_suite = None
         self.certificates = []
 
