@@ -1517,6 +1517,9 @@ class Server(object):
         job_scan = job.scan_crtsh_wildcard  # type: ScanResults
         job_spec = self._create_job_spec(job)
 
+        # top domain set?
+        self.fix_sub_watch_target_domain(s, job.target)
+
         # blacklisting check
         if self.is_blacklisted(job.target.scan_host) is not None:
             job_scan.ok()
@@ -2465,6 +2468,26 @@ class Server(object):
             query_type = 0
 
         return self.load_crtsh_input(s, query_input, query_type)
+
+    def fix_sub_watch_target_domain(self, s, model):
+        """
+        If top domain id is not filled in, this fixes it
+        :param s:
+        :param model:
+        :type model: DbSubdomainWatchTarget
+        :return:
+        """
+        if model is None:
+            return
+
+        if model.top_domain_id is not None:
+            return
+
+        # top domain
+        top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(model.scan_host))
+        if top_domain_obj is not None:
+            model.top_domain_id = top_domain_obj.id
+        s.merge(model)
 
     def is_blacklisted(self, domain):
         """
