@@ -519,6 +519,7 @@ class DbSubdomainWatchAssoc(Base):
 
     scan_periodicity = Column(BigInteger, nullable=True)
     scan_type = Column(Integer, nullable=True)
+    auto_fill_watches = Column(SmallInteger, default=0, nullable=False)  # if 1 new hosts will be converted to active watches
 
 
 class DbSubdomainResultCache(Base):
