@@ -360,6 +360,10 @@ class Server(object):
             # final commit
             s.commit()
 
+        except Exception as e:
+            logger.warning('Scanning job exception: %s' % e)
+            self.trace_logger.log(e)
+
         finally:
             util.silent_close(s)
 
