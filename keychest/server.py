@@ -1567,12 +1567,14 @@ class Server(object):
             db_sub.last_scan_idx = crtsh_query_db.newest_cert_sh_id
             db_sub.num_scans = 1
             db_sub.scan_type = 1  # crtsh
-            db_sub.result = json.dumps(sorted(list(suffix_alts)))
+            db_sub.trans_result = sorted(list(suffix_alts))
+            db_sub.result = json.dumps(db_sub.trans_result)
 
             mm = DbSubdomainResultCache
             ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
 
-        # TODO: add new watcher targets automatically - depends on the assoc model, if enabled
+            # Add new watcher targets automatically - depends on the assoc model, if enabled
+            self.auto_fill_new_watches(s, job, db_sub)
 
         # Store scan history
         hist = DbScanHistory()
@@ -2541,6 +2543,60 @@ class Server(object):
         scan_db.err_valid_ossl_code = err.error_code
         scan_db.err_valid_ossl_depth = err.error_depth
 
+    def auto_fill_new_watches(self, s, job, db_sub):
+        """
+        Auto-generates new watches from newly generated domains
+        :param s:
+        :param job:
+        :type job: PeriodicReconJob
+        :param db_sub:
+        :type db_sub: DbSubdomainResultCache
+        :return:
+        """
+
+        # load all users having auto load enabled for this one
+        assocs = s.query(DbSubdomainWatchAssoc)\
+            .filter(DbSubdomainWatchAssoc.watch_id == job.target.id)\
+            .filter(DbSubdomainWatchAssoc.auto_fill_watches == 1)\
+            .all()
+
+        default_new_watches = {}  # type: dict[str -> DbWatchTarget]
+        for assoc in assocs:  # type: DbSubdomainWatchAssoc
+            # select all hosts anyhow associated with the host, also deleted.
+            # Wont add already present hosts (deleted/disabled doesnt matter)
+            res = s.query(DbWatchAssoc, DbWatchTarget)\
+                .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id)\
+                .filter(DbWatchAssoc.user_id == assoc.user_id)\
+                .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
+
+            existing_host_names = set([x[1].scan_host for x in res])
+            for new_host in db_sub.trans_result:
+                if new_host in existing_host_names:
+                    continue
+
+                new_host = TlsDomainTools.parse_fqdn(new_host)
+                if new_host in existing_host_names:
+                    continue
+
+                if not TlsDomainTools.can_connect(new_host):
+                    continue
+
+                wtarget = None
+                if new_host in default_new_watches:
+                    wtarget = default_new_watches[new_host]
+                else:
+                    wtarget, wis_new = self.load_default_watch_target(s, new_host)
+                    default_new_watches[new_host] = wtarget
+
+                # new association
+                nassoc = DbWatchAssoc()
+                nassoc.user_id = assoc.user_id
+                nassoc.watch_id = wtarget.id
+                nassoc.updated_at = salch.func.now()
+                nassoc.created_at = salch.func.now()
+                nassoc.auto_scan_added_at = salch.func.now()
+                s.add(nassoc)
+
     #
     # DB tools
     #
@@ -2655,7 +2711,7 @@ class Server(object):
         :param query_type:
         :param attempts:
         :return
-        :rtype Tuple[DbCrtShQueryInput, is_new]
+        :rtype tuple[DbCrtShQueryInput, bool]
         """
         for attempt in range(attempts):
             try:
@@ -2725,6 +2781,54 @@ class Server(object):
 
         except:
             return None, None
+
+    def load_default_watch_target(self, s, host, attempts=5):
+        """
+        Tries to load default watch target (https, 443) or creates a new if does not found
+        :param s:
+        :param host:
+        :param attempts:
+        :return:
+        """
+        for attempt in range(attempts):
+            try:
+                ret = s.query(DbWatchTarget)\
+                    .filter(DbWatchTarget.scan_host == host)\
+                    .filter(DbWatchTarget.scan_port == '443')\
+                    .filter(DbWatchTarget.scan_scheme == 'https')\
+                    .first()
+                if ret is not None:
+                    return ret, 0
+
+            except Exception as e:
+                logger.error('Error fetching DbWatchTarget from DB: %s : %s' % (host, e))
+                self.trace_logger.log(e, custom_msg='DbWatchTarget fetch error')
+
+            # insert attempt now
+            try:
+                ret = DbWatchTarget()
+                ret.scan_scheme = 'https'
+                ret.scan_port = '443'
+                ret.scan_host = host
+                ret.created_at = salch.func.now()
+                ret.updated_at = salch.func.now()
+
+                # top domain
+                top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(host))
+                if top_domain_obj is not None:
+                    ret.top_domain_id = top_domain_obj.id
+
+                s.add(ret)
+                s.flush()
+                return ret, 1
+
+            except Exception as e:
+                s.rollback()
+                logger.error('Error inserting DbWatchTarget to DB: %s : %s' % (host, e))
+                self.trace_logger.log(e, custom_msg='DbWatchTarget fetch error')
+
+            time.sleep(0.01)
+        raise Error('Could not store / load DbWatchTarget')
 
     #
     # Workers - Redis interactive jobs
