@@ -1679,6 +1679,38 @@ class Server(object):
     # Scan Results
     #
 
+    def _model_to_cmp_tuple(self, x, cols):
+        """
+        Returns model tuple for comparison, defined by cols projection
+        :param x:
+        :param cols:
+        :return:
+        """
+        if x is None:
+            return None
+        return DbHelper.project_model(x, cols, default_vals=True)
+
+    def _models_tuples(self, x, y, cols):
+        """
+        Converts models to comparison tuples defined by the projection
+        :param x:
+        :param y:
+        :param cols:
+        :return:
+        """
+        return self._model_to_cmp_tuple(x, cols), self._model_to_cmp_tuple(y, cols)
+
+    def _models_tuples_compare(self, x, y, cols):
+        """
+        Converts models to comparison tuples defined by the projection and compares them
+        :param x:
+        :param y:
+        :param cols:
+        :return:
+        """
+        t1, t2 = self._models_tuples(x, y, cols)
+        return t1 == t2
+
     def _res_compare_cols_tls(self):
         """
         Returns list of columns for the result.
@@ -1696,19 +1728,6 @@ class Server(object):
             m.pinning_present, m.pinning_report_only, m.pinning_pins]
         return cols
 
-    def _scan_tuple_tls(self, x, is_loaded=False):
-        """
-        X to the tuple for change comparison.
-        :param x:
-        :type x: DbHandshakeScanJob
-        :return:
-        """
-        if x is None:
-            return None
-
-        cols = self._res_compare_cols_tls()
-        return DbHelper.project_model(x, cols, default_vals=True)
-
     def diff_scan_tls(self, cur_scan, last_scan):
         """
         Checks the previous and current scan for significant differences.
@@ -1720,8 +1739,7 @@ class Server(object):
         """
         # Uses tuple comparison for now. Later it could do comparison by defining
         # columns sensitive for a change dbutil.DbHandshakeScanJob.__table__.columns and getattr(model, col).
-        t1 = self._scan_tuple_tls(cur_scan)
-        t2 = self._scan_tuple_tls(last_scan)
+        t1, t2 = self._models_tuples(cur_scan, last_scan, self._res_compare_cols_tls())
         for i in range(len(t1)):
             if t1 and t2 and t1[i] != t2[i]:
                 logger.debug('Diff: %s, %s != %s col %s' % (i, t1[i], t2[i], self._res_compare_cols_tls()[i]))
@@ -1736,18 +1754,6 @@ class Server(object):
         m = DbCrtShQuery
         return [m.status, m.results, m.certs_ids]
 
-    def _scan_tuple_crtsh(self, x):
-        """
-        X to the tuple for change comparison.
-        :param x:
-        :type x: DbCrtShQuery
-        :return:
-        """
-        if x is None:
-            return None
-        cols = self._res_compare_cols_crtsh()
-        return DbHelper.project_model(x, cols, default_vals=True)
-
     def diff_scan_crtsh(self, cur_scan, last_scan):
         """
         Checks the previous and current scan for significant differences.
@@ -1757,7 +1763,7 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        return self._scan_tuple_crtsh(cur_scan) == self._scan_tuple_crtsh(last_scan)
+        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh())
 
     def _res_compare_cols_whois(self):
         """
@@ -1769,18 +1775,6 @@ class Server(object):
         return [m.status, m.registrant_cc, m.registrar, m.registered_at, m.expires_at,
                 m.rec_updated_at, m.dns, m.aux]
 
-    def _scan_tuple_whois(self, x):
-        """
-        X to the tuple for change comparison.
-        :param x:
-        :type x: DbWhoisCheck
-        :return:
-        """
-        if x is None:
-            return None
-        cols = self._res_compare_cols_whois()
-        return DbHelper.project_model(x, cols, default_vals=True)
-
     def diff_scan_whois(self, cur_scan, last_scan):
         """
         Checks the previous and current scan for significant differences.
@@ -1790,7 +1784,7 @@ class Server(object):
         :type last_scan: DbWhoisCheck
         :return:
         """
-        return self._scan_tuple_whois(cur_scan) == self._scan_tuple_whois(last_scan)
+        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_whois())
 
     def _res_compare_cols_dns(self):
         """
@@ -1801,18 +1795,6 @@ class Server(object):
         m = DbDnsResolve
         return [m.status, m.dns]
 
-    def _scan_tuple_dns(self, x):
-        """
-        X to the tuple for change comparison.
-        :param x:
-        :type x: DbDnsResolve
-        :return:
-        """
-        if x is None:
-            return None
-        cols = self._res_compare_cols_dns()
-        return DbHelper.project_model(x, cols, default_vals=True)
-
     def diff_scan_dns(self, cur_scan, last_scan):
         """
         Checks the previous and current scan for significant differences.
@@ -1822,7 +1804,7 @@ class Server(object):
         :type last_scan: DbDnsResolve
         :return:
         """
-        return self._scan_tuple_dns(cur_scan) == self._scan_tuple_dns(last_scan)
+        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_dns())
 
     def _res_compare_cols_crtsh_wildcard(self):
         """
@@ -1833,18 +1815,6 @@ class Server(object):
         m = DbCrtShQuery
         return [m.status, m.results, m.newest_cert_sh_id, m.certs_ids]
 
-    def _scan_tuple_crtsh_wildcard(self, x):
-        """
-        X to the tuple for change comparison.
-        :param x:
-        :type x: DbCrtShQuery
-        :return:
-        """
-        if x is None:
-            return None
-        cols = self._res_compare_cols_crtsh_wildcard()
-        return DbHelper.project_model(x, cols, default_vals=True)
-
     def diff_scan_crtsh_wildcard(self, cur_scan, last_scan):
         """
         Checks the previous and current scan for significant differences.
@@ -1854,7 +1824,7 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        return self._scan_tuple_crtsh_wildcard(cur_scan) == self._scan_tuple_crtsh_wildcard(last_scan)
+        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh_wildcard())
 
     #
     # Scan helpers
