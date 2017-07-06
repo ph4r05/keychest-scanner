@@ -236,6 +236,8 @@ class DbHandshakeScanJob(Base):
     valid_hostname = Column(SmallInteger, default=0)  # hostname verifier check
     err_validity = Column(String(64), nullable=True)  # error with the path validity
     err_many_leafs = Column(SmallInteger, default=0)  # error with too many leafs in the handshake
+    err_valid_ossl_code = Column(Integer, default=0)  # OSSL validation erorr code
+    err_valid_ossl_depth = Column(Integer, default=0)  # depth of the certificate error
 
     req_https_result = Column(String(64), nullable=True)  # result of HTTPs req - no follow direct request
     follow_http_result = Column(String(64), nullable=True)  # result of HTTP req with follow redirects.
