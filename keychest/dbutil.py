@@ -548,6 +548,14 @@ class DbSubdomainResultCache(Base):
 #  - query building, model comparison, projections
 #
 
+class TransientCol(object):
+    """
+    Represents transient column for model projection and comparison.
+    """
+    def __init__(self, name, default):
+        self.name = name
+        self.default = default
+
 
 class ColTransformWrapper(object):
     """
@@ -596,13 +604,16 @@ class DbHelper(object):
         :param col:
         :return:
         """
-        if col is None \
-                or col.default is None \
-                or not isinstance(col.default, ColumnDefault) \
-                or not col.default.is_scalar:
+        if col is None or col.default is None:
             return None
 
-        return col.default.arg
+        if isinstance(col.default, ColumnDefault) and col.default.is_scalar:
+            return col.default.arg
+
+        if isinstance(col, TransientCol):
+            return col.default
+
+        return None
 
     @staticmethod
     def default_model(obj, projection=None, clone=False):
