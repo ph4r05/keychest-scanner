@@ -9,9 +9,35 @@ from lxml import html
 import util
 import datetime
 import traceback
+import errors
+import requests.exceptions as rex
 
 
 logger = logging.getLogger(__name__)
+
+
+class CrtShException(errors.Error):
+    """General exception"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(CrtShException, self).__init__(message=message, cause=cause)
+        self.scan_result = scan_result
+
+
+class CrtShRequestException(CrtShException):
+    """Service request exception"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(CrtShException, self).__init__(message=message, cause=cause, scan_result=scan_result)
+
+
+class CrtShTimeoutException(CrtShRequestException):
+    """Timeout exception"""
+    def __init__(self, message=None, cause=None, scan_result=None):
+        super(CrtShTimeoutException, self).__init__(message=message, cause=cause, scan_result=scan_result)
+
+
+#
+# Records
+#
 
 
 class CrtShIndexResponse(object):
@@ -134,6 +160,11 @@ class CrtShRevocation(object):
                % (self.mechanism, self.provider, self.status, self.revoked_by, self.revoked_at)
 
 
+#
+# Processor
+#
+
+
 class CrtProcessor(object):
     """
     crt.sh parser
@@ -141,9 +172,9 @@ class CrtProcessor(object):
 
     BASE_URL = 'https://crt.sh/'
 
-    def __init__(self):
-        self.timeout = 3
-        self.attempts = 2
+    def __init__(self, timeout=3, attempts=2):
+        self.timeout = timeout
+        self.attempts = attempts
 
     def download_crt(self, crt_id):
         """
@@ -198,7 +229,13 @@ class CrtProcessor(object):
                 logger.debug('Exception in crt-sh load: %s' % e)
                 logger.debug(traceback.format_exc())
                 if attempt >= self.attempts:
-                    raise
+                    ret.time_end = time.time()
+                    if isinstance(e, rex.Timeout):
+                        raise CrtShTimeoutException('crtsh service query timeout', cause=e, scan_result=ret)
+                    elif isinstance(e, rex.RequestException):  # contains request & response
+                        raise CrtShRequestException('crtsh service query exception', cause=e, scan_result=ret)
+                    else:
+                        raise CrtShException('crtsh query exception', cause=e, scan_result=ret)
                 else:
                     time.sleep(1.0)
 
