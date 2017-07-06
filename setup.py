@@ -8,7 +8,7 @@ version = '0.0.3'
 # Please update tox.ini when modifying dependency version requirements
 install_requires = [
     'pycrypto>=2.6',
-    'cryptography>=0.7',   # load_pem_x509_certificate
+    'cryptography>=1.9',
     'PyOpenSSL',
     'requests',
     'setuptools>=1.0',
