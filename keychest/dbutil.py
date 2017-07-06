@@ -92,6 +92,10 @@ class Certificate(Base):
     is_le = Column(SmallInteger, nullable=False, default=0)
     is_cloudflare = Column(SmallInteger, nullable=False, default=0)
 
+    key_type = Column(SmallInteger, nullable=True)  # 1=rsa, 2=dsa, 3=ecc, 4=unknown
+    key_bit_size = Column(Integer, nullable=True)  # bitsize of the public part, depends on the type, mainly for RSA & ECC
+    sig_alg = Column(Integer, nullable=True)  # signature hash used, SHA1, SHA2, ...
+
     alt_names = Column(Text, nullable=True)  # json encoded alt names array. denormalized for efficiency
 
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual

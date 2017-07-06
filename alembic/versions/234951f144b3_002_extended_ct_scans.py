@@ -114,6 +114,10 @@ def upgrade():
     op.add_column('scan_handshakes', sa.Column('tls_alert_code', sa.Integer(), nullable=True))
     op.add_column('scan_handshakes', sa.Column('err_valid_ossl_code', sa.Integer(), nullable=True))
     op.add_column('scan_handshakes', sa.Column('err_valid_ossl_depth', sa.Integer(), nullable=True))
+
+    op.add_column('certificates', sa.Column('key_bit_size', sa.Integer(), nullable=True))
+    op.add_column('certificates', sa.Column('key_type', sa.SmallInteger(), nullable=True))
+    op.add_column('certificates', sa.Column('sig_alg', sa.Integer(), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -143,4 +147,8 @@ def downgrade():
     op.drop_column('scan_handshakes', 'tls_alert_code')
     op.drop_column('scan_handshakes', 'err_valid_ossl_depth')
     op.drop_column('scan_handshakes', 'err_valid_ossl_code')
+
+    op.drop_column('certificates', 'sig_alg')
+    op.drop_column('certificates', 'key_type')
+    op.drop_column('certificates', 'key_bit_size')
     # ### end Alembic commands ###
