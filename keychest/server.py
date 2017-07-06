@@ -1688,39 +1688,25 @@ class Server(object):
         job_scan = job.scan_crtsh_wildcard  # type: ScanResults
         job_spec = self._create_job_spec(job)
 
-        # define wildcard scan input
+        # define wildcard & base scan input
         query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
+        query_base, is_new = self.get_crtsh_input(s, job.target.scan_host, 0)
 
         # TODO: blacklisting.
-        # TODO: add top domain id if missing in DB to the job
-
-        # crtsh search
-        crtsh_query_db, sub_res_list = self.scan_crt_sh(
-            s=s, job_data=job_spec, query=query, job_db=None, store_to_db=False)
-
-        is_same_as_before = self.diff_scan_crtsh_wildcard(crtsh_query_db, last_scan)
-        if is_same_as_before:
-            last_scan.last_scan_at = salch.func.now()
-            last_scan.num_scans += 1
-            last_scan = s.merge(last_scan)
-        else:
-            crtsh_query_db.sub_watch_id = job.target.id
-            crtsh_query_db.num_scans = 1
-            crtsh_query_db.updated_ad = salch.func.now()
-            crtsh_query_db.last_scan_at = salch.func.now()
-            s.add(crtsh_query_db)
-
-        s.commit()
+        is_same_as_before, crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base = \
+            self.wp_scan_wildcard_query(s, query=query, query_base=query_base,
+                                        job=job, job_spec=job_spec, last_scan=last_scan)
 
         # new result - store new subdomain data, invalidate old results
         if not is_same_as_before:
             # - extract domains to the result cache....
             # - load previously saved certs, not loaded now, from db
             # TODO: load previous result, just add altnames added in new certificates.
-            certs_to_load = [x.crt_id for x in sub_res_list
+            sub_lists = (list(sub_res_list) + list(sub_res_list_base))
+            certs_to_load = [x.crt_id for x in sub_lists
                              if x is not None and x.crt_sh_id is not None and x.cert_db is None]
             certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
-            certs_downloaded = [x.cert_db for x in sub_res_list
+            certs_downloaded = [x.cert_db for x in sub_lists
                                 if x is not None and x.cert_db is not None]
 
             all_alt_names = set()
@@ -1817,6 +1803,64 @@ class Server(object):
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
         job_scan.ok()
+
+    def wp_scan_wildcard_query(self, s, query, query_base, job, job_spec, last_scan):
+        """
+        Performs CRTSH queries & compares with previous results, updates the DB info.
+        :param s:
+        :param query:
+        :param query_base:
+        :param job:
+        :param job_spec:
+        :param last_scan:
+        :return:
+        """
+
+        # crtsh search for base record
+        crtsh_query_db_base, sub_res_list_base = self.scan_crt_sh(
+            s=s, job_data=job_spec, query=query_base, job_db=None, store_to_db=False)
+
+        # load previous input id scan - for change detection
+        last_scan_base = self.load_last_crtsh_wildcard_scan(s, watch_id=job.target.id, input_id=query_base.id)
+        is_same_as_before_base = self.diff_scan_crtsh_wildcard(crtsh_query_db_base, last_scan_base)
+
+        if is_same_as_before_base:
+            last_scan_base.last_scan_at = salch.func.now()
+            last_scan_base.num_scans += 1
+            if last_scan_base.input_id is None:  # migration to input ids
+                last_scan_base.input_id = crtsh_query_db_base.input_id
+            last_scan_base = s.merge(last_scan_base)
+
+        else:
+            crtsh_query_db_base.sub_watch_id = job.target.id
+            crtsh_query_db_base.num_scans = 1
+            crtsh_query_db_base.updated_ad = salch.func.now()
+            crtsh_query_db_base.last_scan_at = salch.func.now()
+            s.add(crtsh_query_db_base)
+
+        # WILDCARD
+        # crtsh search for wildcard
+        crtsh_query_db, sub_res_list = self.scan_crt_sh(
+            s=s, job_data=job_spec, query=query, job_db=None, store_to_db=False)
+
+        is_same_as_before = self.diff_scan_crtsh_wildcard(crtsh_query_db, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+            if last_scan.input_id is None:  # migration to input ids
+                last_scan.input_id = crtsh_query_db.input_id
+            last_scan = s.merge(last_scan)
+
+        else:
+            crtsh_query_db.sub_watch_id = job.target.id
+            crtsh_query_db.num_scans = 1
+            crtsh_query_db.updated_ad = salch.func.now()
+            crtsh_query_db.last_scan_at = salch.func.now()
+            s.add(crtsh_query_db)
+
+        s.commit()
+        return is_same_as_before_base or is_same_as_before, \
+               crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base
 
     #
     # Scan Results
