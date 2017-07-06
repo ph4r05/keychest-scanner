@@ -83,6 +83,16 @@ class ValidationException(errors.Error):
         self.error_cert = None
 
 
+class ValidationOsslException(ValidationException):
+    """OSSL exception - error codes"""
+    def __init__(self, message=None, cause=None, result=None, **kwargs):
+        super(ValidationOsslException, self).__init__(message=message, cause=cause, result=result)
+        self.error_code = None
+        self.error_depth = None
+        self.error_msg = None
+        self.error_cert = None
+
+
 class PathValidator(object):
     """
     Validates trust path for certificates
@@ -236,6 +246,10 @@ class PathValidator(object):
                     result.validation_order.append(idx)
                     result.fprints_valid.append(fprint)
 
+                except ValidationOsslException as vex:
+                    vex.result = result
+                    result.validation_errors[idx] = vex
+
                 except ValidationException as vex:
                     vex.result = result
                     result.validation_errors[idx] = vex
@@ -279,7 +293,7 @@ class PathValidator(object):
             self.trace_logger.log(cex, custom_msg='Exc in path validation')
 
             # message - error, depth, message, certificate which caused an error
-            ex = ValidationException('Validation failed', cause=cex)
+            ex = ValidationOsslException('Validation failed', cause=cex)
             try:
                 ex.error_code = cex.message[0]
                 ex.error_depth = cex.message[1]
