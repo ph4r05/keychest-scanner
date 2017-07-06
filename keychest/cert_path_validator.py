@@ -74,9 +74,13 @@ class ValidationOsslContext(object):
 
 class ValidationException(errors.Error):
     """General exception"""
-    def __init__(self, message=None, cause=None, result=None):
+    def __init__(self, message=None, cause=None, result=None, **kwargs):
         super(ValidationException, self).__init__(message=message, cause=cause)
         self.result = result
+        self.error_code = None
+        self.error_depth = None
+        self.error_msg = None
+        self.error_cert = None
 
 
 class PathValidator(object):
@@ -273,5 +277,16 @@ class PathValidator(object):
 
         except X509StoreContextError as cex:  # translate specific exception to our general exception
             self.trace_logger.log(cex, custom_msg='Exc in path validation')
-            raise ValidationException('Validation failed', cause=cex)
+
+            # message - error, depth, message, certificate which caused an error
+            ex = ValidationException('Validation failed', cause=cex)
+            try:
+                ex.error_code = cex.message[0]
+                ex.error_depth = cex.message[1]
+                ex.error_msg = cex.message[2]
+                ex.error_cert = cex.certificate
+            except:
+                pass
+
+            raise ex
 
