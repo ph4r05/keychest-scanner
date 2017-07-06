@@ -2051,7 +2051,7 @@ class Server(object):
         if not util.is_empty(cert_db.cname):
             alt_name_test.append(cert_db.cname)
 
-        cert_db.is_cloudflare = len([x for x in alt_name_test if '.cloudflaressl.com' in x]) > 0
+        cert_db.is_cloudflare = len(util_cert.cloudflare_altnames(alt_name_test)) > 0
         cert_db.alt_names_arr = alt_names
         cert_db.alt_names = json.dumps(alt_names)
 

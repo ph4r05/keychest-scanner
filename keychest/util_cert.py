@@ -4,6 +4,7 @@
 import cryptography.x509.oid as coid
 import util
 import consts
+import re
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
@@ -40,4 +41,16 @@ def try_get_pubkey_size(pub):
         return pub.key_size
     else:
         return -1
+
+
+def cloudflare_altnames(altnames):
+    """
+    Returns cloudflares alt names
+    :param altnames:
+    :return:
+    """
+    return [x for x in altnames if
+            x is not None and (
+                x.endswith('.cloudflaressl.com') or
+                re.match(r'^ssl[0-9]+.cloudflare.com$', x))]
 
