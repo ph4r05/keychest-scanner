@@ -1451,7 +1451,9 @@ class Server(object):
         """
         job_scan = job.scan_crtsh_wildcard  # type: ScanResults
 
-        last_scan = self.load_last_crtsh_wildcard_scan(s, job.watch_id())
+        # last scan determined by special wildcard query for the watch host
+        query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
+        last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
         if last_scan is not None \
                 and last_scan.last_scan_at \
                 and last_scan.last_scan_at > self._diff_time(self.delta_wildcard):
