@@ -2082,17 +2082,24 @@ class Server(object):
             .filter(DbCrtShQuery.sub_watch_id == None)
         return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
 
-    def load_last_crtsh_wildcard_scan(self, s, watch_id=None):
+    def load_last_crtsh_wildcard_scan(self, s, watch_id=None, input_id=None):
         """
-        Loads the latest crtsh scan for the given watch target id
+        Loads the latest crtsh scan for the given watch target id or input_id or both
         :param s:
         :param watch_id:
+        :param input_id:
         :return:
         :rtype DbCrtShQuery
         """
-        q = s.query(DbCrtShQuery)\
-            .filter(DbCrtShQuery.watch_id == None)\
-            .filter(DbCrtShQuery.sub_watch_id == watch_id)
+        q = s.query(DbCrtShQuery)
+
+        if watch_id is not None:
+            q = q.filter(DbCrtShQuery.watch_id == None)\
+                 .filter(DbCrtShQuery.sub_watch_id == watch_id)
+
+        if input_id is not None:
+            q = q.filter(DbCrtShQuery.input_id == input_id)
+
         return q.order_by(DbCrtShQuery.last_scan_at.desc()).limit(1).first()
 
     def load_last_whois_scan(self, s, top_domain):
