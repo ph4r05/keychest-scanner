@@ -14,7 +14,8 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
     DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
     DbDnsResolve, DbCrtShQueryInput, \
-    DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget
+    DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
+    ResultModelUpdater
 import dbutil
 
 from redis_client import RedisClient
@@ -1564,7 +1565,9 @@ class Server(object):
             db_sub.num_scans = 1
             db_sub.scan_type = 1  # crtsh
             db_sub.result = json.dumps(sorted(list(suffix_alts)))
-            s.add(db_sub)
+
+            mm = DbSubdomainResultCache
+            ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
 
         # TODO: add new watcher targets automatically - depends on the assoc model, if enabled
 
