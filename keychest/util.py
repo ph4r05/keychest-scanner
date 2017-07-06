@@ -982,3 +982,26 @@ def compact(arr):
     """
     return [x for x in arr if x is not None]
 
+
+def oid(x):
+    """
+    Returns object identifier if not already
+    :param x:
+    :return:
+    """
+    if not isinstance(x, ObjectIdentifier):
+        return ObjectIdentifier(x)
+    return x
+
+
+def invert_map(x):
+    """
+    Inverts mapping
+    :param x:
+    :return:
+    """
+    return {x[k]: k for k in x}
+
+
+
+

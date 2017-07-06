@@ -27,6 +27,8 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
+from consts import CertSigAlg
+import util_cert
 
 import threading
 import pid
@@ -2018,7 +2020,7 @@ class Server(object):
         :param der: 
         :return: (cryptography cert, list of alt names)
         """
-        cert = None
+        cert = None  # type: cryptography.x509.Certificate
         if pem is not None:
             cert = util.load_x509(str(cert_db.pem))
         elif der is not None:
@@ -2040,6 +2042,10 @@ class Server(object):
         cert_db.is_precert_ca = util.try_is_precert_ca(cert)
         cert_db.is_self_signed = util.try_is_self_signed(cert)
         cert_db.is_le = 'Let\'s Encrypt' in cert_db.issuer
+
+        cert_db.sig_alg = CertSigAlg.oid_to_const(cert.signature_algorithm_oid)
+        cert_db.key_type = util_cert.try_get_key_type(cert.public_key())
+        cert_db.key_bit_size = util_cert.try_get_pubkey_size(cert.public_key())
 
         alt_name_test = list(alt_names)
         if not util.is_empty(cert_db.cname):
