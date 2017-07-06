@@ -1699,38 +1699,6 @@ class Server(object):
     # Scan Results
     #
 
-    def _model_to_cmp_tuple(self, x, cols):
-        """
-        Returns model tuple for comparison, defined by cols projection
-        :param x:
-        :param cols:
-        :return:
-        """
-        if x is None:
-            return None
-        return DbHelper.project_model(x, cols, default_vals=True)
-
-    def _models_tuples(self, x, y, cols):
-        """
-        Converts models to comparison tuples defined by the projection
-        :param x:
-        :param y:
-        :param cols:
-        :return:
-        """
-        return self._model_to_cmp_tuple(x, cols), self._model_to_cmp_tuple(y, cols)
-
-    def _models_tuples_compare(self, x, y, cols):
-        """
-        Converts models to comparison tuples defined by the projection and compares them
-        :param x:
-        :param y:
-        :param cols:
-        :return:
-        """
-        t1, t2 = self._models_tuples(x, y, cols)
-        return t1 == t2
-
     def _res_compare_cols_tls(self):
         """
         Returns list of columns for the result.
@@ -1759,7 +1727,7 @@ class Server(object):
         """
         # Uses tuple comparison for now. Later it could do comparison by defining
         # columns sensitive for a change dbutil.DbHandshakeScanJob.__table__.columns and getattr(model, col).
-        t1, t2 = self._models_tuples(cur_scan, last_scan, self._res_compare_cols_tls())
+        t1, t2 = DbHelper.models_tuples(cur_scan, last_scan, self._res_compare_cols_tls())
         for i in range(len(t1)):
             if t1 and t2 and t1[i] != t2[i]:
                 logger.debug('Diff: %s, %s != %s col %s' % (i, t1[i], t2[i], self._res_compare_cols_tls()[i]))
@@ -1783,7 +1751,7 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh())
+        return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh())
 
     def _res_compare_cols_whois(self):
         """
@@ -1804,7 +1772,7 @@ class Server(object):
         :type last_scan: DbWhoisCheck
         :return:
         """
-        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_whois())
+        return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_whois())
 
     def _res_compare_cols_dns(self):
         """
@@ -1824,7 +1792,7 @@ class Server(object):
         :type last_scan: DbDnsResolve
         :return:
         """
-        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_dns())
+        return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_dns())
 
     def _res_compare_cols_crtsh_wildcard(self):
         """
@@ -1844,7 +1812,7 @@ class Server(object):
         :type last_scan: DbCrtShQuery
         :return:
         """
-        return self._models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh_wildcard())
+        return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh_wildcard())
 
     #
     # Scan helpers

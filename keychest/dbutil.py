@@ -667,6 +667,58 @@ class DbHelper(object):
             ret.append(val)
         return tuple(ret)
 
+    @staticmethod
+    def query_filter_model(q, cols, obj):
+        """
+        Adds filter to the query based on the cols & model
+        :param q:
+        :param cols:
+        :param obj:
+        :return:
+        """
+        for col in cols:
+            val = getattr(obj, col.name)
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+
+            q = q.filter(col == val)
+        return q
+
+    @staticmethod
+    def model_to_cmp_tuple(x, cols):
+        """
+        Returns model tuple for comparison, defined by cols projection
+        :param x:
+        :param cols:
+        :return:
+        """
+        if x is None:
+            return None
+        return DbHelper.project_model(x, cols, default_vals=True)
+
+    @staticmethod
+    def models_tuples(x, y, cols):
+        """
+        Converts models to comparison tuples defined by the projection
+        :param x:
+        :param y:
+        :param cols:
+        :return:
+        """
+        return DbHelper.model_to_cmp_tuple(x, cols), DbHelper.model_to_cmp_tuple(y, cols)
+
+    @staticmethod
+    def models_tuples_compare(x, y, cols):
+        """
+        Converts models to comparison tuples defined by the projection and compares them
+        :param x:
+        :param y:
+        :param cols:
+        :return:
+        """
+        t1, t2 = DbHelper.models_tuples(x, y, cols)
+        return t1 == t2
+
 
 class assign(expression.FunctionElement):
     name = 'assign'
