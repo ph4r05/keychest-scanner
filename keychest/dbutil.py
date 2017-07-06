@@ -542,6 +542,13 @@ class DbSubdomainResultCache(Base):
 
     result = Column(Text, nullable=True)  # JSON result data, normalized for easy comparison. Sorted list of subdomains.
 
+    def __init__(self):
+        self.trans_result = []  # transient value of unserialized json
+
+    @orm.reconstructor
+    def init_on_load(self):
+        self.trans_result = util.defval(util.try_load_json(self.result), [])
+
 
 #
 # DB helper objects
