@@ -111,6 +111,7 @@ def upgrade():
 
     op.add_column(u'user_watch_target', sa.Column('auto_scan_added_at', sa.DateTime(), nullable=True))
     op.add_column(u'user_watch_target', sa.Column('disabled_at', sa.DateTime(), nullable=True))
+    op.add_column('scan_handshakes', sa.Column('tls_alert_code', sa.Integer(), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -137,4 +138,5 @@ def downgrade():
     op.drop_index(op.f('ix_crtsh_input_sld_id'), table_name='crtsh_input')
     op.drop_table('crtsh_input')
     op.drop_table('subdomain_scan_blacklist')
+    op.drop_column('scan_handshakes', 'tls_alert_code')
     # ### end Alembic commands ###

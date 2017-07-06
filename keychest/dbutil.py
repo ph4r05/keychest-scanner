@@ -224,6 +224,7 @@ class DbHandshakeScanJob(Base):
 
     status = Column(SmallInteger, default=0)
     err_code = Column(SmallInteger, default=0)  # basic error with the handshake (connect err / timeout / TLSAlert)
+    tls_alert_code = Column(Integer, default=None)  # handshake error - tls alert code
     time_elapsed = Column(Integer, nullable=True)
 
     results = Column(Integer, default=0)      # num of certificates in the handshake
