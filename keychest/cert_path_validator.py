@@ -48,6 +48,7 @@ class SubValidationResult(object):
     """
     def __init__(self):
         self.certs_valid = 0
+        self.fprints = []            # sequence of fingerprints
         self.fprints_valid = []      # sequence of valid certs sha256 fingerprints
         self.validation_order = []   # sequence of validated cert ids in chain in validation
         self.validation_steps = 0    # number of validation steps of the algorithm
@@ -233,6 +234,9 @@ class PathValidator(object):
                 # in the intermediate mode require only CA certs
                 if interm_mode != is_ca_crt:
                     continue
+
+                if fprint not in result.fprints:
+                    result.fprints.append(fprint)
 
                 try:
                     # Validate certificate with the validation method corresponding to the ctx.
