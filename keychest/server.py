@@ -1116,6 +1116,9 @@ class Server(object):
         try:
             url = self.urlize(job)
 
+            if not TlsDomainTools.can_connect(url.host):
+                raise InvalidHostname('Invalid host name')
+
             s = self.db.get_session()
             self.periodic_scan_subdomain(s, job)
             job.success_scan = True  # updates last scan record
@@ -1129,6 +1132,10 @@ class Server(object):
             else:
                 job.success_scan = True
 
+        except InvalidHostname as ih:
+            logger.debug('Invalid host: %s' % url)
+            job.success_scan = True  # TODO: back-off / disable, fatal error
+            
         except Exception as e:
             logger.debug('Exception when processing the watcher recon job: %s' % e)
             self.trace_logger.log(e)
