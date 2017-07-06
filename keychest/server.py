@@ -22,7 +22,7 @@ from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsResolutionError, TlsException, TlsHandshakeErrors
-from cert_path_validator import PathValidator, ValidationException
+from cert_path_validator import PathValidator, ValidationException, ValidationOsslException, ValidationResult
 from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
@@ -2132,10 +2132,11 @@ class Server(object):
 
         # path validation test + hostname test
         try:
-            validation_res = self.crt_validator.validate(resp.certificates, is_der=True)
+            validation_res = self.crt_validator.validate(resp.certificates, is_der=True)  # type: ValidationResult
 
             scan_db.valid_path = validation_res.valid
             scan_db.err_many_leafs = len(validation_res.leaf_certs) > 1
+            self.add_validation_leaf_error_to_result(validation_res, scan_db)
 
             # TODO: error from the validation (timeout, CA, ...)
             scan_db.err_validity = None if validation_res.valid else 'ERR'
@@ -2507,6 +2508,38 @@ class Server(object):
                     return rule
 
         return None
+
+    def get_validation_leaf_error(self, valres):
+        """
+        Tries to get validation error for leaf certificates from the result
+        :param valres:
+        :type valres: ValidationResult
+        :return:
+        """
+        if valres is None or valres.leaf_validation is None:
+            return None
+        errs = valres.leaf_validation.validation_errors
+        for idx in errs:
+            if errs[idx] is not None:
+                return errs[idx]
+
+        return None
+
+    def add_validation_leaf_error_to_result(self, valres, scan_db):
+        """
+        Adds leaf validation error produced by OSSL certificate validator to the scan results
+        :param valres:
+        :type valres: ValidationResult
+        :param scan_db:
+        :type scan_db: DbHandshakeScanJob
+        :return:
+        """
+        err = self.get_validation_leaf_error(valres)
+        if err is None or not isinstance(err, ValidationOsslException):
+            return
+
+        scan_db.err_valid_ossl_code = err.error_code
+        scan_db.err_valid_ossl_depth = err.error_depth
 
     #
     # DB tools
