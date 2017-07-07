@@ -2304,6 +2304,7 @@ class Server(object):
                 logger.error('Unable to parse certificate %s: %s' % (crt_sh_id, e))
                 self.trace_logger.log(e)
 
+            new_cert = cert_db
             cert_db, is_new = self._add_cert_or_fetch(s, cert_db, fetch_first=True)
             if is_new:
                 for alt_name in util.stable_uniq(alt_names):
@@ -2312,6 +2313,13 @@ class Server(object):
                     alt_db.alt_name = alt_name
                     s.add(alt_db)
                 s.commit()
+            else:   # cert exists, fill in missing fields if empty
+                mm = Certificate
+                changes = DbHelper.update_model_null_values(cert_db, new_cert, [
+                    mm.crt_sh_id, mm.crt_sh_ca_id, mm.parent_id,
+                    mm.key_type, mm.key_bit_size, mm.sig_alg])
+                if changes > 0:
+                    s.commit()
 
             # crt.sh scan info
             crtsh_res_db = None
