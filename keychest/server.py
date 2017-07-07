@@ -782,7 +782,7 @@ class Server(object):
         Computes minimal scan margin from the scan timeouts
         :return:
         """
-        return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).seconds
+        return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).total_seconds()
 
     def periodic_feeder_init(self):
         """
@@ -894,7 +894,7 @@ class Server(object):
             return
 
         try:
-            min_scan_margin = int(self.delta_wildcard.seconds)
+            min_scan_margin = int(self.delta_wildcard.total_seconds())
             query = self.load_active_recon_targets(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
@@ -2970,6 +2970,8 @@ class Server(object):
                         continue
 
                     self.reload_blacklist()
+
+                    # TODO: clean old RRD records
                     self.cleanup_last_check = cur_time
 
                 except Exception as e:
