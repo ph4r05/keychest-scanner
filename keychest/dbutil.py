@@ -738,6 +738,38 @@ class DbHelper(object):
         t1, t2 = DbHelper.models_tuples(x, y, cols)
         return t1 == t2
 
+    @staticmethod
+    def update_model_null_values(dst, src, cols):
+        """
+        Updates all fields with null values in dst from src defined by cols
+        :param dst:
+        :param src:
+        :param cols:
+        :return: number of changes
+        """
+        ret = []
+        if dst is None or src is None:
+            return 0
+
+        if cols is None or len(cols) == 0:
+            return 0
+
+        changes = 0
+        for col in cols:
+            val = getattr(src, col.name)
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+
+            dstval = getattr(dst, col.name)
+            if isinstance(col, ColTransformWrapper):
+                dstval = col.transform(dstval)
+
+            if dstval is None:
+                setattr(dst, col.name, val)
+
+            changes += 1
+        return changes
+
 
 class ResultModelUpdater(object):
     @staticmethod
