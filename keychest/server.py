@@ -1555,7 +1555,7 @@ class Server(object):
             suffix = '.%s' % query.iquery
             suffix_alts = []
             for alt in all_alt_names:
-                if alt.endswith(suffix):
+                if alt.endswith(suffix) or alt == query.iquery:
                     suffix_alts.append(alt)
 
             # Result
