@@ -303,8 +303,14 @@ class DbWatchTarget(Base):
     scan_port = Column(String(255), nullable=True)
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
 
+    # Explicit SNI / service name to scan on host if multiplexing.
+    service_id = Column(ForeignKey('watch_service.id', name='wt_watch_service_id', ondelete='SET NULL'),
+                        nullable=True, index=True)
     top_domain_id = Column(ForeignKey('base_domain.id', name='wt_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)
+    agent_id = Column(ForeignKey('keychest_agent.id', name='wt_keychest_agent_id', ondelete='CASCADE'),
+                      nullable=True, index=True)
+
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
@@ -593,6 +599,8 @@ class DbSubdomainWatchResultEntry(Base):
     # After conversion to service id this will be obsolete, substituted by service_id
     watch_id = Column(ForeignKey('watch_target.id', name='subdom_watch_entry_watch_id', ondelete='CASCADE'),
                       nullable=False, index=True)
+    service_id = Column(ForeignKey('watch_service.id', name='subdom_watch_entry_service_id', ondelete='CASCADE'),
+                        nullable=True, index=True)
 
     is_wildcard = Column(SmallInteger, default=0, nullable=False)
     is_internal = Column(SmallInteger, default=0, nullable=False)
@@ -611,10 +619,104 @@ class DbSubdomainWatchResultEntry(Base):
                                       ondelete='SET NULL'), nullable=True, index=True)
 
 
+class DbOrganization(Base):
+    """
+    Base organization record
+    """
+    __tablename__ = "organization"
+    id = Column(BigInteger, primary_key=True)
+    name = Column(String(191), nullable=False)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbOrganizationGroup(Base):
+    """
+    Sub organization group.
+
+    organization -> organization group
+    """
+    __tablename__ = "organization_group"
+    id = Column(BigInteger, primary_key=True)
+    name = Column(String(191), nullable=False)
+
+    organization_id = Column(ForeignKey('organization.id', name='organization_group_organization_id',
+                                        ondelete='CASCADE'), nullable=False, index=True)
+
+    parent_group_id = Column(ForeignKey('organization_group.id', name='organization_group_organization_group_id',
+                                        ondelete='SET NULL'), nullable=True, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbKeychestAgent(Base):
+    """
+    Keychest agent record - identifies particular keychest slave instance
+    """
+    __tablename__ = "keychest_agent"
+    id = Column(BigInteger, primary_key=True)
+    name = Column(String(191), nullable=False)
+    api_key = Column(String(191), nullable=False)
+
+    organization_id = Column(ForeignKey('organization.id', name='keychest_agent_organization_id',
+                                        ondelete='CASCADE'), nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_seen_active_at = Column(DateTime, default=None)  # last
+
+
+class DbWatchService(Base):
+    """
+    Defines a service to watch.
+
+    Represents the particular service name the keychest is testing, unrelated
+    to the physical location (server). It can be a SNI name on multiplexed host.
+
+    CT scans are related to the service name (domain / web).
+    There is usually one-to-many relation service -> target (target as a physical machine / server).
+
+    This is meant to be a global service reference, e.g. for CT log scanning.
+    It is global object, unrelated to the users.
+    """
+    __tablename__ = 'watch_service'
+    id = Column(BigInteger, primary_key=True)
+
+    service_name = Column(String(255), nullable=False)
+    top_domain_id = Column(ForeignKey('base_domain.id', name='watch_service_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
+    last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
+
+
+class DbWatchLocalService(Base):
+    """
+    Defines a local service to watch.
+    Local service is related to the agent, thus to the organization.
+    """
+    __tablename__ = 'watch_local_service'
+    id = Column(BigInteger, primary_key=True)
+
+    service_id = Column(ForeignKey('watch_service.id', name='watch_local_service_watch_service_id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    agent_id = Column(ForeignKey('keychest_agent.id', name='watch_local_service_keychest_agent_id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 #
 # DB helper objects
 #  - query building, model comparison, projections
 #
+
 
 class TransientCol(object):
     """
