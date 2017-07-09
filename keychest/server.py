@@ -305,8 +305,10 @@ class Server(object):
         cmd = data['commandName']
         if cmd == 'App\\Jobs\\ScanHostJob':
             self.on_redis_scan_job(job)
+        elif cmd == 'App\\Jobs\\AutoAddSubsJob':
+            self.on_redis_auto_sub_job(job)
         else:
-            logger.warning('Unknown job')
+            logger.warning('Unknown job: %s' % cmd)
             job.delete()
             return
 
@@ -373,6 +375,36 @@ class Server(object):
         self.update_scan_job_state(job_data, 'finished')
         pass
 
+    def on_redis_auto_sub_job(self, job):
+        """
+        Redis job for auto-add subs
+        :param job:
+        :return:
+        """
+        self.augment_redis_scan_job(job)
+
+        job_data = job.decoded['data']['json']
+        assoc_id = job_data['id']
+        logger.debug(job_data)
+
+        s = None
+        try:
+            s = self.db.get_session()
+
+            assoc = s.query(DbSubdomainWatchAssoc).filter(DbSubdomainWatchAssoc.id == assoc_id).first()
+            if assoc is None:
+                return
+
+            self.auto_fill_assoc(s, assoc)
+            s.commit()
+
+        except Exception as e:
+            logger.warning('Auto add sub job exception: %s' % e)
+            self.trace_logger.log(e)
+
+        finally:
+            util.silent_close(s)
+
     def augment_redis_scan_job(self, job=None, data=None):
         """
         Augments job with retry counts, timeouts and so on.
@@ -397,6 +429,10 @@ class Server(object):
 
         data['sysparams'] = sys_params
         return data
+
+    #
+    # Scans
+    #
 
     def scan_handshake(self, s, job_data, query, job_db, store_job=True):
         """
@@ -1830,7 +1866,6 @@ class Server(object):
         """
         Loads the most recent tls handshake scan result for given watch
         target id and optionally the IP address.
-        TODO: all IP addresses
         :param s:
         :param watch_id:
         :param ip:
@@ -1953,6 +1988,19 @@ class Server(object):
             return None
         q = s.query(DbDnsResolve).filter(DbDnsResolve.watch_id == watch_id)
         return q.order_by(DbDnsResolve.last_scan_at.desc()).limit(1).first()
+
+    def load_last_subs_result(self, s, watch_id=None):
+        """
+        Loads the latest subs scan results - aggregated form
+        :param s:
+        :param watch_id:
+        :return:
+        :rtype DbSubdomainResultCache
+        """
+        if watch_id is None:
+            return None
+        q = s.query(DbSubdomainResultCache).filter(DbSubdomainResultCache.watch_id == watch_id)
+        return q.order_by(DbSubdomainResultCache.last_scan_at.desc()).limit(1).first()
 
     #
     # Helpers
@@ -2551,6 +2599,23 @@ class Server(object):
         scan_db.err_valid_ossl_code = err.error_code
         scan_db.err_valid_ossl_depth = err.error_depth
 
+    def auto_fill_assoc(self, s, assoc):
+        """
+        Auto fill sub domains from the association now - using current db content
+        :param s:
+        :param assoc:
+        :type assoc: DbSubdomainWatchAssoc
+        :return:
+        """
+        if not assoc.auto_fill_watches:
+            return
+
+        sub_res = self.load_last_subs_result(s, watch_id=assoc.watch_id)  # type:
+        if sub_res is None or util.is_empty(sub_res.trans_result):
+            return
+
+        self.auto_fill_new_watches_for_assoc(s, assoc, sub_res.trans_result)
+
     def auto_fill_new_watches(self, s, job, db_sub):
         """
         Auto-generates new watches from newly generated domains
@@ -2570,40 +2635,55 @@ class Server(object):
 
         default_new_watches = {}  # type: dict[str -> DbWatchTarget]
         for assoc in assocs:  # type: DbSubdomainWatchAssoc
-            # select all hosts anyhow associated with the host, also deleted.
-            # Wont add already present hosts (deleted/disabled doesnt matter)
-            res = s.query(DbWatchAssoc, DbWatchTarget)\
-                .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id)\
-                .filter(DbWatchAssoc.user_id == assoc.user_id)\
-                .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
+            self.auto_fill_new_watches_for_assoc(s, assoc, db_sub.trans_result, default_new_watches)
 
-            existing_host_names = set([x[1].scan_host for x in res])
-            for new_host in db_sub.trans_result:
-                if new_host in existing_host_names:
-                    continue
+    def auto_fill_new_watches_for_assoc(self, s, assoc, domain_names, default_new_watches=None):
+        """
+        Auto-generates new watches from newly generated domains, for one association
+        :param s:
+        :param assoc:
+        :param domain_names:
+        :param default_new_watches: cache of loaded watch targets, used when iterating over associations
+        :type default_new_watches: dict[str -> DbWatchTarget]
+        :return:
+        """
+        if default_new_watches is None:
+            default_new_watches = {}
 
-                new_host = TlsDomainTools.parse_fqdn(new_host)
-                if new_host in existing_host_names:
-                    continue
+        # select all hosts anyhow associated with the host, also deleted.
+        # Wont add already present hosts (deleted/disabled doesnt matter)
+        res = s.query(DbWatchAssoc, DbWatchTarget) \
+            .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id) \
+            .filter(DbWatchAssoc.user_id == assoc.user_id) \
+            .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
 
-                if not TlsDomainTools.can_connect(new_host):
-                    continue
+        existing_host_names = set([x[1].scan_host for x in res])
+        for new_host in domain_names:
+            if new_host in existing_host_names:
+                continue
 
-                wtarget = None
-                if new_host in default_new_watches:
-                    wtarget = default_new_watches[new_host]
-                else:
-                    wtarget, wis_new = self.load_default_watch_target(s, new_host)
-                    default_new_watches[new_host] = wtarget
+            new_host = TlsDomainTools.parse_fqdn(new_host)
+            if new_host in existing_host_names:
+                continue
 
-                # new association
-                nassoc = DbWatchAssoc()
-                nassoc.user_id = assoc.user_id
-                nassoc.watch_id = wtarget.id
-                nassoc.updated_at = salch.func.now()
-                nassoc.created_at = salch.func.now()
-                nassoc.auto_scan_added_at = salch.func.now()
-                s.add(nassoc)
+            if not TlsDomainTools.can_connect(new_host):
+                continue
+
+            wtarget = None
+            if new_host in default_new_watches:
+                wtarget = default_new_watches[new_host]
+            else:
+                wtarget, wis_new = self.load_default_watch_target(s, new_host)
+                default_new_watches[new_host] = wtarget
+
+            # new association
+            nassoc = DbWatchAssoc()
+            nassoc.user_id = assoc.user_id
+            nassoc.watch_id = wtarget.id
+            nassoc.updated_at = salch.func.now()
+            nassoc.created_at = salch.func.now()
+            nassoc.auto_scan_added_at = salch.func.now()
+            s.add(nassoc)
 
     #
     # DB tools
