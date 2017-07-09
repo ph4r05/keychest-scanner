@@ -1409,7 +1409,13 @@ class Server(object):
             cur_scan.updated_ad = salch.func.now()
             cur_scan.last_scan_at = salch.func.now()
             s.add(cur_scan)
+            s.flush()
 
+            for entry in dns_entries:
+                entry.scan_id = cur_scan.id
+                s.add(entry)
+            s.flush()
+            
             job_scan.aux = cur_scan
 
         s.commit()
