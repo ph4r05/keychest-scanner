@@ -21,7 +21,6 @@ import logging
 import traceback
 import pkg_resources
 import phpserialize
-from IPy import IP
 
 import errno
 
@@ -1024,19 +1023,5 @@ def chunk(x, size=1):
         ret.append(src[:size])
         src = src[size:]
     return ret
-
-
-def is_ip_private(ip):
-    """
-    Tries to determine if IP is private
-    :param ip:
-    :return:
-    """
-    try:
-        ip = IP(ip)
-        return lower(ip.iptype()) != 'public'
-    except:
-        pass
-    return False
 
 

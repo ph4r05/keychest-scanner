@@ -17,6 +17,7 @@ import re
 import socket
 from trace_logger import Tracelogger
 import tldextract
+from IPy import IP
 
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,6 @@ class TargetUrl(object):
         :return:
         """
         return TlsDomainTools.assemble_url(self.scheme, self.host, self.port)
-
 
 
 class TlsDomainTools(object):
@@ -508,3 +508,16 @@ class TlsDomainTools(object):
         pos = url.find('?')
         return url if pos == -1 else url[:pos]
 
+    @staticmethod
+    def is_ip_private(ip):
+        """
+        Tries to determine if IP is private
+        :param ip:
+        :return:
+        """
+        try:
+            ip = IP(ip)
+            return util.lower(ip.iptype()) != 'public'
+        except:
+            pass
+        return False

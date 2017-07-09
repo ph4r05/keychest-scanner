@@ -752,7 +752,7 @@ class Server(object):
             family, addr = tup
             entry = DbDnsEntry()
             entry.is_ipv6 = family == 10
-            entry.is_internal = util.is_ip_private(addr)
+            entry.is_internal = TlsDomainTools.is_ip_private(addr)
             entry.ip = addr
             entry.res_order = idx
             entry.scan_id = scan_db.id
