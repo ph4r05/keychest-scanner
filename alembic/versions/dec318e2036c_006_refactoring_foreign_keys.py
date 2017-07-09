@@ -74,6 +74,15 @@ def upgrade():
     op.drop_constraint(u'who_base_domain_id', 'whois_result', type_='foreignkey')
     op.create_foreign_key('who_base_domain_id', 'whois_result', 'base_domain', ['domain_id'], ['id'],
                           ondelete='CASCADE')
+
+    op.drop_constraint(u'sjob_crtsh_query_id', 'scan_jobs', type_='foreignkey')
+    op.drop_constraint(u'sjob_whois_result_id', 'scan_jobs', type_='foreignkey')
+    op.drop_constraint(u'sjob_scan_dns_id', 'scan_jobs', type_='foreignkey')
+    op.create_foreign_key('sjob_scan_dns_id', 'scan_jobs', 'scan_dns', ['dns_check_id'], ['id'], ondelete='SET NULL')
+    op.create_foreign_key('sjob_crtsh_query_id', 'scan_jobs', 'crtsh_query', ['crtsh_check_id'], ['id'],
+                          ondelete='SET NULL')
+    op.create_foreign_key('sjob_whois_result_id', 'scan_jobs', 'whois_result', ['whois_check_id'], ['id'],
+                          ondelete='SET NULL')
     # ### end Alembic commands ###
 
 
@@ -115,4 +124,11 @@ def downgrade():
     op.create_foreign_key(u'crtsh_watch_target_id', 'crtsh_query', 'watch_target', ['watch_id'], ['id'])
     op.drop_constraint('crtsh_input_base_domain_id', 'crtsh_input', type_='foreignkey')
     op.create_foreign_key(u'crtsh_input_base_domain_id', 'crtsh_input', 'base_domain', ['sld_id'], ['id'])
+
+    op.drop_constraint('sjob_whois_result_id', 'scan_jobs', type_='foreignkey')
+    op.drop_constraint('sjob_crtsh_query_id', 'scan_jobs', type_='foreignkey')
+    op.drop_constraint('sjob_scan_dns_id', 'scan_jobs', type_='foreignkey')
+    op.create_foreign_key(u'sjob_scan_dns_id', 'scan_jobs', 'scan_dns', ['dns_check_id'], ['id'])
+    op.create_foreign_key(u'sjob_whois_result_id', 'scan_jobs', 'whois_result', ['whois_check_id'], ['id'])
+    op.create_foreign_key(u'sjob_crtsh_query_id', 'scan_jobs', 'crtsh_query', ['crtsh_check_id'], ['id'])
     # ### end Alembic commands ###

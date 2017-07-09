@@ -62,11 +62,11 @@ class ScanJob(Base):
     user_id = Column(BigInteger, nullable=True)
     user_ip = Column(String(255), nullable=True)
     user_sess = Column(String(255), nullable=True)
-    whois_check_id = Column(ForeignKey('whois_result.id', name='sjob_whois_result_id'),
+    whois_check_id = Column(ForeignKey('whois_result.id', name='sjob_whois_result_id', ondelete='SET NULL'),
                             nullable=True, index=True)  # whois check ID
-    crtsh_check_id = Column(ForeignKey('crtsh_query.id', name='sjob_crtsh_query_id'),
+    crtsh_check_id = Column(ForeignKey('crtsh_query.id', name='sjob_crtsh_query_id', ondelete='SET NULL'),
                             nullable=True, index=True)  # crtsh check ID
-    dns_check_id = Column(ForeignKey('scan_dns.id', name='sjob_scan_dns_id'),
+    dns_check_id = Column(ForeignKey('scan_dns.id', name='sjob_scan_dns_id', ondelete='SET NULL'),
                           nullable=True, index=True)  # dns check ID
     crtsh_checks = Column(String(255), nullable=True)  # json of crtsh checks
 
