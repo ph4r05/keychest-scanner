@@ -253,8 +253,13 @@ class DbHandshakeScanJob(Base):
     valid_hostname = Column(SmallInteger, default=0)  # hostname verifier check
     err_validity = Column(String(64), nullable=True)  # error with the path validity
     err_many_leafs = Column(SmallInteger, default=0)  # error with too many leafs in the handshake
-    err_valid_ossl_code = Column(Integer, default=0)  # OSSL validation erorr code
+    err_valid_ossl_code = Column(Integer, default=0)  # OSSL validation error code
     err_valid_ossl_depth = Column(Integer, default=0)  # depth of the certificate error
+
+    sub_rsa = Column(ForeignKey('scan_sub_tls.id', name='scan_handshakes_scan_sub_tls_id_rsa', ondelete='SET NULL'),
+                     nullable=True, index=True)  # sub tls scan for RSA
+    sub_ecc = Column(ForeignKey('scan_sub_tls.id', name='scan_handshakes_scan_sub_tls_id_ecc', ondelete='SET NULL'),
+                     nullable=True, index=True)  # sub tls scan for ECC
 
     req_https_result = Column(String(64), nullable=True)  # result of HTTPs req - no follow direct request
     follow_http_result = Column(String(64), nullable=True)  # result of HTTP req with follow redirects.
@@ -270,6 +275,56 @@ class DbHandshakeScanJob(Base):
     pinning_present = Column(SmallInteger, default=0)  # Certificate pinning
     pinning_report_only = Column(SmallInteger, nullable=True)  # Certificate pinning
     pinning_pins = Column(Text, nullable=True)  # Certificate pinning, json encoded pins
+
+
+class DbSubTlsScan(Base):
+    """
+    TLS handshake scan, one single IP scan, sub scan (rsa/ecc, versions)
+    """
+    __tablename__ = 'scan_sub_tls'
+    id = Column(BigInteger, primary_key=True)
+
+    job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
+
+    watch_id = Column(ForeignKey('watch_target.id', name='scan_sub_tls_watch_target_id',
+                                 ondelete='SET NULL'),
+                      nullable=True, index=True)  # watch id scan for periodic scanner
+
+    parent_scan_id = Column(ForeignKey('scan_handshakes.id', name='scan_sub_tls_scan_handshakes_id',
+                                       ondelete='SET NULL'),
+                            nullable=True, index=True)  # watch id scan for periodic scanner
+
+    # ip address used to connect to (remote peer IP), denormalized for easy query (fref by parent scan)
+    ip_scanned = Column(String(255), nullable=True)
+    is_ipv6 = Column(SmallInteger, default=0, nullable=False)
+
+    # differentiating factors
+    # tls version used to connect
+    tls_ver = Column(String(16), nullable=True)  # SSL2, SSL3, ...
+    key_type = Column(SmallInteger, default=0, nullable=True)  # RSA / ECC / DSS
+    cipersuite_set = Column(BigInteger, default=0, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    status = Column(SmallInteger, default=0)
+    err_code = Column(SmallInteger, default=0)  # basic error with the handshake (connect err / timeout / TLSAlert)
+    tls_alert_code = Column(Integer, default=None)  # handshake error - tls alert code
+    time_elapsed = Column(Integer, nullable=True)
+
+    results = Column(Integer, default=0)      # num of certificates in the handshake
+    new_results = Column(Integer, default=0)  # num of new certificates in the handshake
+
+    certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
+    cert_id_leaf = Column(BigInteger, nullable=True)  # id of the leaf certificate.
+    valid_path = Column(SmallInteger, default=0)  # cert path validity test
+    valid_hostname = Column(SmallInteger, default=0)  # hostname verifier check
+    err_validity = Column(String(64), nullable=True)  # error with the path validity
+    err_many_leafs = Column(SmallInteger, default=0)  # error with too many leafs in the handshake
+    err_valid_ossl_code = Column(Integer, default=0)  # OSSL validation error code
+    err_valid_ossl_depth = Column(Integer, default=0)  # depth of the certificate error
 
 
 class DbHandshakeScanJobResult(Base):
