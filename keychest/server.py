@@ -1575,7 +1575,7 @@ class Server(object):
             # - extract domains to the result cache....
             # - load previously saved certs, not loaded now, from db
             # TODO: load previous result, just add altnames added in new certificates.
-            sub_lists = (list(sub_res_list) + list(sub_res_list_base))
+            sub_lists =  list(set(list(sub_res_list) + list(sub_res_list_base)))
             certs_to_load = [x.crt_id for x in sub_lists
                              if x is not None and x.crt_sh_id is not None and x.cert_db is None]
             certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
@@ -1589,10 +1589,10 @@ class Server(object):
 
             # - filter out alt names not ending on the target
             suffix = '.%s' % query.iquery
-            suffix_alts = []
+            suffix_alts = set()
             for alt in all_alt_names:
                 if alt.endswith(suffix) or alt == query.iquery:
-                    suffix_alts.append(alt)
+                    suffix_alts.add(alt)
 
             # Result
             db_sub = DbSubdomainResultCache()
@@ -2657,7 +2657,10 @@ class Server(object):
             .filter(DbWatchAssoc.user_id == assoc.user_id) \
             .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
 
+        # remove duplicates, extract existing association
+        domain_names = util.stable_uniq(domain_names)
         existing_host_names = set([x[1].scan_host for x in res])
+
         for new_host in domain_names:
             if new_host in existing_host_names:
                 continue
@@ -2675,6 +2678,7 @@ class Server(object):
             else:
                 wtarget, wis_new = self.load_default_watch_target(s, new_host)
                 default_new_watches[new_host] = wtarget
+                s.commit()  # if add fails the rollback removes the watch
 
             # new association
             nassoc = DbWatchAssoc()
@@ -2683,7 +2687,14 @@ class Server(object):
             nassoc.updated_at = salch.func.now()
             nassoc.created_at = salch.func.now()
             nassoc.auto_scan_added_at = salch.func.now()
-            s.add(nassoc)
+
+            # race condition with another process may cause this to fail on unique constraint.
+            try:
+                s.add(nassoc)
+            except Exception as e:
+                logger.debug('Exception when adding auto sub watch: %s' % e)
+                self.trace_logger.log(e, custom_msg='Auto add sub watch')
+                s.rollback()
 
     #
     # DB tools
