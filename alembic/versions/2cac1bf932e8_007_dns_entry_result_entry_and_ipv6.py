@@ -23,7 +23,9 @@ def upgrade():
                     sa.Column('watch_id', sa.BigInteger(), nullable=False),
                     sa.Column('is_wildcard', sa.SmallInteger(), nullable=False),
                     sa.Column('is_internal', sa.SmallInteger(), nullable=False),
-                    sa.Column('ip', sa.String(length=191), nullable=False),
+                    sa.Column('is_long', sa.SmallInteger(), nullable=False),
+                    sa.Column('name', sa.String(length=191), nullable=False),
+                    sa.Column('name_full', sa.Text(), nullable=True),
                     sa.Column('res_order', sa.SmallInteger(), nullable=False),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -45,6 +47,8 @@ def upgrade():
                     ['last_scan_id'], unique=False)
     op.create_index(op.f('ix_subdomain_watch_result_entry_watch_id'), 'subdomain_watch_result_entry', ['watch_id'],
                     unique=False)
+    op.create_index(op.f('ix_subdomain_watch_result_entry_name'), 'subdomain_watch_result_entry', ['name'],
+                    unique=False)
 
     op.create_table('scan_dns_entry',
                     sa.Column('id', sa.BigInteger(), nullable=False),
@@ -58,6 +62,7 @@ def upgrade():
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_index(op.f('ix_scan_dns_entry_scan_id'), 'scan_dns_entry', ['scan_id'], unique=False)
+    op.create_index(op.f('ix_scan_dns_entry_ip'), 'scan_dns_entry', ['ip'], unique=False)
 
     op.add_column(u'scan_handshakes', sa.Column('is_ipv6', sa.SmallInteger(), nullable=False))
 
@@ -81,9 +86,11 @@ def downgrade():
                     nullable=True)
     op.drop_column(u'scan_handshakes', 'is_ipv6')
     op.drop_index(op.f('ix_scan_dns_entry_scan_id'), table_name='scan_dns_entry')
+    op.drop_index(op.f('ix_scan_dns_entry_ip'), table_name='scan_dns_entry')
     op.drop_table('scan_dns_entry')
     op.drop_index(op.f('ix_subdomain_watch_result_entry_watch_id'), table_name='subdomain_watch_result_entry')
     op.drop_index(op.f('ix_subdomain_watch_result_entry_last_scan_id'), table_name='subdomain_watch_result_entry')
     op.drop_index(op.f('ix_subdomain_watch_result_entry_first_scan_id'), table_name='subdomain_watch_result_entry')
+    op.drop_index(op.f('ix_subdomain_watch_result_entry_name'), table_name='subdomain_watch_result_entry')
     op.drop_table('subdomain_watch_result_entry')
     # ### end Alembic commands ###

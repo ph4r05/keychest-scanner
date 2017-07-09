@@ -490,7 +490,7 @@ class DbSystemLastEvents(Base):
     """
     System events table - stores watchdog ticks / network working ticks.
     If server crashes it can detect how long it has been out.
-    Stores only last occurence of the event.
+    Stores only last occurrence of the event.
     """
     __tablename__ = "system_last_events"
     id = Column(BigInteger, primary_key=True)
@@ -557,7 +557,7 @@ class DbDnsEntry(Base):
 
     is_ipv6 = Column(SmallInteger, default=0, nullable=False)
     is_internal = Column(SmallInteger, default=0, nullable=False)
-    ip = Column(String(191), nullable=False)
+    ip = Column(String(191), nullable=False, index=True)
     res_order = Column(SmallInteger, default=0, nullable=False)
 
 
@@ -659,8 +659,10 @@ class DbSubdomainWatchResultEntry(Base):
 
     is_wildcard = Column(SmallInteger, default=0, nullable=False)
     is_internal = Column(SmallInteger, default=0, nullable=False)
+    is_long = Column(SmallInteger, default=0, nullable=False)  # too long, text
 
-    ip = Column(String(191), nullable=False)
+    name = Column(String(191), nullable=False, index=True)
+    name_full = Column(Text, nullable=True)
     res_order = Column(SmallInteger, default=0, nullable=False)
 
     created_at = Column(DateTime, default=None)  # usually date of the first detection
