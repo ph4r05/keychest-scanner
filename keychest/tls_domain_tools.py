@@ -517,7 +517,8 @@ class TlsDomainTools(object):
         """
         try:
             ip = IP(ip)
-            return util.lower(ip.iptype()) != 'public'
+            tp = util.lower(ip.iptype())
+            return tp != 'public' and not tp.startswith('allocated')
         except:
             pass
         return False
