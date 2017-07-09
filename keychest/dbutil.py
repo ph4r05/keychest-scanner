@@ -997,6 +997,27 @@ class DbHelper(object):
             changes += 1
         return changes
 
+    @staticmethod
+    def yield_limit(qry, pk_attr, maxrq=100):
+        """specialized windowed query generator (using LIMIT/OFFSET)
+
+        This recipe is to select through a large number of rows thats too
+        large to fetch at once. The technique depends on the primary key
+        of the FROM clause being an integer value, and selects items
+        using LIMIT."""
+
+        firstid = None
+        while True:
+            q = qry
+            if firstid is not None:
+                q = qry.filter(pk_attr > firstid)
+            rec = None
+            for rec in q.order_by(pk_attr).limit(maxrq):
+                yield rec
+            if rec is None:
+                break
+            firstid = pk_attr.__get__(rec, pk_attr) if rec else None
+
 
 class ResultModelUpdater(object):
     @staticmethod
