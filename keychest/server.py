@@ -1416,6 +1416,16 @@ class Server(object):
                 entry.scan_id = cur_scan.id
                 s.add(entry)
             s.flush()
+            s.commit()
+
+            # update cached last dns scan id
+            stmt = salch.update(DbWatchTarget)\
+                .where(DbWatchTarget.id == cur_scan.watch_id)\
+                .where(salch.or_(
+                    DbWatchTarget.last_dns_scan_id == None,
+                    DbWatchTarget.last_dns_scan_id < cur_scan.id)
+                ).values(last_dns_scan_id=cur_scan.id)
+            s.execute(stmt)
             
             job_scan.aux = cur_scan
 
