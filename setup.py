@@ -29,6 +29,7 @@ install_requires = [
     'mysql-python',
     'tldextract',
     'ph4-python-whois>=0.6.8',
+    'IPy'
 ]
 
 # env markers in extras_require cause problems with older pip: #517
