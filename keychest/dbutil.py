@@ -230,6 +230,8 @@ class DbHandshakeScanJob(Base):
                       nullable=True, index=True)  # watch id scan for periodic scanner
 
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP)
+    is_ipv6 = Column(SmallInteger, default=0, nullable=False)
+
     tls_ver = Column(String(16), nullable=True)  # tls version used to connect
 
     created_at = Column(DateTime, default=None)
@@ -295,12 +297,10 @@ class DbWatchTarget(Base):
     """
     __tablename__ = 'watch_target'
     id = Column(BigInteger, primary_key=True)
-    user_id = Column(BigInteger, nullable=True)  # deprecated, using user assoc now
 
     scan_host = Column(String(255), nullable=False)
     scan_scheme = Column(String(255), nullable=True)
     scan_port = Column(String(255), nullable=True)
-    scan_periodicity = Column(BigInteger, nullable=True)  # deprecated, moved to association
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
 
     top_domain_id = Column(ForeignKey('base_domain.id', name='wt_base_domain_id', ondelete='SET NULL'),
@@ -482,6 +482,24 @@ class DbDnsResolve(Base):
         self.dns_status = self.status
 
 
+class DbDnsEntry(Base):
+    """
+    DNS normalized dns entry on getaddressinfo()
+    Used for DB searches, joins & multiple IP TLS scan support.
+
+    dns scan -> dns entry
+    """
+    __tablename__ = "scan_dns_entry"
+    id = Column(BigInteger, primary_key=True)
+    scan_id = Column(ForeignKey('scan_dns.id', name='scan_dns_entry_scan_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+
+    is_ipv6 = Column(SmallInteger, default=0, nullable=False)
+    is_internal = Column(SmallInteger, default=0, nullable=False)
+    ip = Column(String(191), nullable=False)
+    res_order = Column(SmallInteger, default=0, nullable=False)
+
+
 class DbSubdomainWatchTarget(Base):
     """
     Watching target for subdomain auto-detection.
@@ -557,6 +575,40 @@ class DbSubdomainResultCache(Base):
     @orm.reconstructor
     def init_on_load(self):
         self.trans_result = util.defval(util.try_load_json(self.result), [])
+
+
+class DbSubdomainWatchResultEntry(Base):
+    """
+    Caching subdomain enumeration scan result - separate entry. Normalized entry.
+    Used for DB searches, joins & multiple IP support.
+
+    watch -> dns entry
+
+    Does not relate directly to the particular result as there might be a gap - in case we need it we can add
+    another mapping table subres -> entry.
+    """
+    __tablename__ = "subdomain_watch_result_entry"
+    id = Column(BigInteger, primary_key=True)
+
+    # After conversion to service id this will be obsolete, substituted by service_id
+    watch_id = Column(ForeignKey('watch_target.id', name='subdom_watch_entry_watch_id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+
+    is_wildcard = Column(SmallInteger, default=0, nullable=False)
+    is_internal = Column(SmallInteger, default=0, nullable=False)
+
+    ip = Column(String(191), nullable=False)
+    res_order = Column(SmallInteger, default=0, nullable=False)
+
+    created_at = Column(DateTime, default=None)  # usually date of the first detection
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1, nullable=False)  # number of scans with this result (periodic scanner)
+
+    last_scan_id = Column(ForeignKey('subdomain_results.id', name='subdom_watch_entry_subdomain_results_id_first',
+                                     ondelete='SET NULL'), nullable=True, index=True)
+    first_scan_id = Column(ForeignKey('subdomain_results.id', name='subdom_watch_entry_subdomain_results_id_last',
+                                      ondelete='SET NULL'), nullable=True, index=True)
 
 
 #
