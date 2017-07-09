@@ -337,7 +337,7 @@ class Server(object):
             # ...
 
             # DNS scan
-            db_dns = self.scan_dns(s, job_data, domain, job_db)
+            db_dns, dns_entries = self.scan_dns(s, job_data, domain, job_db)
             s.commit()
 
             self.update_scan_job_state(job_db, 'dns-done', s)
@@ -723,7 +723,6 @@ class Server(object):
             for cur in results:
                 res.append((cur[0], cur[4][0]))
 
-            res.sort()
             scan_db.dns_res = res
             scan_db.dns_status = 1
             scan_db.status = 1
@@ -747,7 +746,23 @@ class Server(object):
                 job_db.dns_check_id = scan_db.id
                 job_db = s.merge(job_db)
 
-        return scan_db
+        # DNS sub entries
+        dns_entries = []
+        for idx, tup in enumerate(scan_db.dns_res):
+            family, addr = tup
+            entry = DbDnsEntry()
+            entry.is_ipv6 = family == 10
+            entry.is_internal = util.is_ip_private(addr)
+            entry.ip = addr
+            entry.res_order = idx
+            entry.scan_id = scan_db.id
+
+            dns_entries.append(entry)
+            if store_to_db:
+                s.add(entry)
+        s.flush()
+
+        return scan_db, dns_entries
 
     #
     # Periodic scanner
@@ -1377,7 +1392,7 @@ class Server(object):
             job_scan.skip()
             return
 
-        cur_scan = self.scan_dns(s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
+        cur_scan, dns_entries = self.scan_dns(s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
         if cur_scan is None:
             job_scan.fail()
             return
