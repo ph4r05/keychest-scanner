@@ -323,7 +323,7 @@ class Server(object):
         logger.debug(job_data)
 
         s = None
-        self.update_job_state(job_data, 'started')
+        self.update_scan_job_state(job_data, 'started')
         try:
             s = self.db.get_session()
 
@@ -337,14 +337,14 @@ class Server(object):
             db_dns = self.scan_dns(s, job_data, domain, job_db)
             s.commit()
 
-            self.update_job_state(job_db, 'dns-done', s)
+            self.update_scan_job_state(job_db, 'dns-done', s)
 
             # crt.sh scan - only if DNS is correct
             if db_dns and db_dns.status == 1:
                 self.scan_crt_sh(s, job_data, domain, job_db)
                 s.commit()
 
-            self.update_job_state(job_db, 'crtsh-done', s)
+            self.update_scan_job_state(job_db, 'crtsh-done', s)
 
             # TODO: search for more subdomains, *.domain, %.domain
             # ...
@@ -354,7 +354,7 @@ class Server(object):
                 self.scan_handshake(s, job_data, domain, job_db)
                 s.commit()
 
-            self.update_job_state(job_db, 'tls-done', s)
+            self.update_scan_job_state(job_db, 'tls-done', s)
 
             # whois scan - only if DNS was done correctly
             if db_dns and db_dns.status == 1:
@@ -370,7 +370,7 @@ class Server(object):
         finally:
             util.silent_close(s)
 
-        self.update_job_state(job_data, 'finished')
+        self.update_scan_job_state(job_data, 'finished')
         pass
 
     def augment_redis_scan_job(self, job=None, data=None):
@@ -2350,7 +2350,7 @@ class Server(object):
         """
         return None
 
-    def update_job_state(self, job_data, state, s=None):
+    def update_scan_job_state(self, job_data, state, s=None):
         """
         Updates job state in DB + sends event via redis
         :param job_data: 
