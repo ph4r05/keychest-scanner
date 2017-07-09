@@ -492,6 +492,7 @@ class Server(object):
             scan_db.created_at = salch.func.now()
             scan_db.job_id = job_db.id if job_db is not None else None
             scan_db.ip_scanned = resp.ip if resp.ip is not None else '-'  # placeholder IP, group by fix
+            scan_db.is_ipv6 = TlsDomainTools.is_valid_ipv6_address(scan_db.ip_scanned)
             scan_db.tls_ver = resp.tls_version
             scan_db.status = len(resp.certificates) > 0
             scan_db.err_code = resp.handshake_failure
