@@ -371,6 +371,10 @@ class DbWatchTarget(Base):
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
     last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
 
+    # denormalization - optimized query
+    last_dns_scan_id = Column(ForeignKey('scan_dns.id', name='wt_scan_dns_id', ondelete='SET NULL'),
+                              nullable=True, index=True)
+
 
 class DbUser(Base):
     """
@@ -531,6 +535,10 @@ class DbDnsResolve(Base):
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
 
     status = Column(SmallInteger, default=0)
+
+    num_res = Column(SmallInteger, default=0, nullable=False)
+    num_ipv4 = Column(SmallInteger, default=0, nullable=False)
+    num_ipv6 = Column(SmallInteger, default=0, nullable=False)
     dns = Column(Text, nullable=True)  # normalized json with dns results
 
     def __init__(self):
