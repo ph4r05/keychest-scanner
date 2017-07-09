@@ -109,8 +109,8 @@ def fixup_ipv6_col(s):
     :param s:
     :return:
     """
-    it = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.ip_scanned != None).yield_per(1000)
-    for idx, cur in enumerate(it):  # type: DbHandshakeScanJob
+    q = s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.ip_scanned != None)
+    for idx, cur in enumerate(DbHelper.yield_limit(q, DbHandshakeScanJob.id)):  # type: DbHandshakeScanJob
         try:
             cur.is_ipv6 = TlsDomainTools.is_valid_ipv6_address(cur.ip_scanned)
 
@@ -125,12 +125,12 @@ def migrate_dns_scan_fields(s):
     :param s:
     :return:
     """
-    it = s.query(DbDnsResolve).filter(DbDnsResolve.status == 1).yield_per(1000)
-    for idx, cur in enumerate(it):  # type: DbDnsResolve
+    q = s.query(DbDnsResolve).filter(DbDnsResolve.status == 1)
+    for idx, cur in enumerate(DbHelper.yield_limit(q, DbDnsResolve.id)):  # type: DbDnsResolve
         try:
-            cur.num_scans = len(cur.dns_res)
-            cur.num_ipv4 = len([x for x in cur.dns_res if x == 2])
-            cur.num_ipv6 = len([x for x in cur.dns_res if x == 10])
+            cur.num_res = len(cur.dns_res)
+            cur.num_ipv4 = len([x for x in cur.dns_res if x[0] == 2])
+            cur.num_ipv6 = len([x for x in cur.dns_res if x[0] == 10])
 
         except Exception as ex:
             logger.warning('Exception in DbDnsResolve field migration: %s' % ex)
