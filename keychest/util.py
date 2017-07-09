@@ -1003,5 +1003,26 @@ def invert_map(x):
     return {x[k]: k for k in x}
 
 
+def chunk(x, size=1):
+    """
+    Creates an array of elements split into groups the length of size.
+    If array can't be split evenly, the final chunk will be the remaining elements.
+
+    chunk(['a', 'b', 'c', 'd'], 2);
+    // => [['a', 'b'], ['c', 'd']]
+
+    chunk(['a', 'b', 'c', 'd'], 3);
+    // => [['a', 'b', 'c'], ['d']]
+    :param x:
+    :param size:
+    :return:
+    """
+    ret = []
+    src = x
+    while len(src) > 0:
+        ret.append(src[:size])
+        src = src[size:]
+    return ret
+
 
 

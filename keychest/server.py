@@ -15,6 +15,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
     DbDnsResolve, DbCrtShQueryInput, \
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
+    DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, \
     ResultModelUpdater
 import dbutil
 
@@ -1575,7 +1576,7 @@ class Server(object):
             # - extract domains to the result cache....
             # - load previously saved certs, not loaded now, from db
             # TODO: load previous result, just add altnames added in new certificates.
-            sub_lists =  list(set(list(sub_res_list) + list(sub_res_list_base)))
+            sub_lists = list(set(list(sub_res_list) + list(sub_res_list_base)))
             certs_to_load = [x.crt_id for x in sub_lists
                              if x is not None and x.crt_sh_id is not None and x.cert_db is None]
             certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
@@ -1609,8 +1610,13 @@ class Server(object):
             mm = DbSubdomainResultCache
             ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
 
+            # Subdomains insert / update
+            s.commit()
+            self.subs_sync_records(s, job, db_sub)
+
             # Add new watcher targets automatically - depends on the assoc model, if enabled
-            self.auto_fill_new_watches(s, job, db_sub)
+            self.auto_fill_new_watches(s, job, db_sub)  # returns is_same, obj, last_scan
+            # TODO: emit events with event manager.
 
         # Store scan history
         hist = DbScanHistory()
@@ -2599,6 +2605,51 @@ class Server(object):
         scan_db.err_valid_ossl_code = err.error_code
         scan_db.err_valid_ossl_depth = err.error_depth
 
+    def subs_sync_records(self, s, job, db_sub):
+        """
+        Adds / updates DbSubdomainWatchResultEntry
+        :param s:
+        :param job:
+        :type job: PeriodicReconJob
+        :param db_sub:
+        :type db_sub: DbSubdomainResultCache
+        :return:
+        """
+
+        # Chunking, paginate on 50 per page
+        chunks = util.chunk(db_sub.trans_result, 50)
+        for chunk in chunks:
+            # Load all subdomains
+            subs = self.load_subdomains(s, db_sub.watch_id, chunk)
+            existing_domains = set(subs.keys())
+            new_domains = set(chunk) - existing_domains
+
+            # Update existing domains
+            for cur_name in subs:
+                cur_rec = subs[cur_name]  # type: DbSubdomainWatchResultEntry
+                cur_rec.last_scan_at = db_sub.last_scan_at
+                cur_rec.last_scan_id = db_sub.id
+                cur_rec.updated_at = salch.func.now()
+                cur_rec.num_scans = cur_rec.num_scans + 1
+            s.commit()
+
+            # Add new records
+            for new_domain in new_domains:
+                nw = DbSubdomainWatchResultEntry()
+                nw.watch_id = db_sub.watch_id
+                nw.is_wildcard = TlsDomainTools.has_wildcard(new_domain)
+                nw.is_internal = 0
+                nw.is_long = len(new_domain) > 191
+                nw.name = new_domain  # TODO: hash if too long
+                nw.name_full = new_domain if nw.is_long else None
+                nw.created_at = salch.func.now()
+                nw.updated_at = salch.func.now()
+                nw.last_scan_at = db_sub.last_scan_at
+                nw.first_scan_id = db_sub.id
+                nw.last_scan_id = db_sub.id
+                s.add(nw)
+            s.commit()
+
     def auto_fill_assoc(self, s, assoc):
         """
         Auto fill sub domains from the association now - using current db content
@@ -2928,6 +2979,37 @@ class Server(object):
 
             time.sleep(0.01)
         raise Error('Could not store / load DbWatchTarget')
+
+    def load_subdomains(self, s, watch_id, subs):
+        """
+        Tries to load all subdomains with given domain name
+        :param s:
+        :param watch_id:
+        :param subs:
+        :return:
+        """
+        was_array = True
+        if subs is not None and not isinstance(subs, types.ListType):
+            subs = [subs]
+            was_array = False
+
+        q = s.query(DbSubdomainWatchResultEntry)
+
+        if watch_id is not None:
+            q = q.filter(DbSubdomainWatchResultEntry.watch_id == watch_id)
+
+        if subs is not None:
+            q = q.filter(DbSubdomainWatchResultEntry.name.in_(list(subs)))
+
+        ret = {}
+        res = q.all()
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[cur.name] = cur
+
+        return ret if was_array else None
 
     #
     # Workers - Redis interactive jobs
