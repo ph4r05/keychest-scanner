@@ -127,7 +127,7 @@ class CertificateAltName(Base):
     in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'certificate_alt_names'
-    cert_id = Column(BigInteger, index=True, primary_key=True)
+    cert_id = Column(BigInteger, index=True, primary_key=True)   # TODO: to foreign key
     alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
 
 
@@ -160,8 +160,9 @@ class DbCrtShQueryInput(Base):
     __tablename__ = 'crtsh_input'
     __table_args__ = (UniqueConstraint('iquery', 'itype', name='crtsh_input_key_unique'),)
     id = Column(BigInteger, primary_key=True)
-    sld_id = Column(ForeignKey('base_domain.id', name='crtsh_input_base_domain_id'),
+    sld_id = Column(ForeignKey('base_domain.id', name='crtsh_input_base_domain_id', ondelete='SET NULL'),
                     nullable=True, index=True)  # SLD index, aux info for search
+
     iquery = Column(String(255), nullable=False)
     itype = Column(SmallInteger, default=0)
     created_at = Column(DateTime, default=None)
@@ -174,11 +175,11 @@ class DbCrtShQuery(Base):
     __tablename__ = 'crtsh_query'
     id = Column(BigInteger, primary_key=True)
     job_id = Column(BigInteger, nullable=True)
-    watch_id = Column(ForeignKey('watch_target.id', name='crtsh_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='crtsh_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
-    input_id = Column(ForeignKey('crtsh_input.id', name='crtsh_watch_input_id'),
+    input_id = Column(ForeignKey('crtsh_input.id', name='crtsh_watch_input_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # input id - easy search, defines the search itself
-    sub_watch_id = Column(ForeignKey('subdomain_watch_target.id', name='crtsh_watch_sub_target_id'),
+    sub_watch_id = Column(ForeignKey('subdomain_watch_target.id', name='crtsh_watch_sub_target_id', ondelete='SET NULL'),
                           nullable=True, index=True)  # watch id scan for periodic sub domain scanner
 
     last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
@@ -206,8 +207,8 @@ class DbCrtShQueryResult(Base):
     """
     __tablename__ = 'crtsh_query_results'
     id = Column(BigInteger, primary_key=True)
-    query_id = Column(BigInteger)
-    job_id = Column(BigInteger, nullable=True)
+    query_id = Column(BigInteger)  # TODO: to foreign key
+    job_id = Column(BigInteger, nullable=True)  # TODO: to foreign key
 
     crt_id = Column(BigInteger, nullable=True)
     crt_sh_id = Column(BigInteger, nullable=True)
@@ -225,7 +226,7 @@ class DbHandshakeScanJob(Base):
     id = Column(BigInteger, primary_key=True)
 
     job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
-    watch_id = Column(ForeignKey('watch_target.id', name='tls_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='tls_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
 
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP)
@@ -276,7 +277,7 @@ class DbHandshakeScanJobResult(Base):
     in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'scan_handshake_results'
-    id = Column(BigInteger, primary_key=True)
+    id = Column(BigInteger, primary_key=True)  # TODO: to foreign key
     scan_id = Column(BigInteger)
     job_id = Column(BigInteger, nullable=True)
 
@@ -302,7 +303,8 @@ class DbWatchTarget(Base):
     scan_periodicity = Column(BigInteger, nullable=True)  # deprecated, moved to association
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
 
-    top_domain_id = Column(ForeignKey('base_domain.id', name='wt_base_domain_id'), nullable=True, index=True)
+    top_domain_id = Column(ForeignKey('base_domain.id', name='wt_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
@@ -333,9 +335,9 @@ class DbWatchAssoc(Base):
     __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='wa_user_watcher_uniqe'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id', name='wa_users_id'),
+    user_id = Column(ForeignKey('users.id', name='wa_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
-    watch_id = Column(ForeignKey('watch_target.id', name='wa_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='wa_watch_target_id', ondelete='CASCADE'),
                       nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -363,7 +365,7 @@ class DbWhoisCheck(Base):
     """
     __tablename__ = 'whois_result'
     id = Column(BigInteger, primary_key=True)
-    domain_id = Column(ForeignKey('base_domain.id', name='who_base_domain_id'),
+    domain_id = Column(ForeignKey('base_domain.id', name='who_base_domain_id', ondelete='CASCADE'),
                        nullable=False, index=True)
 
     status = Column(SmallInteger, default=0)  # status code / error
@@ -394,8 +396,9 @@ class DbScanHistory(Base):
     """
     __tablename__ = "scan_history"
     id = Column(BigInteger, primary_key=True)
-    watch_id = Column(ForeignKey('watch_target.id', name='shist_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='shist_watch_target_id', ondelete='CASCADE'),
                       nullable=True, index=True)
+
     scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
     scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
     created_at = Column(DateTime, default=None)
@@ -412,8 +415,9 @@ class DbScanGaps(Base):
     """
     __tablename__ = "scan_gaps"
     id = Column(BigInteger, primary_key=True)
-    watch_id = Column(ForeignKey('watch_target.id', name='sgap_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='sgap_watch_target_id', ondelete='CASCADE'),
                       nullable=True, index=True)
+
     scan_code = Column(SmallInteger, nullable=False)  # tls / CT / whois / ...
     scan_type = Column(SmallInteger, nullable=True)  # scan subtype - full handshake, ciphersuites...
     created_at = Column(DateTime, default=None)
@@ -457,7 +461,7 @@ class DbDnsResolve(Base):
     id = Column(BigInteger, primary_key=True)
 
     job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
-    watch_id = Column(ForeignKey('watch_target.id', name='dns_watch_target_id'),
+    watch_id = Column(ForeignKey('watch_target.id', name='dns_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
 
     created_at = Column(DateTime, default=None)
@@ -488,7 +492,8 @@ class DbSubdomainWatchTarget(Base):
     scan_host = Column(String(255), nullable=False)
     scan_ports = Column(Text, nullable=True)  # optional, json encoded port list for basic liveness check
 
-    top_domain_id = Column(ForeignKey('base_domain.id', name='sub_wt_base_domain_id'), nullable=True, index=True)
+    top_domain_id = Column(ForeignKey('base_domain.id', name='sub_wt_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -506,9 +511,9 @@ class DbSubdomainWatchAssoc(Base):
     __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='wa_user_sub_watcher_uniqe'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id', name='wa_sub_users_id'),
+    user_id = Column(ForeignKey('users.id', name='wa_sub_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
-    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_watch_target_id'),
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_watch_target_id', ondelete='CASCADE'),
                       nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -524,12 +529,15 @@ class DbSubdomainWatchAssoc(Base):
 
 class DbSubdomainResultCache(Base):
     """
-    Caching subdomain enumeration scan results
+    Caching subdomain enumeration scan results.
+    Distilled results from CT downloaded certificates.
+
+    watch -> subdomains results
     """
     __tablename__ = 'subdomain_results'
     id = Column(BigInteger, primary_key=True)
 
-    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_res_watch_target_id'),
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_res_watch_target_id', ondelete='CASCADE'),
                       nullable=False, index=True)
 
     scan_type = Column(SmallInteger, default=0)  # CT log / sublist3r / subbrute / ...
