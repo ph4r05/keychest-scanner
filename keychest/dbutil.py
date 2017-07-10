@@ -1098,12 +1098,13 @@ class ResultModelUpdater(object):
         return is_same, obj, last_scan
 
     @staticmethod
-    def update_cache(s, new_scan, sub_type=0):
+    def update_cache(s, new_scan, sub_type=0, skip_search=False):
         """
         Updates last scan cache
         :param s:
         :param new_scan:
         :param sub_type:
+        :param skip_search:
         :return:
         """
         cache = DbLastScanCache()
@@ -1134,26 +1135,32 @@ class ResultModelUpdater(object):
             cache.scan_type = DbScanType.SUBS
 
         elif isinstance(new_scan, DbWhoisCheck):
-            cache.obj_id = new_scan.watch_id
+            cache.obj_id = new_scan.domain_id
             cache.scan_type = DbScanType.WHOIS
 
         else:
             raise ValueError('Unrecognized scan result, cannot persist')
 
         try:
-            m = DbLastScanCache
-            cols = [m.cache_type, m.obj_id, m.scan_type, m.scan_sub_type, m.aux_key]
+            should_add = skip_search
+            if not skip_search:
+                m = DbLastScanCache
+                cols = [m.cache_type, m.obj_id, m.scan_type, m.scan_sub_type, m.aux_key]
 
-            q = s.query(DbLastScanCache)
-            q = DbHelper.query_filter_model(q, cols, cache)
-            cc = q.first()
+                q = s.query(DbLastScanCache)
+                q = DbHelper.query_filter_model(q, cols, cache)
+                cc = q.first()
 
-            if not cc:
+                if cc:
+                    cc.scan_id = cache.scan_id
+                    cc.scan_aux = cache.scan_aux
+                    s.commit()
+                else:
+                    should_add = True
+
+            if should_add:
                 s.add(cache)
-            else:
-                cc.scan_id = cache.scan_id
-                cc.scan_aux = cache.scan_aux
-            s.commit()
+                s.commit()
 
         except Exception as e:
             logger.debug('Exception storing last record cache: %s' % e)
