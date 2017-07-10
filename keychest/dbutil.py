@@ -518,6 +518,30 @@ class DbLastRecordCache(Base):
     updated_at = Column(DateTime, default=func.now())
 
 
+class DbLastScanCache(Base):
+    """
+    Last scan cache - in order to avoid complicated sub-queries.
+    """
+    __tablename__ = "last_scan_cache"
+    __table_args__ = (UniqueConstraint('cache_type', 'obj_id', 'scan_type', 'scan_sub_type', 'aux_key',
+                                       name='uq_last_scan_cache_key'),)
+    id = Column(BigInteger, primary_key=True)
+
+    cache_type = Column(SmallInteger, default=0, nullable=False)  # mostly 0
+    obj_id = Column(BigInteger, default=0)  # watch_id mostly, or service_id, local_service
+
+    scan_type = Column(Integer, default=0, nullable=False)  # tls, dns, crtsh, wildcard, subs, ...
+    scan_sub_type = Column(Integer, default=0, nullable=False)
+
+    aux_key = Column(String(191), default='', nullable=False)  # mostly empty string or IP
+
+    scan_id = Column(BigInteger, default=None, nullable=False)
+    scan_aux = Column(Text, default=None, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 class DbDnsResolve(Base):
     """
     DNS resolve results
