@@ -685,7 +685,7 @@ class DbSubdomainWatchResultEntry(Base):
     id = Column(BigInteger, primary_key=True)
 
     # After conversion to service id this will be obsolete, substituted by service_id
-    watch_id = Column(ForeignKey('watch_target.id', name='subdom_watch_entry_watch_id', ondelete='CASCADE'),
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='subdom_watch_entry_watch_id', ondelete='CASCADE'),
                       nullable=False, index=True)
     service_id = Column(ForeignKey('watch_service.id', name='subdom_watch_entry_service_id', ondelete='CASCADE'),
                         nullable=True, index=True)
