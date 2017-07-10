@@ -286,7 +286,6 @@ def watch_based(s):
             return
 
         for family, addr in dns.dns_res:
-            print addr
             qq = s.query(DbHandshakeScanJob)\
                 .filter(DbHandshakeScanJob.watch_id == watch.id)\
                 .filter(DbHandshakeScanJob.ip_scanned == addr)
