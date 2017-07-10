@@ -2783,6 +2783,7 @@ class Server(object):
                 logger.debug('Exception when adding auto sub watch: %s' % e)
                 self.trace_logger.log(e, custom_msg='Auto add sub watch')
                 s.rollback()
+        s.commit()
 
     #
     # DB tools
