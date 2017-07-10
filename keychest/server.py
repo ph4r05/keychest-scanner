@@ -590,7 +590,7 @@ class Server(object):
                 s.add(crtsh_res_db)
 
         # load pem for new certificates
-        for new_crt_id in sorted(list(new_ids), reverse=True)[:100]:
+        for new_crt_id in sorted(list(new_ids), reverse=True)[:500]:
             db_cert, subres = \
                 self.fetch_new_certs(s, job_data, new_crt_id,
                                      [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
