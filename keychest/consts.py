@@ -63,3 +63,9 @@ class DbScanType(object):
     DOWNTIME = 7
 
 
+class BlacklistRuleType(object):
+    SUFFIX = 0
+    MATCH = 1
+
+
+

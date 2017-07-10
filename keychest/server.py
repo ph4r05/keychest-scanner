@@ -29,7 +29,7 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
-from consts import CertSigAlg
+from consts import CertSigAlg, BlacklistRuleType
 import util_cert
 
 import threading
@@ -2617,10 +2617,10 @@ class Server(object):
             blcopy = list(self.sub_blacklist)
 
         for rule in blcopy:
-            if rule.rule_type == 0:
+            if rule.rule_type == BlacklistRuleType.SUFFIX:
                 if domain.endswith(rule.rule):
                     return rule
-            elif rule.rule_type == 1:
+            elif rule.rule_type == BlacklistRuleType.MATCH:
                 if domain == rule.rule:
                     return rule
 
