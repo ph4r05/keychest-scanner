@@ -1153,7 +1153,7 @@ class MySQL(object):
             if con_str is None:
                 con_str = self.get_connstring()
 
-            engine = create_engine(con_str, pool_recycle=3600)
+            engine = create_engine(con_str, pool_size=200, max_overflow=32, pool_recycle=3600)
             if store_as_main:
                 self.engine = engine
 
