@@ -846,7 +846,7 @@ class Server(object):
         :return:
         """
         num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.2 + 1))
-        num_max_watch = self.config.periodic_workers
+        num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads left
 
         # semaphore array init
         self.watcher_job_semaphores = {
@@ -1044,14 +1044,15 @@ class Server(object):
 
         finally:
             remove_job = True
+            readd_job = False
             if sem_acquired:
                 sem.release()
 
             # Later? re-enqueue
             if not sem_acquired:
                 remove_job = False
+                readd_job = True
                 job.inclater()
-                self.watcher_job_queue.put(job)
                 logger.debug('Semaphore not acquired for type: %s' % job.type)
 
             # if job is success update db last scan value
@@ -1060,7 +1061,7 @@ class Server(object):
 
             # if retry under threshold, add again to the queue
             elif job.attempts <= 3:
-                self.watcher_job_queue.put(job)
+                readd_job = True
                 remove_job = False
 
             # The job has expired.
@@ -1073,6 +1074,9 @@ class Server(object):
 
             with self.watcher_db_lock:
                 del self.watcher_db_processing[job.key()]
+
+            if readd_job:
+                self.watcher_job_queue.put(job)
 
     def periodic_update_last_scan(self, job):
         """
