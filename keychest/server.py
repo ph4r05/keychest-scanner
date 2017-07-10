@@ -386,7 +386,6 @@ class Server(object):
 
         job_data = job.decoded['data']['json']
         assoc_id = job_data['id']
-        logger.debug(job_data)
 
         s = None
         try:
@@ -1003,7 +1002,7 @@ class Server(object):
 
             try:
                 # Process job in try-catch so it does not break worker
-                logger.debug('[%02d] Processing job' % (idx,))
+                # logger.debug('[%02d] Processing job' % (idx,))
                 self.periodic_process_job(job)
 
             except Exception as e:
@@ -1053,7 +1052,6 @@ class Server(object):
                 remove_job = False
                 readd_job = True
                 job.inclater()
-                logger.debug('Semaphore not acquired for type: %s' % job.type)
 
             # if job is success update db last scan value
             elif job.success_scan:
@@ -2700,7 +2698,7 @@ class Server(object):
         if not assoc.auto_fill_watches:
             return
 
-        sub_res = self.load_last_subs_result(s, watch_id=assoc.watch_id)  # type:
+        sub_res = self.load_last_subs_result(s, watch_id=assoc.watch_id)  # type: DbSubdomainResultCache
         if sub_res is None or util.is_empty(sub_res.trans_result):
             return
 
