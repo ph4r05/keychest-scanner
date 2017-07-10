@@ -728,6 +728,9 @@ class Server(object):
             scan_db.dns_status = 1
             scan_db.status = 1
             scan_db.dns = json.dumps(res)
+            scan_db.num_res = len(scan_db.dns_res)
+            scan_db.num_ipv4 = len([x for x in scan_db.dns_res if x[0] == 2])
+            scan_db.num_ipv6 = len([x for x in scan_db.dns_res if x[0] == 10])
 
         except socket.gaierror as gai:
             logger.debug('GAI error: %s: %s' % (domain, gai))
