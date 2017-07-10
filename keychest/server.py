@@ -1505,15 +1505,19 @@ class Server(object):
             last_scan.last_scan_at = salch.func.now()
             last_scan.num_scans += 1
             last_scan = s.merge(last_scan)
+            s.commit()
+
         else:
             db_scan.watch_id = job.target.id
             db_scan.num_scans = 1
             db_scan.last_scan_at = salch.func.now()
             db_scan.updated_ad = salch.func.now()
             s.add(db_scan)
+            s.commit()
             logger.info('TLS scan is different, lastscan: %s for %s' % (last_scan, db_scan.ip_scanned))
 
-        s.commit()
+            # update last scan cache
+            ResultModelUpdater.update_cache(s, db_scan)
 
         # Store scan history
         hist = DbScanHistory()
@@ -1554,6 +1558,7 @@ class Server(object):
             if last_scan.input_id is None:  # migration to input ids
                 last_scan.input_id = crtsh_query_db.input_id
             last_scan = s.merge(last_scan)
+            s.commit()
 
         else:
             crtsh_query_db.watch_id = job.target.id
@@ -1561,8 +1566,10 @@ class Server(object):
             crtsh_query_db.updated_ad = salch.func.now()
             crtsh_query_db.last_scan_at = salch.func.now()
             s.add(crtsh_query_db)
+            s.commit()
 
-        s.commit()
+            # update last scan cache
+            ResultModelUpdater.update_cache(s, crtsh_query_db)
 
         # Store scan history
         hist = DbScanHistory()
@@ -1645,11 +1652,16 @@ class Server(object):
             db_sub.result = json.dumps(db_sub.trans_result)
 
             mm = DbSubdomainResultCache
-            ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
+            is_same, db_sub_new, last_scan = \
+                ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
+            s.commit()
+
+            # update last scan cache
+            if not is_same:
+                ResultModelUpdater.update_cache(s, db_sub_new)
 
             # Subdomains insert / update
-            s.commit()
-            self.subs_sync_records(s, job, db_sub)
+            self.subs_sync_records(s, job, db_sub_new)
 
             # Add new watcher targets automatically - depends on the assoc model, if enabled
             self.auto_fill_new_watches(s, job, db_sub)  # returns is_same, obj, last_scan
@@ -1709,6 +1721,10 @@ class Server(object):
             job.target.top_domain_id = top_domain.id
             s.merge(job.target)
         s.commit()
+
+        # update last scan cache
+        if not is_same_as_before:
+            ResultModelUpdater.update_cache(s, scan_db)
 
         # Store scan history
         hist = DbScanHistory()

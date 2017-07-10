@@ -53,5 +53,13 @@ class CertKeyType(object):
     ECC = 3
 
 
+class DbScanType(object):
+    DNS = 1
+    TLS = 2
+    CRTSH = 3
+    WHOIS = 4
+    CRTSH_WILD = 5
+    SUBS = 6
+    DOWNTIME = 7
 
 

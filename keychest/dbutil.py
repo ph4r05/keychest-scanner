@@ -19,6 +19,7 @@ from sqlalchemy.dialects.mysql import INTEGER
 import sqlalchemy as sa
 from warnings import filterwarnings
 import MySQLdb as MySQLDatabase
+from consts import DbScanType
 
 
 """
@@ -1095,6 +1096,68 @@ class ResultModelUpdater(object):
         s.commit()
 
         return is_same, obj, last_scan
+
+    @staticmethod
+    def update_cache(s, new_scan, sub_type=0):
+        """
+        Updates last scan cache
+        :param s:
+        :param new_scan:
+        :param sub_type:
+        :return:
+        """
+        cache = DbLastScanCache()
+        cache.cache_type = 0
+        cache.obj_id = 0  # watch_id mostly, or service_id, local_service
+        cache.scan_type = 0  # tls, dns, crtsh, wildcard, subs, ...
+        cache.scan_sub_type = sub_type
+        cache.aux_key = ''  # mostly empty string or IP
+        cache.scan_id = new_scan.id
+        cache.created_at = sa.func.now()
+        cache.updated_at = sa.func.now()
+
+        if isinstance(new_scan, DbHandshakeScanJob):
+            cache.obj_id = new_scan.watch_id
+            cache.scan_type = DbScanType.TLS
+            cache.aux_key = new_scan.ip_scanned
+
+        elif isinstance(new_scan, DbDnsResolve):
+            cache.obj_id = new_scan.watch_id
+            cache.scan_type = DbScanType.DNS
+
+        elif isinstance(new_scan, DbCrtShQuery):
+            cache.obj_id = new_scan.watch_id
+            cache.scan_type = DbScanType.CRTSH
+
+        elif isinstance(new_scan, DbSubdomainResultCache):
+            cache.obj_id = new_scan.watch_id
+            cache.scan_type = DbScanType.SUBS
+
+        elif isinstance(new_scan, DbWhoisCheck):
+            cache.obj_id = new_scan.watch_id
+            cache.scan_type = DbScanType.WHOIS
+
+        else:
+            raise ValueError('Unrecognized scan result, cannot persist')
+
+        try:
+            m = DbLastScanCache
+            cols = [m.cache_type, m.obj_id, m.scan_type, m.scan_sub_type, m.aux_key]
+
+            q = s.query(DbLastScanCache)
+            q = DbHelper.query_filter_model(q, cols, cache)
+            cc = q.first()
+
+            if not cc:
+                s.add(cache)
+            else:
+                cc.scan_id = cache.scan_id
+                cc.scan_aux = cache.scan_aux
+            s.commit()
+
+        except Exception as e:
+            logger.debug('Exception storing last record cache: %s' % e)
+            s.rollback()
 
 
 class assign(expression.FunctionElement):
