@@ -2738,6 +2738,13 @@ class Server(object):
         if default_new_watches is None:
             default_new_watches = {}
 
+        # number of already active hosts
+        # TODO: either use PHP rest API for this or somehow get common constant config
+        num_hosts = self.load_num_active_hosts(s, user_id=assoc.user_id)
+        max_hosts = self.config.keychest_max_servers
+        if num_hosts >= max_hosts:
+            return
+
         # select all hosts anyhow associated with the host, also deleted.
         # Wont add already present hosts (deleted/disabled doesnt matter)
         res = s.query(DbWatchAssoc, DbWatchTarget) \
@@ -2750,6 +2757,9 @@ class Server(object):
         existing_host_names = set([x[1].scan_host for x in res])
 
         for new_host in domain_names:
+            if num_hosts >= max_hosts:
+                break
+
             if new_host in existing_host_names:
                 continue
 
@@ -2779,6 +2789,7 @@ class Server(object):
             # race condition with another process may cause this to fail on unique constraint.
             try:
                 s.add(nassoc)
+                num_hosts += 1
             except Exception as e:
                 logger.debug('Exception when adding auto sub watch: %s' % e)
                 self.trace_logger.log(e, custom_msg='Auto add sub watch')
@@ -3048,6 +3059,19 @@ class Server(object):
             ret[cur.name] = cur
 
         return ret if was_array else None
+
+    def load_num_active_hosts(self, s, user_id):
+        """
+        Loads number of active user hosts
+        :param s:
+        :param user_id:
+        :return:
+        """
+        return DbHelper.get_count(
+            s.query(DbWatchAssoc)\
+            .filter(DbWatchAssoc.user_id==user_id)\
+            .filter(DbWatchAssoc.deleted_at == None)\
+            .filter(DbWatchAssoc.disabled_at == None))
 
     #
     # Workers - Redis interactive jobs

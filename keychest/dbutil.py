@@ -1042,6 +1042,19 @@ class DbHelper(object):
                 break
             firstid = pk_attr.__get__(rec, pk_attr) if rec else None
 
+    @staticmethod
+    def get_count(q):
+        """
+        Gets count(*) from the given query, faster than .count() method:
+         - q.count()      SELECT COUNT(*) FROM (SELECT ... FROM TestModel WHERE ...) ...
+         - get_count(q)   SELECT COUNT(*) FROM TestModel WHERE ...
+        :param q:
+        :return:
+        """
+        count_q = q.statement.with_only_columns([func.count()]).order_by(None)
+        count = q.session.execute(count_q).scalar()
+        return count
+
 
 class ResultModelUpdater(object):
     @staticmethod

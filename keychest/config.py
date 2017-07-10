@@ -131,6 +131,15 @@ class Config(object):
     def periodic_workers(self, val):
         self.set_config('periodic_workers', val)
 
+    # Max servers per user
+    @property
+    def keychest_max_servers(self):
+        return self.get_config('keychest_max_servers', 1000)
+
+    @keychest_max_servers.setter
+    def keychest_max_servers(self, val):
+        self.set_config('keychest_max_servers', val)
+
 
 
 
