@@ -77,7 +77,7 @@ def upgrade():
     sess = scoped_session(sessionmaker(bind=bind))
 
     # blacklist processing
-    domains = util.compact([x.strip() for x in template.split('\n')])
+    domains = util.stable_uniq(util.compact([x.strip().lower() for x in template.split('\n')]))
 
     sess.query(DbSubdomainScanBlacklist).delete()
     sess.commit()
@@ -86,7 +86,7 @@ def upgrade():
         entry = DbSubdomainScanBlacklist()
         entry.created_at = sa.func.now()
         entry.updated_at = sa.func.now()
-        entry.rule_type = BlacklistRuleType.SUFFIX
+        entry.rule_type = BlacklistRuleType.MATCH
         entry.rule = domain
         sess.add(entry)
 
