@@ -1251,19 +1251,28 @@ class Server(object):
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
+        job_dns = job.scan_dns  # type: ScanResults
+        if util.is_empty(job.ips):
+            job_scan.skip()  # DNS is an important part, if watch cannot be resolved - give up.
 
-        prev_scans = self.load_last_tls_scan(s, job.watch_id())
+        prev_scans = self.load_last_tls_scan_last_dns(s, job.watch_id(), job.ips)
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
-        primary_scan = util.defvalkey(prev_scans_map, job.primary_ip) if job.primary_ip is not None else None
 
-        if primary_scan is not None \
-                and primary_scan.last_scan_at \
-                and primary_scan.last_scan_at > self._diff_time(self.delta_tls):
+        # repeat
+        scans_to_repeat = list(set(job.ips) - set([x.ip_scanned for x in prev_scans]))
+        scans_to_repeat += [x.ip_scanned for x in prev_scans
+                            if not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls)]
+
+        logger.debug('ips: %s, scan map: %s, repeat: %s' % (job.ips, prev_scans_map, scans_to_repeat))
+
+        if len(scans_to_repeat) == 0:
             job_scan.skip(prev_scans_map)
             return  # scan is relevant enough
 
         try:
-            self.wp_scan_tls(s, job, prev_scans_map)
+            for cur_ip in scans_to_repeat:
+                self.wp_scan_tls(s, job, prev_scans_map, ip=cur_ip)
+            job_scan.ok()
 
         except Exception as e:
             job_scan.fail()
@@ -1477,7 +1486,7 @@ class Server(object):
         else:
             job.primary_ip = None
 
-    def wp_scan_tls(self, s, job, scan_list):
+    def wp_scan_tls(self, s, job, scan_list, ip=None):
         """
         Watcher TLS scan - body
         :param job:
@@ -1496,17 +1505,18 @@ class Server(object):
             job_spec['scan_sni'] = url.host
 
         # For now - scan only first IP address in the lexi ordering
-        # TODO: scan all IPs, perform extended handshake test on all resolved IPs
-        if job.primary_ip:
+        job_spec['dns_ok'] = True
+        if ip:
+            job_spec['scan_host'] = ip
+        elif job.primary_ip:
             job_spec['scan_host'] = job.primary_ip
-            job_spec['dns_ok'] = True
         else:
             job_scan.skip(scan_list)  # skip TLS handshake check totally if DNS is not valid
-            return
+            return False
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
-            return
+            return False
 
         last_scan = util.defvalkey(scan_list, db_scan.ip_scanned, None)
 
@@ -1541,9 +1551,7 @@ class Server(object):
 
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
-
-        # finished with success
-        job_scan.ok()
+        return True
 
     def wp_scan_crtsh(self, s, job, last_scan):
         """
