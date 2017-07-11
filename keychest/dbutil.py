@@ -128,7 +128,8 @@ class CertificateAltName(Base):
     in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'certificate_alt_names'
-    cert_id = Column(BigInteger, index=True, primary_key=True)   # TODO: to foreign key
+    cert_id = Column(ForeignKey('certificates.id', name='cert_alt_name_cert_id', ondelete='CASCADE'),
+                     nullable=False, index=True)  # certificate ID foreign key
     alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
 
 
@@ -208,7 +209,9 @@ class DbCrtShQueryResult(Base):
     """
     __tablename__ = 'crtsh_query_results'
     id = Column(BigInteger, primary_key=True)
-    query_id = Column(BigInteger)  # TODO: to foreign key
+
+    query_id = Column(ForeignKey('crtsh_query.id', name='fk_crtsh_query_results_crtsh_query_id', ondelete='CASCADE'),
+                      nullable=True, index=True)  # query ID foreign key
     job_id = Column(BigInteger, nullable=True)  # TODO: to foreign key
 
     crt_id = Column(BigInteger, nullable=True)
@@ -335,9 +338,11 @@ class DbHandshakeScanJobResult(Base):
     in JSON (denormalized copy) to avoid joins in normal operation.
     """
     __tablename__ = 'scan_handshake_results'
-    id = Column(BigInteger, primary_key=True)  # TODO: to foreign key
-    scan_id = Column(BigInteger)
-    job_id = Column(BigInteger, nullable=True)
+    id = Column(BigInteger, primary_key=True)
+
+    scan_id = Column(ForeignKey('scan_handshakes.id', name='fk_scan_handshake_results_scan_handshakes_id',
+                                ondelete='CASCADE'), nullable=True, index=True)  # scan ID foreign key
+    job_id = Column(BigInteger, nullable=True)  # TODO: to foreign key
 
     crt_id = Column(BigInteger, nullable=True)
     crt_sh_id = Column(BigInteger, nullable=True)
