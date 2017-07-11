@@ -1795,7 +1795,7 @@ class Server(object):
             s.add(crtsh_query_db)
 
         s.commit()
-        return is_same_as_before_base or is_same_as_before, \
+        return is_same_as_before_base and is_same_as_before, \
                crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base
 
     #
