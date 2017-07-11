@@ -233,7 +233,7 @@ class DbHandshakeScanJob(Base):
     watch_id = Column(ForeignKey('watch_target.id', name='tls_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
 
-    ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP)
+    ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP), ip also tied by watch id
     is_ipv6 = Column(SmallInteger, default=0, nullable=False)
 
     tls_ver = Column(String(16), nullable=True)  # tls version used to connect
@@ -534,9 +534,9 @@ class DbLastScanCache(Base):
     id = Column(BigInteger, primary_key=True)
 
     cache_type = Column(SmallInteger, default=0, nullable=False)  # mostly 0
-    obj_id = Column(BigInteger, default=0)  # watch_id mostly, or service_id, local_service
+    obj_id = Column(BigInteger, default=0, index=True)  # watch_id mostly, or service_id, local_service
 
-    scan_type = Column(Integer, default=0, nullable=False)  # tls, dns, crtsh, wildcard, subs, ...
+    scan_type = Column(Integer, default=0, nullable=False, index=True)  # tls, dns, crtsh, wildcard, subs, ...
     scan_sub_type = Column(Integer, default=0, nullable=False)
 
     aux_key = Column(String(191), default='', nullable=False)  # mostly empty string or IP
