@@ -1668,12 +1668,12 @@ class Server(object):
             # TODO: emit events with event manager.
 
         # Store scan history
-        hist = DbScanHistory()
-        hist.watch_id = job.target.id
-        hist.scan_type = 20  # crtsh w scan
-        hist.scan_code = 0
-        hist.created_at = salch.func.now()
-        s.add(hist)
+        # hist = DbScanHistory()
+        # hist.watch_id = job.target.id
+        # hist.scan_type = 20  # crtsh w scan
+        # hist.scan_code = 0
+        # hist.created_at = salch.func.now()
+        # s.add(hist)  # TODO: constraint, cannot insert here
         s.commit()
 
         # TODO: store gap if there is one
