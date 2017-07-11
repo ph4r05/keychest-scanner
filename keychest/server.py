@@ -1932,6 +1932,27 @@ class Server(object):
     # Scan helpers
     #
 
+    def load_last_tls_scan_last_dns(self, s, watch_id=None, ips=None):
+        """
+        Loads all previous TLS scans performed against the last DNS scan result set.
+        Last scan cache for the given watch_id is used to fetch the results.
+
+        :param s:
+        :param watch_id:
+        :param ips:
+        :return:
+        """
+        if not isinstance(ips, types.ListType):
+            ips = [ips]
+
+        sub = s.query(DbLastScanCache.id)\
+            .filter(DbLastScanCache.cache_type==0)\
+            .filter(DbLastScanCache.scan_type==DbScanType.TLS)\
+            .filter(DbLastScanCache.obj_id==watch_id)\
+            .filter(DbLastScanCache.aux_key.in_(ips))\
+            .subquery('x')
+        return s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.id.in_(sub)).all()
+
     def load_last_tls_scan(self, s, watch_id=None, ip=None):
         """
         Loads the most recent tls handshake scan result for given watch
