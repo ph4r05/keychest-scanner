@@ -8,6 +8,7 @@ Server job classes
 from past.builtins import cmp
 import collections
 from tls_domain_tools import TargetUrl
+from dbutil import DbWatchService, DbWatchTarget
 
 
 class ScanResults(object):
@@ -37,6 +38,9 @@ class ScanResults(object):
 
     def is_failed(self):
         return not self.success and not self.skipped
+
+    def is_skipped(self):
+        return self.skipped
 
     def __repr__(self):
         return '<ScanResults(success=%r, skipped=%r, code=%r, attempts=%r, aux=%r)>' \
@@ -116,19 +120,24 @@ class PeriodicJob(BaseJob):
     Represents periodic job loaded from the db
     """
 
-    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+    def __init__(self, target=None, periodicity=None, watch_service=None, type=None, *args, **kwargs):
         """
         :param target:
         :type target: DbWatchTarget
+        :param periodicity:
+        :param watch_service:
+        :type watch_service: DbWatchService
         :param args:
         :param kwargs:
         """
         super(PeriodicJob, self).__init__(type=JobTypes.TARGET)
 
-        self.target = target
+        self.target = target  # type: DbWatchTarget
         self.periodicity = periodicity
+        self.service = watch_service  # type: DbWatchService
 
         self.primary_ip = None
+        self.ips = []
         self.scan_dns = ScanResults()
         self.scan_tls = ScanResults()
         self.scan_crtsh = ScanResults()

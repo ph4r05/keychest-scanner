@@ -15,7 +15,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
     DbDnsResolve, DbCrtShQueryInput, \
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
-    DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, \
+    DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
     ResultModelUpdater
 import dbutil
 
@@ -29,7 +29,7 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType
+from consts import CertSigAlg, BlacklistRuleType, DbScanType
 import util_cert
 
 import threading
@@ -788,10 +788,12 @@ class Server(object):
         """
         q = s.query(
                     DbWatchTarget,
-                    salch.func.min(DbWatchAssoc.scan_periodicity).label('min_periodicity')
+                    salch.func.min(DbWatchAssoc.scan_periodicity).label('min_periodicity'),
+                    DbWatchService
         )\
             .select_from(DbWatchAssoc)\
             .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id)\
+            .outerjoin(DbWatchService, DbWatchService.id == DbWatchTarget.service_id)\
             .filter(DbWatchAssoc.deleted_at == None)
 
         if last_scan_margin:
@@ -925,12 +927,12 @@ class Server(object):
             query = self.load_active_watch_targets(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
-                watch_target, min_periodicity = x
+                watch_target, min_periodicity, watch_service = x
 
                 if self.watcher_job_queue.full():
                     return
 
-                job = PeriodicJob(target=watch_target, periodicity=min_periodicity)
+                job = PeriodicJob(target=watch_target, periodicity=min_periodicity, watch_service=watch_service)
                 self._periodic_add_job(job)
 
         except Exception as e:
@@ -1481,7 +1483,9 @@ class Server(object):
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
 
-        if TlsDomainTools.can_whois(url.host):
+        if job.service is not None:
+            job_spec['scan_sni'] = job.service.service_name
+        elif TlsDomainTools.can_whois(url.host):
             job_spec['scan_sni'] = url.host
 
         # For now - scan only first IP address in the lexi ordering
