@@ -1395,6 +1395,12 @@ class Server(object):
         job_spec = self._create_job_spec(job)
         url = self.urlize(job)
 
+        if TlsDomainTools.is_ip(url.host):
+            job.primary_ip = url.host
+            job.ips = [url.host]
+            job_scan.skip()
+            return
+
         if not TlsDomainTools.can_whois(url.host):
             logger.debug('Domain %s not eligible to DNS scan' % url.host)
             job_scan.skip()
@@ -1467,6 +1473,7 @@ class Server(object):
         if last_scan and last_scan.dns_res and len(last_scan.dns_res) > 0:
             domains = sorted(last_scan.dns_res)
             job.primary_ip = domains[0][1]
+            job.ips = [x[1] for x in last_scan.dns_res]
         else:
             job.primary_ip = None
 
