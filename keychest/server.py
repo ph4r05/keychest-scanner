@@ -18,6 +18,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
     ResultModelUpdater
 import dbutil
+from stat_sem import StatSemaphore
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -905,11 +906,12 @@ class Server(object):
         """
         num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.2 + 1))
         num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads left
+        logger.info('Max watch: %s, Max recon: %s' % (num_max_watch, num_max_recon))
 
         # semaphore array init
         self.watcher_job_semaphores = {
-            JobTypes.TARGET: threading.Semaphore(num_max_watch),
-            JobTypes.SUB: threading.Semaphore(num_max_recon)
+            JobTypes.TARGET: StatSemaphore(num_max_watch),
+            JobTypes.SUB: StatSemaphore(num_max_recon)
         }
 
         # periodic worker start
@@ -1047,7 +1049,16 @@ class Server(object):
 
             self.watcher_db_cur_jobs[job.key()] = job
             self.watcher_job_queue.put(job)
-            logger.debug('Job generated: %s, qsize: %s' % (str(job), self.watcher_job_queue.qsize()))
+            logger.debug('Job generated: %s, qsize: %s, sems: %s'
+                         % (str(job), self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+
+    def _periodic_semaphores(self):
+        """
+        Simple state dump on busy threads, returns string
+        :return:
+        """
+        sems = self.watcher_job_semaphores
+        return '|'.join(['%s=%s' % (k, sems[k].countinv()) for k in sems])
 
     def periodic_worker_main(self, idx):
         """
@@ -1087,7 +1098,7 @@ class Server(object):
         :type job: BaseJob
         :return:
         """
-        sem = self.watcher_job_semaphores[job.type]  # type: threading.Semaphore
+        sem = self.watcher_job_semaphores[job.type]  # type: StatSemaphore
         sem_acquired = False
         try:
             with self.watcher_db_lock:
@@ -1198,7 +1209,9 @@ class Server(object):
         :type job: PeriodicJob
         :return:
         """
-        logger.debug('Processing watcher job: %s, qsize: %s' % (job, self.watcher_job_queue.qsize()))
+        logger.debug('Processing watcher job: %s, qsize: %s, sems: %s'
+                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+
         s = None
         url = None
 
@@ -1248,7 +1261,8 @@ class Server(object):
         :type job: PeriodicReconJob
         :return:
         """
-        logger.debug('Processing watcher recon job: %s, qsize: %s' % (job, self.watcher_job_queue.qsize()))
+        logger.debug('Processing watcher recon job: %s, qsize: %s, sems: %s'
+                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
         s = None
         url = None
 
