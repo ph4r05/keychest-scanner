@@ -794,7 +794,8 @@ class Server(object):
             .select_from(DbWatchAssoc)\
             .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id)\
             .outerjoin(DbWatchService, DbWatchService.id == DbWatchTarget.service_id)\
-            .filter(DbWatchAssoc.deleted_at == None)
+            .filter(DbWatchAssoc.deleted_at == None)\
+            .filter(DbWatchAssoc.disabled_at == None)
 
         if last_scan_margin:
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
@@ -1252,6 +1253,11 @@ class Server(object):
         """
         job_scan = job.scan_tls  # type: ScanResults
         job_dns = job.scan_dns  # type: ScanResults
+
+        if job.target.agent_id is not None:
+            job_scan.skip()  # TLS scan is agent specific
+            return
+
         if util.is_empty(job.ips):
             job_scan.skip()  # DNS is an important part, if watch cannot be resolved - give up.
             return
