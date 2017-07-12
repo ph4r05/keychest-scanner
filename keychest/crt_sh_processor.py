@@ -201,8 +201,14 @@ class CrtProcessor(object):
             except Exception as e:
                 logger.debug('Exception in crt-sh-cert load %s/%s: %s - %s' % (attempt, attempts, crt_id, e))
                 logger.debug(traceback.format_exc())
-                if attempt >= self.attempts:
-                    raise
+                if attempt + 1 >= attempts:
+                    ret.time_end = time.time()
+                    if isinstance(e, rex.Timeout):
+                        raise CrtShTimeoutException('crtsh service query timeout', cause=e, scan_result=ret)
+                    elif isinstance(e, rex.RequestException):  # contains request & response
+                        raise CrtShRequestException('crtsh service query exception', cause=e, scan_result=ret)
+                    else:
+                        raise CrtShException('crtsh query exception', cause=e, scan_result=ret)
                 else:
                     time.sleep(1.0)
 
@@ -234,7 +240,7 @@ class CrtProcessor(object):
             except Exception as e:
                 logger.debug('Exception in crt-sh-query load %s/%s: %s - %s' % (attempt, attempts, query, e))
                 logger.debug(traceback.format_exc())
-                if attempt >= self.attempts:
+                if attempt + 1 >= attempts:
                     ret.time_end = time.time()
                     if isinstance(e, rex.Timeout):
                         raise CrtShTimeoutException('crtsh service query timeout', cause=e, scan_result=ret)
@@ -315,7 +321,7 @@ class CrtProcessor(object):
             except Exception as e:
                 logger.debug('Exception in crt-sh-detail load %s/%s: %s - %s' % (attempt, self.attempts, crt_id, e))
                 logger.debug(traceback.format_exc())
-                if attempt >= self.attempts:
+                if attempt + 1 >= self.attempts:
                     raise
                 else:
                     time.sleep(1.0)
