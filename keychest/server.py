@@ -29,7 +29,7 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType
+from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType
 import util_cert
 
 import threading
@@ -344,8 +344,13 @@ class Server(object):
 
             # crt.sh scan - only if DNS is correct
             if db_dns and db_dns.status == 1:
-                self.scan_crt_sh(s, job_data, domain, job_db)
-                s.commit()
+                try:
+                    self.scan_crt_sh(s, job_data, domain, job_db)
+                    s.commit()
+
+                except Exception as e:
+                    logger.debug('Exception in UI crtsh scan: %s - %s' % (domain, e))
+                    self.trace_logger.log(e)
 
             self.update_scan_job_state(job_db, 'crtsh-done', s)
 
@@ -422,10 +427,12 @@ class Server(object):
         sys_params = collections.OrderedDict()
         sys_params['retry'] = 1
         sys_params['timeout'] = 4
+        sys_params['mode'] = JobType.UI
 
         if scan_type == 'planner':
             sys_params['retry'] = 3
             sys_params['timeout'] = 20
+            sys_params['mode'] = JobType.BACKGROUND
 
         data['sysparams'] = sys_params
         return data
@@ -537,8 +544,18 @@ class Server(object):
         """
         crt_sh = None
         raw_query = self.get_crtsh_text_query(query)
+        query_type = self.get_crtsh_query_type(query)
+
+        # wildcard background scan - higher timeout
+        scan_kwargs = {}
+        if self.get_job_type(job_data) == JobType.BACKGROUND:
+            if query_type == CrtshInputType.LIKE_WILDCARD:
+                scan_kwargs['timeout'] = 20
+            if query_type == CrtshInputType.EXACT:
+                scan_kwargs['timeout'] = 10
+
         try:
-            crt_sh = self.crt_sh_proc.query(raw_query)
+            crt_sh = self.crt_sh_proc.query(raw_query, **scan_kwargs)
 
         except CrtShTimeoutException as tex:
             logger.warning('CRTSH timeout for: %s' % raw_query)
@@ -2430,6 +2447,19 @@ class Server(object):
             scan_db.pinning_report_only = pinn.report_only
             scan_db.pinning_pins = json.dumps(pinn.pins)
 
+    def get_job_type(self, job_data):
+        """
+        Returns if job is UI or Background
+        :param job_data:
+        :return:
+        """
+        if job_data is None or 'sysparams' not in job_data:
+            return JobType.UI
+        params = job_data['sysparams']
+        if 'mode' not in params:
+            return JobType.UI
+        return params['mode']
+
     def fetch_new_certs(self, s, job_data, crt_sh_id, index_result, crtsh_query_db, store_res=True):
         """
         Fetches the new cert from crt.sh, parses, inserts to the db
@@ -2588,6 +2618,25 @@ class Server(object):
                 if attempt + 1 >= attempts:
                     raise
 
+    def get_crtsh_query_type(self, query, default_type=None):
+        """
+        Determines crtsh query type CrtshInputType
+        :param query:
+        :param default_type:
+        :return:
+        """
+        if default_type is None:
+            default_type = CrtshInputType.EXACT
+
+        query_type = None
+        if isinstance(query, DbCrtShQueryInput):
+            query_type = query.itype
+
+        elif isinstance(query, types.TupleType):
+            query_type = query[1]
+
+        return query_type if query_type is not None else default_type
+
     def get_crtsh_text_query(self, query, query_type=None):
         """
         Generates CRTSH input query to use from the input object
@@ -2607,13 +2656,13 @@ class Server(object):
         else:
             query_input = query
 
-        if query_type is None or query_type == 0:
+        if query_type is None or query_type == CrtshInputType.EXACT:
             return str(query_input)
-        elif query_type == 1:
+        elif query_type == CrtshInputType.STAR_WILDCARD:
             return '*.%s' % query_input
-        elif query_type == 2:
+        elif query_type == CrtshInputType.LIKE_WILDCARD:
             return '%%.%s' % query_input
-        elif query_type == 3:
+        elif query_type == CrtshInputType.RAW:
             return str(query_input)
         else:
             raise ValueError('Unknown CRTSH query type %s, input %s' % (query_type, query_input))

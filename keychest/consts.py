@@ -68,4 +68,16 @@ class BlacklistRuleType(object):
     MATCH = 1
 
 
+class CrtshInputType(object):
+    EXACT = 0
+    STAR_WILDCARD = 1
+    LIKE_WILDCARD = 2
+    RAW = 3
+
+
+class JobType(object):
+    UI = 1
+    BACKGROUND = 2
+
+
 
