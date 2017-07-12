@@ -109,23 +109,23 @@ class TlsScanner(object):
                 except requests.exceptions.ReadTimeout as rte:
                     error = RequestErrorWrapper(RequestErrorCode.READ_TIMEOUT,
                                                 RequestError('Read timeout', rte))
-                    self.trace_logger.log(rte)
+                    # self.trace_logger.log(rte)
 
                 except requests.exceptions.ConnectTimeout as cte:
                     error = RequestErrorWrapper(RequestErrorCode.CONNECTION_TIMEOUT,
                                                 RequestError('Connect timeout', cte))
-                    self.trace_logger.log(cte)
+                    # self.trace_logger.log(cte)
 
                 except requests.exceptions.SSLError as cte:
                     error = RequestErrorWrapper(RequestErrorCode.SSL,
                                                 RequestError('SSL Error', cte))
-                    self.trace_logger.log(cte)
+                    # self.trace_logger.log(cte)
 
                 except requests.exceptions.ConnectionError as ce:
                     error = RequestErrorWrapper(RequestErrorCode.CONNECTION,
                                                 RequestError('Connection error', ce))
                     logger.debug('Connection error: %s' % ce)
-                    self.trace_logger.log(ce)
+                    # self.trace_logger.log(ce)
 
                 except requests.exceptions.RequestException as re:
                     error = RequestErrorWrapper(RequestErrorCode.GENERIC,
