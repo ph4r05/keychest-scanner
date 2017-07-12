@@ -59,7 +59,7 @@ import sqlalchemy as salch
 from sqlalchemy.orm.query import Query as SaQuery
 from sqlalchemy import case, literal_column
 
-from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShTimeoutException
+from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShException, CrtShTimeoutException
 import ph4whois
 
 
@@ -545,7 +545,7 @@ class Server(object):
             raise
 
         if crt_sh is None:
-            return
+            raise CrtShException('CRTSH returned empty result for %s' % raw_query)
 
         # existing certificates - have pem
         all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
@@ -1577,6 +1577,9 @@ class Server(object):
 
         crtsh_query_db, sub_res_list = self.scan_crt_sh(
             s=s, job_data=job_spec, query=url.host, job_db=None, store_to_db=False)
+        if crtsh_query_db is None:
+            job_scan.fail()
+            return
 
         is_same_as_before = self.diff_scan_crtsh(crtsh_query_db, last_scan)
         if is_same_as_before:
