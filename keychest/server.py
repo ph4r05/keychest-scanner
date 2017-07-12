@@ -2321,6 +2321,7 @@ class Server(object):
         Tries to insert new certificate to the DB.
         If fails due to constraint violation (somebody preempted), it tries to load
         certificate with the same fingerprint. If fails, repeats X times.
+        Automatically commits the transaction before inserting - could fail under high load.
         :param s:
         :param cert_db:
         :type cert_db: Certificate
@@ -2340,6 +2341,8 @@ class Server(object):
         for attempt in range(5):
             done = False
             if not fetch_first or attempt > 0:
+                if not attempt == 0:  # insert first, then commit transaction before it may fail.
+                    s.commit()
                 try:
                     s.add(cert_db)
                     s.commit()
