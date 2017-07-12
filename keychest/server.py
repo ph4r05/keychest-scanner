@@ -1259,9 +1259,10 @@ class Server(object):
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
 
         # repeat
-        scans_to_repeat = list(set(job.ips) - set([x.ip_scanned for x in prev_scans]))
+        ips_set = set(job.ips)
+        scans_to_repeat = list(ips_set - set([x.ip_scanned for x in prev_scans]))  # not scanned yet
         scans_to_repeat += [x.ip_scanned for x in prev_scans
-                            if x.ip_scanned != '-'
+                            if x.ip_scanned != '-' and x.ip_scanned in ips_set
                             and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls))]
 
         logger.debug('ips: %s, scan map: %s, repeat: %s' % (job.ips, prev_scans_map, scans_to_repeat))
