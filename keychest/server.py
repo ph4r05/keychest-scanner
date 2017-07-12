@@ -41,6 +41,7 @@ import os
 import sys
 import types
 import util
+import math
 import json
 import base64
 import itertools
@@ -52,7 +53,7 @@ import coloredlogs
 import traceback
 import collections
 import signal
-from queue import Queue, Empty as QEmpty, PriorityQueue
+from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 from datetime import datetime, timedelta
 
 import sqlalchemy as salch
@@ -114,6 +115,7 @@ class Server(object):
 
         self.watch_last_db_scan = 0
         self.watch_db_scan_period = 5
+        self.watcher_job_queue_size = 512
         self.watcher_job_queue = PriorityQueue()
         self.watcher_db_cur_jobs = {}  # watchid -> job either in queue or processing
         self.watcher_db_processing = {}  # watchid -> time scan started, protected by lock
@@ -859,6 +861,32 @@ class Server(object):
         """
         return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).total_seconds()
 
+    def _periodic_queue_is_full(self, for_who=None):
+        """
+        Returns true if the main watcher queue is full.
+        The queue is not strictly bounded to avoid exceptions on re-adding failed
+        job to the queue for retry. Method though returns inaccurate results. Used for
+        job management.
+        :param: for_who:
+        :return:
+        """
+        size = self.watcher_job_queue.qsize()
+        limit = self.watcher_job_queue_size
+
+        # make some space for next feeders so it does not starve
+        if for_who is not None and for_who == JobTypes.SUB:
+            limit += math.ceil(0.1 * limit)
+
+        return size >= limit
+
+    def _periodic_queue_should_add_new(self):
+        """
+        Returns true if new jobs can be added to the queue.
+        :return:
+        """
+        size = self.watcher_job_queue.qsize()
+        return size <= self.watcher_job_queue_size * 0.85
+
     def periodic_feeder_init(self):
         """
         Initializes data structures required for data processing
@@ -893,8 +921,7 @@ class Server(object):
             if self.watch_last_db_scan + self.watch_db_scan_period <= ctime:
                 scan_now = True
 
-            if not scan_now and self.watch_last_db_scan + 2 <= ctime \
-                    and self.watcher_job_queue.qsize() <= 100:
+            if not scan_now and self.watch_last_db_scan + 2 <= ctime and self._periodic_queue_should_add_new():
                 scan_now = True
 
             if not scan_now:
@@ -919,7 +946,7 @@ class Server(object):
         Feeder loop body
         :return:
         """
-        if self.watcher_job_queue.full():
+        if self._periodic_queue_is_full():
             return
 
         s = self.db.get_session()
@@ -937,7 +964,7 @@ class Server(object):
         :param s:
         :return:
         """
-        if self.watcher_job_queue.full():
+        if self._periodic_queue_is_full():
             return
 
         try:
@@ -947,11 +974,15 @@ class Server(object):
             for x in iterator:
                 watch_target, min_periodicity, watch_service = x
 
-                if self.watcher_job_queue.full():
+                if self._periodic_queue_is_full():
                     return
 
                 job = PeriodicJob(target=watch_target, periodicity=min_periodicity, watch_service=watch_service)
                 self._periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
 
         except Exception as e:
             s.rollback()
@@ -965,7 +996,7 @@ class Server(object):
         :param s:
         :return:
         """
-        if self.watcher_job_queue.full():
+        if self._periodic_queue_is_full(JobTypes.SUB):
             return
 
         try:
@@ -975,12 +1006,16 @@ class Server(object):
             for x in iterator:
                 watch_target, min_periodicity = x
 
-                if self.watcher_job_queue.full():
+                if self._periodic_queue_is_full(JobTypes.SUB):
                     return
 
                 # TODO: analyze if this job should be processed or results are recent, no refresh is needed
                 job = PeriodicReconJob(target=watch_target, periodicity=min_periodicity)
                 self._periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
 
         except Exception as e:
             s.rollback()
