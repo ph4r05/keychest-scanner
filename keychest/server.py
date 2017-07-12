@@ -2914,12 +2914,15 @@ class Server(object):
             # race condition with another process may cause this to fail on unique constraint.
             try:
                 s.add(nassoc)
+                s.commit()
+
                 num_hosts += 1
+                existing_host_names.add(new_host)
+
             except Exception as e:
                 logger.debug('Exception when adding auto sub watch: %s' % e)
                 self.trace_logger.log(e, custom_msg='Auto add sub watch')
                 s.rollback()
-        s.commit()
 
     #
     # DB tools
