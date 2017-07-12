@@ -3062,7 +3062,7 @@ class Server(object):
                     ret.sld_id = top_domain_obj.id
 
                 s.add(ret)
-                s.flush()
+                s.commit()
                 return ret, 1
 
             except Exception as e:
