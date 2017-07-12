@@ -47,6 +47,7 @@ import base64
 import itertools
 import argparse
 import calendar
+import random
 from threading import RLock as RLock
 import logging
 import coloredlogs
@@ -140,6 +141,8 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
+        self.randomize_diff_time_fact = 0.15
+        self.randomize_feeder_fact = 0.25
         self.delta_dns = timedelta(hours=2)
         self.delta_tls = timedelta(hours=8)
         self.delta_crtsh = timedelta(hours=12)
@@ -654,7 +657,7 @@ class Server(object):
             last_scan = self.load_last_whois_scan(s, top_domain_db) if not domain_new else None
             if last_scan is not None \
                     and last_scan.last_scan_at \
-                    and last_scan.last_scan_at > self._diff_time(self.delta_whois):
+                    and last_scan.last_scan_at > self._diff_time(self.delta_whois, rnd=True):
                 if job_db is not None:
                     job_db.whois_check_id = last_scan.id
                     job_db = s.merge(job_db)
@@ -790,7 +793,7 @@ class Server(object):
     # Periodic scanner
     #
 
-    def load_active_watch_targets(self, s, last_scan_margin=300):
+    def load_active_watch_targets(self, s, last_scan_margin=300, randomize=True):
         """
         Loads active jobs to scan, from the oldest.
         After loading the result is a tuple (DbWatchTarget, min_periodicity).
@@ -803,6 +806,7 @@ class Server(object):
         :param s : SaQuery query
         :type s: SaQuery
         :param last_scan_margin: margin for filtering out records that were recently processed.
+        :param randomize: randomizes margin +- 25%
         :return:
         """
         q = s.query(
@@ -817,6 +821,9 @@ class Server(object):
             .filter(DbWatchAssoc.disabled_at == None)
 
         if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1*fact, fact))
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
             q = q.filter(salch.or_(
                 DbWatchTarget.last_scan_at < cur_margin,
@@ -826,7 +833,7 @@ class Server(object):
         return q.group_by(DbWatchTarget.id, DbWatchAssoc.scan_type)\
                 .order_by(DbWatchTarget.last_scan_at)  # select the oldest scanned first
 
-    def load_active_recon_targets(self, s, last_scan_margin=300):
+    def load_active_recon_targets(self, s, last_scan_margin=300, randomize=True):
         """
         Loads active jobs to scan, from the oldest.
         After loading the result is a tuple (DbSubdomainWatchTarget, min_periodicity).
@@ -834,6 +841,7 @@ class Server(object):
         :param s : SaQuery query
         :type s: SaQuery
         :param last_scan_margin: margin for filtering out records that were recently processed.
+        :param randomize:
         :return:
         """
         q = s.query(
@@ -845,6 +853,9 @@ class Server(object):
             .filter(DbSubdomainWatchAssoc.deleted_at == None)
 
         if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1*fact, fact))
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
             q = q.filter(salch.or_(
                 DbSubdomainWatchTarget.last_scan_at < cur_margin,
@@ -1283,7 +1294,7 @@ class Server(object):
         last_scan = self.load_last_dns_scan(s, job.watch_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_dns):
+                and last_scan.last_scan_at > self._diff_time(self.delta_dns, rnd=True):
             job_scan.skip(last_scan)
             self.wp_process_dns(s, job, job_scan.aux)
             return  # scan is relevant enough
@@ -1323,7 +1334,7 @@ class Server(object):
         scans_to_repeat = list(ips_set - set([x.ip_scanned for x in prev_scans]))  # not scanned yet
         scans_to_repeat += [x.ip_scanned for x in prev_scans
                             if x.ip_scanned != '-' and x.ip_scanned in ips_set
-                            and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls))]
+                            and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls, rnd=True))]
 
         logger.debug('ips: %s, repeat: %s, url: %s, scan map: %s, '
                      % (job.ips, scans_to_repeat, self.urlize(job), prev_scans_map))
@@ -1355,7 +1366,7 @@ class Server(object):
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_crtsh):
+                and last_scan.last_scan_at > self._diff_time(self.delta_crtsh, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1387,7 +1398,7 @@ class Server(object):
         last_scan = self.load_last_whois_scan(s, top_domain) if not is_new else None
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_whois):
+                and last_scan.last_scan_at > self._diff_time(self.delta_whois, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1415,7 +1426,7 @@ class Server(object):
         last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_wildcard):
+                and last_scan.last_scan_at > self._diff_time(self.delta_wildcard, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -2178,18 +2189,22 @@ class Server(object):
     # Helpers
     #
 
-    def _diff_time(self, delta=None, days=None, seconds=None, hours=None):
+    def _diff_time(self, delta=None, days=None, seconds=None, hours=None, rnd=True):
         """
         Returns now - diff time
         :param delta:
+        :param days:
         :param seconds:
         :param hours:
+        :param rnd:
         :return:
         """
         now = datetime.now()
-        if delta is not None:
-            return now - delta
-        return now - timedelta(days=days, hours=hours, seconds=seconds)
+        ndelta = delta if delta else timedelta(days=days, hours=hours, seconds=seconds)
+        if rnd:
+            fact = rnd if isinstance(rnd, types.FloatType) else self.randomize_diff_time_fact
+            ndelta += timedelta(seconds=(ndelta.total_seconds() * random.uniform(-1*fact, fact)))
+        return now - ndelta
 
     def urlize(self, obj):
         """
