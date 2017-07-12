@@ -120,6 +120,10 @@ class Certificate(Base):
     def init_on_load(self):
         self.alt_names_arr = util.defval(util.try_load_json(self.alt_names), [])
 
+    @property
+    def all_names(self):
+        return list(self.alt_names_arr) + ([self.cname] if self.cname else [])
+
 
 class CertificateAltName(Base):
     """

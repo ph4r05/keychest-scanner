@@ -1679,7 +1679,7 @@ class Server(object):
 
             all_alt_names = set()
             for cert in (certs_loaded + certs_downloaded):  # type: Certificate
-                for alt in cert.alt_names_arr:
+                for alt in cert.all_names:
                     all_alt_names.add(alt)
 
             # - filter out alt names not ending on the target
