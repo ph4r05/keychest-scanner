@@ -183,6 +183,8 @@ class DbCrtShQuery(Base):
                       nullable=True, index=True)  # input id - easy search, defines the search itself
     sub_watch_id = Column(ForeignKey('subdomain_watch_target.id', name='crtsh_watch_sub_target_id', ondelete='SET NULL'),
                           nullable=True, index=True)  # watch id scan for periodic sub domain scanner
+    service_id = Column(ForeignKey('watch_service.id', name='crtsh_watch_watch_service_id', ondelete='SET NULL'),
+                        nullable=True, index=True)  # ID of the service name
 
     last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
@@ -753,7 +755,7 @@ class DbKeychestAgent(Base):
     __tablename__ = "keychest_agent"
     id = Column(BigInteger, primary_key=True)
     name = Column(String(191), nullable=False)
-    api_key = Column(String(191), nullable=False)
+    api_key = Column(String(191), nullable=False, index=True)
 
     organization_id = Column(ForeignKey('organization.id', name='keychest_agent_organization_id',
                                         ondelete='CASCADE'), nullable=False, index=True)
@@ -761,6 +763,7 @@ class DbKeychestAgent(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     last_seen_active_at = Column(DateTime, default=None)  # last
+    last_seen_ip = Column(String(191), nullable=True)
 
 
 class DbWatchService(Base):
@@ -773,15 +776,17 @@ class DbWatchService(Base):
     CT scans are related to the service name (domain / web).
     There is usually one-to-many relation service -> target (target as a physical machine / server).
 
-    This is meant to be a global service reference, e.g. for CT log scanning.
+    This is meant to be a global service reference, e.g. for CT log scanning & whois.
     It is global object, unrelated to the users.
     """
     __tablename__ = 'watch_service'
     id = Column(BigInteger, primary_key=True)
 
-    service_name = Column(String(255), nullable=False)
+    service_name = Column(String(255), nullable=False, unique=True)
     top_domain_id = Column(ForeignKey('base_domain.id', name='watch_service_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)
+    crtsh_input_id = Column(ForeignKey('crtsh_input.id', name='fk_watch_service_crtsh_input_id', ondelete='SET NULL'),
+                            nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1103,19 +1108,18 @@ class ResultModelUpdater(object):
         return is_same, obj, last_scan
 
     @staticmethod
-    def update_cache(s, new_scan, sub_type=0, skip_search=False):
+    def update_cache(s, new_scan, sub_type=0, cache_type=0, skip_search=False):
         """
         Updates last scan cache
         :param s:
         :param new_scan:
         :param sub_type:
+        :param cache_type:
         :param skip_search:
         :return:
         """
         cache = DbLastScanCache()
-        cache.cache_type = 0
-        cache.obj_id = 0  # watch_id mostly, or service_id, local_service
-        cache.scan_type = 0  # tls, dns, crtsh, wildcard, subs, ...
+        cache.cache_type = cache_type
         cache.scan_sub_type = sub_type
         cache.aux_key = ''  # mostly empty string or IP
         cache.scan_id = new_scan.id
