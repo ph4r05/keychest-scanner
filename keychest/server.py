@@ -1653,7 +1653,7 @@ class Server(object):
 
         # blacklisting check
         if self.is_blacklisted(job.target.scan_host) is not None:
-            logger.debug('Domain blacklisted: %s' % job.target.scan_hos)
+            logger.debug('Domain blacklisted: %s' % job.target.scan_host)
             job_scan.ok()
             return
 
