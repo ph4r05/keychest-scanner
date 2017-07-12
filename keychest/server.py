@@ -1290,7 +1290,8 @@ class Server(object):
                             if x.ip_scanned != '-' and x.ip_scanned in ips_set
                             and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls))]
 
-        logger.debug('ips: %s, scan map: %s, repeat: %s' % (job.ips, prev_scans_map, scans_to_repeat))
+        logger.debug('ips: %s, repeat: %s, url: %s, scan map: %s, '
+                     % (job.ips, scans_to_repeat, self.urlize(job), prev_scans_map))
 
         if len(scans_to_repeat) == 0:
             job_scan.skip(prev_scans_map)
