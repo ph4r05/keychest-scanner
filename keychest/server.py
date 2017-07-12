@@ -1254,6 +1254,7 @@ class Server(object):
         job_dns = job.scan_dns  # type: ScanResults
         if util.is_empty(job.ips):
             job_scan.skip()  # DNS is an important part, if watch cannot be resolved - give up.
+            return
 
         prev_scans = self.load_last_tls_scan_last_dns(s, job.watch_id(), job.ips)
         prev_scans_map = {x.ip_scanned: x for x in prev_scans}
@@ -1954,6 +1955,8 @@ class Server(object):
         """
         if not isinstance(ips, types.ListType):
             ips = [ips]
+        else:
+            ips = list(ips)
 
         sub = s.query(DbLastScanCache.scan_id)\
             .filter(DbLastScanCache.cache_type==0)\
