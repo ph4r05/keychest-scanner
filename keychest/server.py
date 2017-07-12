@@ -138,9 +138,9 @@ class Server(object):
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
 
-        self.delta_dns = timedelta(minutes=10)
-        self.delta_tls = timedelta(hours=2)
-        self.delta_crtsh = timedelta(hours=8)
+        self.delta_dns = timedelta(hours=2)
+        self.delta_tls = timedelta(hours=8)
+        self.delta_crtsh = timedelta(hours=12)
         self.delta_whois = timedelta(hours=48)
         self.delta_wildcard = timedelta(days=2)
 
