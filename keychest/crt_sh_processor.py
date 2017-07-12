@@ -176,17 +176,20 @@ class CrtProcessor(object):
         self.timeout = timeout
         self.attempts = attempts
 
-    def download_crt(self, crt_id):
+    def download_crt(self, crt_id, **kwargs):
         """
         Queries download of the raw certificate according to the cert ID
         https://crt.sh/?d=12345
-        :param crt_id: 
-        :return: 
+        :param crt_id:
+        :param kwargs:
+        :return:
         """
         ret = CrtShCertResponse(crtid=crt_id)
-        for attempt in range(self.attempts):
+        attempts = kwargs.get('attempts', self.attempts)
+        timeout = kwargs.get('timeout', self.timeout)
+        for attempt in range(attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'d': crt_id}, timeout=self.timeout)
+                res = requests.get(self.BASE_URL, params={'d': crt_id}, timeout=timeout)
                 res.raise_for_status()
 
                 ret.attempts = attempt
@@ -196,7 +199,7 @@ class CrtProcessor(object):
                 return ret
 
             except Exception as e:
-                logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug('Exception in crt-sh-cert load %s/%s: %s - %s' % (attempt, attempts, crt_id, e))
                 logger.debug(traceback.format_exc())
                 if attempt >= self.attempts:
                     raise
@@ -205,16 +208,19 @@ class CrtProcessor(object):
 
         return None
 
-    def query(self, query):
+    def query(self, query, **kwargs):
         """
         Query domain on crt.sh
-        :param query: 
-        :return: 
+        :param query:
+        :param kwargs:
+        :return:
         """
         ret = CrtShIndexResponse(query=query)
-        for attempt in range(self.attempts):
+        attempts = kwargs.get('attempts', self.attempts)
+        timeout = kwargs.get('timeout', self.timeout)
+        for attempt in range(attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'q': query}, timeout=self.timeout)
+                res = requests.get(self.BASE_URL, params={'q': query}, timeout=timeout)
                 res.raise_for_status()
                 data = res.text
 
@@ -226,7 +232,7 @@ class CrtProcessor(object):
                 return ret
 
             except Exception as e:
-                logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug('Exception in crt-sh-query load %s/%s: %s - %s' % (attempt, attempts, query, e))
                 logger.debug(traceback.format_exc())
                 if attempt >= self.attempts:
                     ret.time_end = time.time()
@@ -307,7 +313,7 @@ class CrtProcessor(object):
                 return ret
 
             except Exception as e:
-                logger.debug('Exception in crt-sh load: %s' % e)
+                logger.debug('Exception in crt-sh-detail load %s/%s: %s - %s' % (attempt, self.attempts, crt_id, e))
                 logger.debug(traceback.format_exc())
                 if attempt >= self.attempts:
                     raise
