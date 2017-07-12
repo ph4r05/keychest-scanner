@@ -450,7 +450,6 @@ class Server(object):
         """
         domain = job_data['scan_host']
         domain_sni = util.defvalkey(job_data, 'scan_sni', domain)
-        dns_ok = util.defvalkey(job_data, 'dns_ok', True, take_none=False)
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
@@ -458,6 +457,7 @@ class Server(object):
 
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
         scheme = util.defvalkey(job_data, 'scan_scheme', None, take_none=False)
+        do_connect_analysis = util.defvalkey(job_data, 'dns_ok', True, take_none=False)
 
         # Simple TLS handshake to the given host.
         # Analyze results, store scan record.
@@ -507,7 +507,7 @@ class Server(object):
             self.process_handshake_certs(s, resp, scan_db, do_job_subres=store_job)
 
             # Try direct connect with requests, follow urls
-            if dns_ok:
+            if do_connect_analysis:
                 self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme)
             else:
                 logger.debug('Connect analysis skipped for %s' % domain_sni)
@@ -1261,7 +1261,8 @@ class Server(object):
         # repeat
         scans_to_repeat = list(set(job.ips) - set([x.ip_scanned for x in prev_scans]))
         scans_to_repeat += [x.ip_scanned for x in prev_scans
-                            if not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls)]
+                            if x.ip_scanned != '-'
+                            and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls))]
 
         logger.debug('ips: %s, scan map: %s, repeat: %s' % (job.ips, prev_scans_map, scans_to_repeat))
 
