@@ -430,8 +430,8 @@ class Server(object):
         sys_params['mode'] = JobType.UI
 
         if scan_type == 'planner':
-            sys_params['retry'] = 3
-            sys_params['timeout'] = 20
+            sys_params['retry'] = 2
+            sys_params['timeout'] = 15  # tls & connect scan
             sys_params['mode'] = JobType.BACKGROUND
 
         data['sysparams'] = sys_params
