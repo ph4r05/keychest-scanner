@@ -1955,7 +1955,7 @@ class Server(object):
         if not isinstance(ips, types.ListType):
             ips = [ips]
 
-        sub = s.query(DbLastScanCache.id)\
+        sub = s.query(DbLastScanCache.scan_id)\
             .filter(DbLastScanCache.cache_type==0)\
             .filter(DbLastScanCache.scan_type==DbScanType.TLS)\
             .filter(DbLastScanCache.obj_id==watch_id)\
