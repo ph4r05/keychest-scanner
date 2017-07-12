@@ -1653,6 +1653,7 @@ class Server(object):
 
         # blacklisting check
         if self.is_blacklisted(job.target.scan_host) is not None:
+            logger.debug('Domain blacklisted: %s' % job.target.scan_hos)
             job_scan.ok()
             return
 
@@ -1665,14 +1666,17 @@ class Server(object):
             self.wp_scan_wildcard_query(s, query=query, query_base=query_base,
                                         job=job, job_spec=job_spec, last_scan=last_scan)
 
+        # load previous cached result, may be empty.
+        last_cache_res = self.load_last_subs_result(s, watch_id=job.watch_id())
+
         # new result - store new subdomain data, invalidate old results
-        if not is_same_as_before:
+        if not is_same_as_before or last_cache_res is None:
             # - extract domains to the result cache....
             # - load previously saved certs, not loaded now, from db
             # TODO: load previous result, just add altnames added in new certificates.
-            sub_lists = list(set(list(sub_res_list) + list(sub_res_list_base)))
-            certs_to_load = [x.crt_id for x in sub_lists
-                             if x is not None and x.crt_sh_id is not None and x.cert_db is None]
+            sub_lists = list(sub_res_list) + list(sub_res_list_base)
+            certs_to_load = list(set([x.crt_id for x in sub_lists
+                                      if x is not None and x.crt_sh_id is not None and x.cert_db is None]))
             certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
             certs_downloaded = [x.cert_db for x in sub_lists
                                 if x is not None and x.cert_db is not None]
@@ -1680,7 +1684,7 @@ class Server(object):
             all_alt_names = set()
             for cert in (certs_loaded + certs_downloaded):  # type: Certificate
                 for alt in cert.all_names:
-                    all_alt_names.add(alt)
+                    all_alt_names.add(util.lower(alt))
 
             # - filter out alt names not ending on the target
             suffix = '.%s' % query.iquery
