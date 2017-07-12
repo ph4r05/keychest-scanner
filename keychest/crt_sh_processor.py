@@ -26,7 +26,7 @@ class CrtShException(errors.Error):
 class CrtShRequestException(CrtShException):
     """Service request exception"""
     def __init__(self, message=None, cause=None, scan_result=None):
-        super(CrtShException, self).__init__(message=message, cause=cause, scan_result=scan_result)
+        super(CrtShRequestException, self).__init__(message=message, cause=cause, scan_result=scan_result)
 
 
 class CrtShTimeoutException(CrtShRequestException):
