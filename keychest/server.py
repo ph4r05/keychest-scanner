@@ -2105,7 +2105,7 @@ class Server(object):
             if is_new:
                 return None  # non-existing top domain, no result then
 
-        q = s.query(DbWhoisCheck).filter(DbWhoisCheck.domain == top_domain)
+        q = s.query(DbWhoisCheck).filter(DbWhoisCheck.domain_id == top_domain.id)
         return q.order_by(DbWhoisCheck.last_scan_at.desc()).limit(1).first()
 
     def load_last_dns_scan(self, s, watch_id=None):
@@ -3011,6 +3011,8 @@ class Server(object):
                 self.trace_logger.log(e, custom_msg='top domain fetch error')
 
             # insert attempt now
+            if attempt == 0:
+                s.commit()  # commit before insert, race condition may violate constraint
             try:
                 ret = DbBaseDomain()
                 ret.domain_name = top_domain
@@ -3048,6 +3050,9 @@ class Server(object):
             except Exception as e:
                 logger.error('Error fetching crtsh query from DB: %s-%s : %s' % (domain, query_type, e))
                 self.trace_logger.log(e, custom_msg='crtsh input fetch error')
+
+            if attempt == 0:
+                s.commit()
 
             # insert attempt now
             try:
