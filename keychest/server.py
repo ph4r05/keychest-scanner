@@ -1087,6 +1087,7 @@ class Server(object):
             # remove from processing caches so it can be picked up again later.
             # i.e. remove lock on this item
             if remove_job:
+                self.periodic_update_last_scan(job)  # job failed even after many attempts
                 with self.watcher_db_lock:
                     del self.watcher_db_cur_jobs[job.key()]
 
@@ -1108,7 +1109,7 @@ class Server(object):
         elif job.type == JobTypes.SUB:
             self._periodic_update_last_scan_recon(job)
         else:
-            raise ValueError('Unverognized job type')
+            raise ValueError('Unrecognized job type')
 
     def _periodic_update_last_scan_watch(self, job):
         """
