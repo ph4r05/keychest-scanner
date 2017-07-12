@@ -672,6 +672,7 @@ class DbSubdomainResultCache(Base):
     last_scan_idx = Column(BigInteger, nullable=True)  # newest element in the scan, e.g., certificate ID
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
 
+    result_size = Column(Integer, default=0, nullable=False)
     result = Column(Text, nullable=True)  # JSON result data, normalized for easy comparison. Sorted list of subdomains.
 
     def __init__(self):

@@ -1699,6 +1699,7 @@ class Server(object):
             db_sub.num_scans = 1
             db_sub.scan_type = 1  # crtsh
             db_sub.trans_result = sorted(list(suffix_alts))
+            db_sub.result_size = len(db_sub.trans_result)
             db_sub.result = json.dumps(db_sub.trans_result)
 
             mm = DbSubdomainResultCache
