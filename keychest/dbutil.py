@@ -6,6 +6,7 @@ import util
 import errors
 import logging
 import copy
+import collections
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
@@ -1070,6 +1071,37 @@ class DbHelper(object):
         count_q = q.statement.with_only_columns([func.count()]).order_by(None)
         count = q.session.execute(count_q).scalar()
         return count
+
+    @staticmethod
+    def to_dict(model, cols=None):
+        """
+        Transforms model to a dictionary
+        :param model:
+        :param cols:
+        :return:
+        """
+        if model is None:
+            return None
+
+        obj = copy.deepcopy(model)
+        if cols is None:
+            cols = model.__table__.columns
+        ret = collections.OrderedDict()
+
+        for col in cols:
+            val = getattr(obj, col.name)
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+
+            if val is None:
+                def_val = DbHelper.default_value(col)
+                if def_val is not None:
+                    val = copy.deepcopy(def_val)
+                    if isinstance(col, ColTransformWrapper):
+                        val = col.transform(val)
+
+            ret[col.name] = val
+        return ret
 
 
 class ResultModelUpdater(object):
