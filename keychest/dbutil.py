@@ -7,6 +7,8 @@ import errors
 import logging
 import copy
 import collections
+import errors
+import time
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
@@ -1118,6 +1120,53 @@ class DbHelper(object):
 
             ret[col.name] = val
         return ret
+
+
+class DbException(errors.Error):
+    """Generic DB exception"""
+    def __init__(self, message=None, cause=None):
+        super(DbException, self).__init__(message=message, cause=cause)
+
+
+class DbTooManyFails(DbException):
+    """Generic DB exception"""
+    def __init__(self, message=None, cause=None):
+        super(DbTooManyFails, self).__init__(message=message, cause=cause)
+
+
+class ModelUpdater(object):
+    """
+    Generic helper with read/inserts
+    """
+    @staticmethod
+    def load_or_insert(s, obj, select_cols, fetch_first=True, attempts=5):
+        """
+        General load if exists / store if not approach with attempts.
+        :param s:
+        :param obj:
+        :param select_cols:
+        :param fetch_first:
+        :param attempts:
+        :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
+        """
+        for attempt in attempts:
+            if not fetch_first or attempt > 0:
+                if not attempt == 0:  # insert first, then commit transaction before it may fail.
+                    s.commit()
+                try:
+                    s.add(obj)
+                    s.commit()
+                    return obj, 1
+
+                except Exception as e:
+                    s.rollback()
+
+            sq = DbHelper.query_filter_model(s.query(obj.__table__), select_cols, obj)
+            db_obj = sq.first()
+            if db_obj is not None:
+                return db_obj, 0
+
+        raise DbTooManyFails('Could not load / store object')
 
 
 class ResultModelUpdater(object):
