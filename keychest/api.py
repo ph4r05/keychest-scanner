@@ -98,7 +98,7 @@ class RestAPI(object):
         logger.info('REST thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
         try:
             self.init_rest()
-            r = self.flask.run(debug=self.debug, port=self.HTTP_PORT)
+            r = self.flask.run(debug=self.debug, port=self.HTTP_PORT, threaded=True)
             logger.info('Terminating flask: %s' % r)
 
         except Exception as e:
@@ -133,8 +133,12 @@ class RestAPI(object):
             return self.on_keep_alive(request=request)
 
         @self.flask.route('/api/v1.0/get_targets', methods=['GET'])
-        def rest_stats():
+        def rest_get_targets():
             return self.on_get_targets(request=request)
+
+        @self.flask.route('/api/v1.0/wait_command', methods=['GET'])
+        def rest_wait_command():
+            return self.on_wait_command(request=request)
 
     def wrap_requests(*args0, **kwargs0):
         """
@@ -256,4 +260,23 @@ class RestAPI(object):
         dicts = [util.jsonify(x) for x in dicts]
         return jsonify({'result': True, 'targets': dicts})
 
+    @wrap_requests()
+    def on_wait_command(self, r=None, request=None):
+        """
+        Commet like command push
+        :param r:
+        :param request:
+        :return:
+        """
+        cmds = []
+
+        # TODO: pull commands from the queue somehow
+        start_time = time.time()
+        thresh = start_time + 10.0
+        while True:
+            ctime = time.time()
+            if ctime >= thresh:
+                break
+
+        return jsonify({'result': True, 'commands': []})
 
