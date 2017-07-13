@@ -256,6 +256,7 @@ class Server(object):
         """
         self.terminate = True
         self.stop_event.set()
+        self.api.shutdown_server()
 
     def is_running(self):
         """
@@ -3390,6 +3391,11 @@ class Server(object):
         logger.info('Queue scanner terminated')
 
     #
+    # API
+    #
+
+
+    #
     # DB cleanup
     #
 
@@ -3485,6 +3491,7 @@ class Server(object):
         self.api = RestAPI()
         self.api.server = self
         self.api.config = self.config
+        self.api.db = self.db
         self.api.debug = False  # self.args.debug # reloader does not work outside main thread.
         self.api.start()
 

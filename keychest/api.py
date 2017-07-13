@@ -5,6 +5,9 @@
 REST API
 """
 
+from dbutil import DbKeychestAgent
+import util
+
 import threading
 import pid
 import time
@@ -28,21 +31,34 @@ __author__ = 'dusanklinec'
 logger = logging.getLogger(__name__)
 
 
+class AugmentedRequest(object):
+    """
+    Augmented request object with metadata
+    """
+    def __init__(self, req=None):
+        self.req = req
+        self.api_key = None
+        self.agent = None
+
+
 class RestAPI(object):
     """
     Main server object
     """
     HTTP_PORT = 33080
     HTTPS_PORT = 33443
+    API_HEADER = 'X-Auth-API'
 
     def __init__(self):
         self.running = True
         self.run_thread = None
         self.stop_event = threading.Event()
+        self.local_data = threading.local()
 
         self.debug = False
         self.server = None
         self.config = None
+        self.db = None
 
         self.flask = Flask(__name__)
 
@@ -75,6 +91,7 @@ class RestAPI(object):
         """
         logger.info('REST thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
         try:
+            self.init_rest()
             r = self.flask.run(debug=self.debug, port=self.HTTP_PORT)
             logger.info('Terminating flask: %s' % r)
 
@@ -120,8 +137,30 @@ class RestAPI(object):
         If auth fails abort(403) is issued.
         :param request:
         :return:
+        :rtype: AugmentedRequest
         """
-        logger.debug(request)
+        r = AugmentedRequest(request)
+        if not request:
+            logger.warning('Invalid request')
+            abort(400)
+
+        if self.API_HEADER not in request.headers:
+            logger.warning('Invalid request - no auth header')
+            abort(400)
+
+        r.api_key = request.headers[self.API_HEADER]
+        s = self.db.get_session()
+        try:
+            r.agent = s.query(DbKeychestAgent).filter(DbKeychestAgent.api_key == r.api_key).first()
+        finally:
+            util.silent_close(s)
+
+        if r.agent is None:
+            logger.warning('Agent API key not found: %s' % util.take(r.api_key, 64))
+            abort(403)
+
+        self.local_data.r = r
+        return r
 
     def process_payload(self, request):
         """
@@ -156,3 +195,6 @@ class RestAPI(object):
         :return:
         """
         self.auth_request(request)
+
+        return jsonify({'result': True})
+
