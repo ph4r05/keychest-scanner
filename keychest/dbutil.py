@@ -287,6 +287,11 @@ class DbHandshakeScanJob(Base):
     pinning_report_only = Column(SmallInteger, nullable=True)  # Certificate pinning
     pinning_pins = Column(Text, nullable=True)  # Certificate pinning, json encoded pins
 
+    def __init__(self):
+        self.trans_certs = {}
+        self.trans_sub_res = []
+        self.trans_validation_res = None
+
 
 class DbSubTlsScan(Base):
     """
@@ -355,6 +360,9 @@ class DbHandshakeScanJobResult(Base):
     crt_sh_id = Column(BigInteger, nullable=True)
     was_new = Column(SmallInteger, default=0)
     is_ca = Column(SmallInteger, default=0)
+
+    def __init__(self):
+        self.trans_cert = None
 
 
 class DbWatchTarget(Base):

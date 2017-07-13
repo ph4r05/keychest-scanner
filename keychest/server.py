@@ -478,7 +478,7 @@ class Server(object):
         # Simple TLS handshake to the given host.
         # Analyze results, store scan record.
         try:
-            resp = None
+            resp = None  # type: TlsHandshakeResult
             try:
                 resp = self.tls_handshaker.try_handshake(domain, port, scheme=scheme,
                                                          attempts=sys_params['retry'],
@@ -2289,7 +2289,13 @@ class Server(object):
     def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """
         Processes certificates from the handshake
-        :return: 
+        :param s: session
+        :param resp: tls scan response
+        :type resp: TlsHandshakeResult
+        :param scan_db: tls db model
+        :type scan_db: DbHandshakeScanJob
+        :param do_job_subres:
+        :return:
         """
         if util.is_empty(resp.certificates):
             return
@@ -2346,20 +2352,25 @@ class Server(object):
                 all_cert_ids.add(cert_db.id)
 
                 # crt.sh scan info
+                sub_res_db = DbHandshakeScanJobResult()
+                sub_res_db.scan_id = scan_db.id
+                sub_res_db.job_id = scan_db.job_id
+                sub_res_db.was_new = fprint not in cert_existing
+                sub_res_db.crt_id = cert_db.id
+                sub_res_db.crt_sh_id = cert_db.crt_sh_id
+                sub_res_db.is_ca = cert_db.is_ca
+                sub_res_db.trans_cert = cert_db
+
                 if do_job_subres:
-                    sub_res_db = DbHandshakeScanJobResult()
-                    sub_res_db.scan_id = scan_db.id
-                    sub_res_db.job_id = scan_db.job_id
-                    sub_res_db.was_new = fprint not in cert_existing
-                    sub_res_db.crt_id = cert_db.id
-                    sub_res_db.crt_sh_id = cert_db.crt_sh_id
-                    sub_res_db.is_ca = cert_db.is_ca
                     s.add(sub_res_db)
 
                 if not cert_db.is_ca:
                     leaf_cert_id = cert_db.id
 
                 prev_id = cert_db.id
+
+                scan_db.trans_sub_res.append(sub_res_db)
+                scan_db.trans_certs[cert_db.fprint_sha1] = cert_db
 
             except Exception as e:
                 logger.error('Exception when processing a handshake certificate %s' % (e, ))
@@ -2369,6 +2380,7 @@ class Server(object):
         try:
             validation_res = self.crt_validator.validate(resp.certificates, is_der=True)  # type: ValidationResult
 
+            scan_db.trans_validation_res = validation_res
             scan_db.valid_path = validation_res.valid
             scan_db.err_many_leafs = len(validation_res.leaf_certs) > 1
             self.add_validation_leaf_error_to_result(validation_res, scan_db)
