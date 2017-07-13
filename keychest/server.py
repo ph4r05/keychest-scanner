@@ -107,6 +107,7 @@ class Server(object):
         self.run_thread = None
         self.stop_event = threading.Event()
         self.terminate = False
+        self.agent_mode = False
 
         self.db = None
         self.redis = None
@@ -3513,6 +3514,29 @@ class Server(object):
         :return:
         """
         logger.info('Main thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+
+        # Main working loop depends on the operation mode
+        if self.agent_mode:
+            self.work_agent_main()
+        else:
+            self.work_redis_scan_main()
+
+        self.terminating()
+        logger.info('Work loop terminated')
+
+    def work_agent_main(self):
+        """
+        Main agent work loop
+        :return:
+        """
+        while self.is_running():
+            time.sleep(0.5)
+
+    def work_redis_scan_main(self):
+        """
+        Main thread scanning the redis queue for jobs
+        :return:
+        """
         try:
             # scan redis queue infinitelly
             self.scan_redis_jobs()
@@ -3531,9 +3555,6 @@ class Server(object):
         except Exception as e:
             logger.error('Exception: %s' % e)
             self.trace_logger.log(e)
-
-        self.terminating()
-        logger.info('Work loop terminated')
 
     def work_loop(self):
         """
