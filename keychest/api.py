@@ -255,6 +255,28 @@ class RestAPI(object):
         """
         return jsonify({'result': True})
 
+    #
+    # Data methods
+    #
+
+    def _get_last_scans(self, s, r):
+        """
+        Returns last cached scans IDs.
+        :param r:
+        :return:
+        """
+        lasts = s.query(DbLastScanCache) \
+            .join(DbWatchTarget, DbWatchTarget.id == DbLastScanCache.obj_id) \
+            .filter(DbWatchTarget.agent_id == r.agent.id) \
+            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN) \
+            .filter(DbLastScanCache.scan_type.in_([DbScanType.DNS, DbScanType.TLS])) \
+            .all()
+        return lasts
+
+    #
+    # Handlers
+    #
+
     @wrap_requests()
     def on_get_targets(self, r=None, request=None):
         """
@@ -307,13 +329,7 @@ class RestAPI(object):
         :return:
         """
         s = r.s
-        lasts = s.query(DbLastScanCache)\
-            .join(DbWatchTarget, DbWatchTarget.id == DbLastScanCache.obj_id)\
-            .filter(DbWatchTarget.agent_id == r.agent.id)\
-            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN)\
-            .filter(DbLastScanCache.scan_type.in_([DbScanType.DNS, DbScanType.TLS]))\
-            .all()
-
+        lasts = self._get_last_scans(s, r)
         lasts = [DbHelper.to_dict(x) for x in lasts]
         lasts = [util.jsonify(x) for x in lasts]
         return jsonify({'result': True, 'last_results': lasts})
