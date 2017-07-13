@@ -81,8 +81,9 @@ class JobType(object):
 
 
 class DbLastScanCacheType(object):
-    LOCAL_SCAN = 0
-    AGENT_SCAN = 10
+    LOCAL_SCAN = 0  # normal local scans
+    AGENT_SCAN = 10  # caching latest results seen from agent - remote numbering
+    MASTER_SCAN = 11  # caching last results seen from master
 
 
 
