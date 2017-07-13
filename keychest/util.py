@@ -81,6 +81,16 @@ class CertCtOID(object):
     PRECERTIFICATE_CA = ObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")
 
 
+def json_dumps(obj, **kwargs):
+    """
+    Uses auto encoder to serialize the object
+    :param obj:
+    :param kwargs:
+    :return:
+    """
+    return json.dumps(obj, cls=AutoJSONEncoder, **kwargs)
+
+
 def php_obj_hook(obj):
     """
     Object hook for objects with defined php serialization support
@@ -1036,6 +1046,26 @@ def take(x, cnt=1):
         return None
 
     return x[0:cnt]
+
+
+def jsonify(obj):
+    """
+    Transforms object for transmission
+    :param obj:
+    :return:
+    """
+    if obj is None:
+        return obj
+    elif isinstance(obj, types.ListType):
+        return [jsonify(x) for x in obj]
+    elif isinstance(obj, types.DictionaryType):
+        return {str(k): jsonify(obj[k]) for k in obj}
+    elif isinstance(obj, datetime.datetime):
+        return unix_time(obj)
+    elif isinstance(obj, datetime.timedelta):
+        return obj.total_seconds()
+    else:
+        return obj
 
 
 
