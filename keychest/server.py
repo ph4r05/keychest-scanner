@@ -3470,12 +3470,13 @@ class Server(object):
 
         attempts = kwds.get('attempts', 3)
         for attempt in range(attempts):
-            return requests.request(method=method, url=self.config.master_endpoint + url, **kwds)
+            try:
+                return requests.request(method=method, url=self.config.master_endpoint + url, **kwds)
 
-        except Exception as e:
-            logger.info('Exception in master request %s: %s' % (url, e))
-            if attempt + 1 >= attempts:
-                raise
+            except Exception as e:
+                logger.info('Exception in master request %s: %s' % (url, e))
+                if attempt + 1 >= attempts:
+                    raise
 
     def agent_sync_hosts(self, resp):
         """
