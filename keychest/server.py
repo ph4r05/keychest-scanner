@@ -16,6 +16,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbDnsResolve, DbCrtShQueryInput, \
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
     DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
+    DbOrganization, DbOrganizationGroup, DbKeychestAgent, \
     ResultModelUpdater
 import dbutil
 from stat_sem import StatSemaphore
@@ -3429,6 +3430,15 @@ class Server(object):
                 user.email = 'local@master.net'
                 user.created_at = user.updated_at = salch.func.now()
                 s.add(user)
+                s.commit()
+
+            org = s.query(DbOrganization).filter(DbOrganization == 1).first()
+            if org is None:
+                org = DbOrganization()
+                org.id = 1
+                org.name = 'PLACEHOLDER'
+                org.created_at = org.updated_at = salch.func.now()
+                s.add(org)
                 s.commit()
 
             # TODO: start publisher thread
