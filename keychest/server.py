@@ -2587,15 +2587,14 @@ class Server(object):
                     s.commit()
 
             # crt.sh scan info
-            crtsh_res_db = None
+            crtsh_res_db = DbCrtShQueryResult()
+            crtsh_res_db.query_id = crtsh_query_db.id
+            crtsh_res_db.job_id = crtsh_query_db.job_id
+            crtsh_res_db.was_new = 1
+            crtsh_res_db.crt_id = cert_db.id
+            crtsh_res_db.crt_sh_id = crt_sh_id
+            crtsh_res_db.cert_db = cert_db
             if store_res:
-                crtsh_res_db = DbCrtShQueryResult()
-                crtsh_res_db.query_id = crtsh_query_db.id
-                crtsh_res_db.job_id = crtsh_query_db.job_id
-                crtsh_res_db.was_new = 1
-                crtsh_res_db.crt_id = cert_db.id
-                crtsh_res_db.crt_sh_id = crt_sh_id
-                crtsh_res_db.cert_db = cert_db
                 s.add(crtsh_res_db)
 
             return cert_db, crtsh_res_db
