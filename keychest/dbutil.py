@@ -395,6 +395,10 @@ class DbWatchTarget(Base):
     # denormalization - optimized query
     last_dns_scan_id = Column(ForeignKey('scan_dns.id', name='wt_scan_dns_id', ondelete='SET NULL'),
                               nullable=True, index=True)
+    
+    def __init__(self):
+        self.trans_service = None
+        self.trans_top_domain = None
 
 
 class DbUser(Base):
@@ -807,6 +811,10 @@ class DbWatchService(Base):
 
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
     last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
+
+    def __init__(self):
+        self.trans_top_domain = None
+        self.trans_crtsh_input = None
 
 
 class DbWatchLocalService(Base):
