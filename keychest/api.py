@@ -6,9 +6,10 @@ REST API
 """
 
 from trace_logger import Tracelogger
-from dbutil import DbKeychestAgent, DbWatchTarget, DbHelper
+from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbHelper
 import util
 import dbutil
+from consts import DbLastScanCacheType, DbScanType
 
 import threading
 import pid
@@ -139,6 +140,14 @@ class RestAPI(object):
         @self.flask.route('/api/v1.0/wait_command', methods=['GET'])
         def rest_wait_command():
             return self.on_wait_command(request=request)
+
+        @self.flask.route('/api/v1.0/get_latest_results', methods=['GET'])
+        def rest_get_latest_results():
+            return self.on_get_latest_results(request=request)
+
+        @self.flask.route('/api/v1.0/new_results', methods=['GET', 'POST'])
+        def rest_new_result():
+            return self.on_new_results(request=request)
 
     def wrap_requests(*args0, **kwargs0):
         """
@@ -279,4 +288,44 @@ class RestAPI(object):
                 break
 
         return jsonify({'result': True, 'commands': []})
+
+    @wrap_requests()
+    def on_get_latest_results(self, r=None, request=None):
+        """
+        Used to get our latest results about the watch id.
+        Agent will then feed us all the previous results up to the latest one.
+        Request format:
+            [{watch_id: 1, scan_type:0 optional}, ...]
+        If empty returns all last results received from the remote site.
+
+        Helps with implementing reliable scrolling/streaming interface.
+        We cache the last results seen by the agent so we are sure we get all collected results.
+
+        :param r:
+        :rtype r: AugmentedRequest
+        :param request:
+        :return:
+        """
+        s = r.s
+        lasts = s.query(DbLastScanCache)\
+            .join(DbWatchTarget, DbWatchTarget.id == DbLastScanCache.obj_id)\
+            .filter(DbWatchTarget.agent_id == r.agent.id)\
+            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN)\
+            .filter(DbLastScanCache.scan_type.in_([DbScanType.DNS, DbScanType.TLS]))\
+            .all()
+
+        lasts = [DbHelper.to_dict(x) for x in lasts]
+        lasts = [util.jsonify(x) for x in lasts]
+        return jsonify({'result': True, 'last_results': lasts})
+
+    @wrap_requests()
+    def on_new_results(self, r=None, request=None):
+        """
+        Called on scan returned a new result.
+        :param r:
+        :param request:
+        :return:
+        """
+
+
 

@@ -80,4 +80,9 @@ class JobType(object):
     BACKGROUND = 2
 
 
+class DbLastScanCacheType(object):
+    LOCAL_SCAN = 0
+    AGENT_SCAN = 10
+
+
 
