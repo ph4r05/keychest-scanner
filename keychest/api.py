@@ -315,7 +315,7 @@ class RestAPI(object):
     def on_get_latest_results(self, r=None, request=None):
         """
         Used to get our latest results about the watch id.
-        Agent will then feed us all the previous results up to the latest one.
+        Agent will then feed us all the previous results up to the latest one via `new_results`.
         Request format:
             [{watch_id: 1, scan_type:0 optional}, ...]
         If empty returns all last results received from the remote site.
@@ -338,10 +338,28 @@ class RestAPI(object):
     def on_new_results(self, r=None, request=None):
         """
         Called on scan returned a new result.
+        Heavy lifting method for processing results data sent from the agent.
+
+        data.json = {results:[ res ]}
+        res = {new_res: nr, prev_res: lr}
+
+        We might check for last results and if prev result does not match our result just reject this update.
+        Client then should ask for last scan IDs and push all missing ones.
+
+        To make it simple for now we skip this check by client passing data.json['sorry'] = 1.
+        This also has a legitimate use when agent just does not have last scan as master desires.
+
+        One request should contain scans only for one hosts so rejection affects only the single host.
+
+        Simple agent implementation could do scanning independently (no result push) and then triggering an update
+        mechanism / having another publishing thread that asks for latest scans IDs and publishing new ones.
+        This enables
+
         :param r:
         :param request:
         :return:
         """
+        lasts = self._get_last_scans(r.s, r)
 
 
 
