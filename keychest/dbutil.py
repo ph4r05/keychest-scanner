@@ -844,7 +844,7 @@ class TransientCol(object):
     """
     Represents transient column for model projection and comparison.
     """
-    def __init__(self, name, default):
+    def __init__(self, name, default=None):
         self.name = name
         self.default = default
 
