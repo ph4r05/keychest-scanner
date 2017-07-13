@@ -572,11 +572,11 @@ class Server(object):
 
         # existing certificates - have pem
         all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
-        existing_ids = self.cert_load_existing(s, list(all_crt_ids))
+        existing_ids = self.cert_load_existing(s, list(all_crt_ids))  # type: dict[int -> int]  # crtsh id -> db id
         existing_ids_set = set(existing_ids.keys())
         new_ids = all_crt_ids - existing_ids_set
 
-        # certificate ids
+        # certificate ids (database IDs)
         certs_ids = list(existing_ids.values())
 
         # scan record
