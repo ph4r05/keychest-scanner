@@ -32,6 +32,7 @@ from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType
 import util_cert
+from api import RestAPI
 
 import threading
 import pid
@@ -136,6 +137,7 @@ class Server(object):
         self.domain_tools = TlsDomainTools()
         self.tls_scanner = TlsScanner()
         self.test_timeout = 5
+        self.api = None
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -3475,6 +3477,17 @@ class Server(object):
         self.running = False
         self.stop_event.set()
 
+    def init_api(self):
+        """
+        Initializes rest endpoint
+        :return:
+        """
+        self.api = RestAPI()
+        self.api.server = self
+        self.api.config = self.config
+        self.api.debug = False  # self.args.debug # reloader does not work outside main thread.
+        self.api.start()
+
     def work(self):
         """
         Main work method for the server - accepting incoming connections.
@@ -3535,6 +3548,9 @@ class Server(object):
         self.watcher_thread = threading.Thread(target=self.periodic_feeder_main, args=())
         self.watcher_thread.setDaemon(True)
         self.watcher_thread.start()
+
+        # rest server
+        self.init_api()
 
         # Daemon vs. run mode.
         if self.args.daemon:
