@@ -298,8 +298,8 @@ class RestAPI(object):
 
         recs_proc = [sub_proc(rec) for rec in recs]
         cols = DbWatchTarget.__table__.columns + [
-            dbutil.TransientCol(name='trans_service'),
-            dbutil.TransientCol(name='trans_top_domain')
+            dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_service'), DbHelper.to_dict),
+            dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_top_domain'), DbHelper.to_dict)
         ]
         dicts = [DbHelper.to_dict(x, cols=cols) for x in recs_proc]
         dicts = [util.jsonify(x) for x in dicts]
