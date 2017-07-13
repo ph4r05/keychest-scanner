@@ -1888,6 +1888,7 @@ class Server(object):
             crtsh_query_db_base.updated_ad = salch.func.now()
             crtsh_query_db_base.last_scan_at = salch.func.now()
             s.add(crtsh_query_db_base)
+        s.commit()
 
         # WILDCARD
         # crtsh search for wildcard
