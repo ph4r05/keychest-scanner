@@ -247,14 +247,6 @@ class RestAPI(object):
             .values(last_seen_active_at=salch.func.now(), last_seen_ip=r.ip)
         s.execute(stmt)
 
-    def on_keep_alive(self, request=None):
-        """
-        Simple keepalive
-        :param request:
-        :return:
-        """
-        return jsonify({'result': True})
-
     #
     # Data methods
     #
@@ -276,6 +268,14 @@ class RestAPI(object):
     #
     # Handlers
     #
+
+    def on_keep_alive(self, request=None):
+        """
+        Simple keepalive
+        :param request:
+        :return:
+        """
+        return jsonify({'result': True})
 
     @wrap_requests()
     def on_get_targets(self, r=None, request=None):
