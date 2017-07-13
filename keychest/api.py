@@ -6,7 +6,7 @@ REST API
 """
 
 from trace_logger import Tracelogger
-from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbHelper
+from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbWatchService, DbBaseDomain, DbHelper
 import util
 import dbutil
 from consts import DbLastScanCacheType, DbScanType
@@ -286,8 +286,22 @@ class RestAPI(object):
         :return:
         """
         s = r.s
-        recs = s.query(DbWatchTarget).filter(DbWatchTarget.agent_id == r.agent.id).all()
-        dicts = [DbHelper.to_dict(x) for x in recs]
+        recs = s.query(DbWatchTarget, DbWatchService, DbBaseDomain)\
+            .outerjoin(DbWatchService, DbWatchService.id == DbWatchTarget.service_id)\
+            .outerjoin(DbBaseDomain, DbBaseDomain.id == DbWatchTarget.top_domain_id)\
+            .filter(DbWatchTarget.agent_id == r.agent.id).all()
+
+        def sub_proc(rec):
+            rec[0].trans_service = rec[1]
+            rec[0].trans_top_domain = rec[2]
+            return rec[0]
+
+        recs_proc = [sub_proc(rec) for rec in recs]
+        cols = DbWatchTarget.__table__.columns + [
+            dbutil.TransientCol(name='trans_service'),
+            dbutil.TransientCol(name='trans_top_domain')
+        ]
+        dicts = [DbHelper.to_dict(x, cols=cols) for x in recs_proc]
         dicts = [util.jsonify(x) for x in dicts]
         return jsonify({'result': True, 'targets': dicts})
 
