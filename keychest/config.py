@@ -140,6 +140,33 @@ class Config(object):
     def keychest_max_servers(self, val):
         self.set_config('keychest_max_servers', val)
 
+    # Is running in agent mode
+    @property
+    def agent_mode(self):
+        return self.get_config('agent_mode', False)
+
+    @agent_mode.setter
+    def agent_mode(self, val):
+        self.set_config('agent_mode', val)
+
+    # master node endpoint
+    @property
+    def master_endpoint(self):
+        return self.get_config('master_endpoint', None)
+
+    @master_endpoint.setter
+    def master_endpoint(self, val):
+        self.set_config('master_endpoint', val)
+
+    # API key for master
+    @property
+    def master_apikey(self):
+        return self.get_config('master_apikey', None)
+
+    @master_apikey.setter
+    def master_apikey(self, val):
+        self.set_config('master_apikey', val)
+
 
 
 
