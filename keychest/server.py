@@ -65,6 +65,7 @@ from sqlalchemy import case, literal_column
 
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShException, CrtShTimeoutException
 import ph4whois
+import requests
 
 
 __author__ = 'dusanklinec'
@@ -3430,8 +3431,51 @@ class Server(object):
                 s.add(user)
                 s.commit()
 
+            # TODO: start publisher thread
+
         finally:
             util.silent_close(s)
+
+    def _agent_request_get(self, url, **kwds):
+        """
+        GET request to the master
+        :param url:
+        :param kwds:
+        :return:
+        """
+        return self._agent_request(url, 'get', **kwds)
+
+    def _agent_request_post(self, url, **kwds):
+        """
+        POST request to the master
+        :param url:
+        :param kwds:
+        :return:
+        """
+        return self._agent_request(url, 'post', **kwds)
+
+    def _agent_request(self, url, method='get', **kwds):
+        """
+        Returns
+        :param url:
+        :param method:
+        :param kwds:
+        :return:
+        """
+        headers = kwds.get('headers', {})
+        headers['X-Auth-API'] = self.config.master_apikey
+
+        kwds['headers'] = headers
+        kwds.setdefault('timeout', 10)
+
+        attempts = kwds.get('attempts', 3)
+        for attempt in range(attempts):
+            return requests.request(method=method, url=self.config.master_endpoint + url, **kwds)
+
+        except Exception as e:
+            logger.info('Exception in master request %s: %s' % (url, e))
+            if attempt + 1 >= attempts:
+                raise
 
     def agent_sync_hosts(self, resp):
         """
@@ -3439,6 +3483,9 @@ class Server(object):
         :param resp:
         :return:
         """
+        targets = self._agent_request_get(url='/api/v1.0/get_targets')
+        targets = targets['targets']
+        self.agent_merge_hosts(targets)
 
     def agent_merge_hosts(self, resp):
         """
