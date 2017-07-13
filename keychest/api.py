@@ -5,8 +5,10 @@
 REST API
 """
 
-from dbutil import DbKeychestAgent
+from trace_logger import Tracelogger
+from dbutil import DbKeychestAgent, DbWatchTarget, DbHelper
 import util
+import dbutil
 
 import threading
 import pid
@@ -23,6 +25,7 @@ import logging
 import coloredlogs
 import traceback
 import collections
+from functools import wraps
 from flask import Flask, jsonify, request, abort
 from datetime import datetime, timedelta
 import sqlalchemy as salch
@@ -37,8 +40,10 @@ class AugmentedRequest(object):
     """
     def __init__(self, req=None):
         self.req = req
+        self.s = None  # session
         self.api_key = None
-        self.agent = None
+        self.ip = None
+        self.agent = None  # type: DbKeychestAgent
 
 
 class RestAPI(object):
@@ -54,6 +59,7 @@ class RestAPI(object):
         self.run_thread = None
         self.stop_event = threading.Event()
         self.local_data = threading.local()
+        self.trace_logger = Tracelogger(logger)
 
         self.debug = False
         self.server = None
@@ -124,13 +130,46 @@ class RestAPI(object):
 
         @self.flask.route('/api/v1.0/keepalive', methods=['GET'])
         def keep_alive():
-            return self.on_keep_alive(request)
+            return self.on_keep_alive(request=request)
 
         @self.flask.route('/api/v1.0/get_targets', methods=['GET'])
         def rest_stats():
-            return self.on_get_targets(request)
+            return self.on_get_targets(request=request)
 
-    def auth_request(self, request):
+    def wrap_requests(*args0, **kwargs0):
+        """
+        Function decorator for requests call, wrapping in try-catch, catching exceptions
+        :return:
+        """
+        def wrap_requests_decorator(*args):
+            f = args[0]
+
+            @wraps(f)
+            def wrapper(*args, **kwds):
+                # noinspection PyBroadException
+                self = args[0]
+                r = None
+                try:
+                    r = self._auth_request(kwds.get('request', None))
+                    args = list(args)[1:]
+                    res = f(self, r, *args, **kwds)
+                    return res
+
+                except Exception as e:
+                    logger.error('Uncaught exception: %s' % e)
+                    self.trace_logger.log(e)
+
+                finally:
+                    if r is not None:
+                        util.silent_close(r.s)
+
+                # fail
+                abort(500)
+
+            return wrapper
+        return wrap_requests_decorator
+
+    def _auth_request(self, request):
         """
         Request authentization.
         API key has to be in the headers X-Auth-API: key
@@ -149,20 +188,21 @@ class RestAPI(object):
             abort(400)
 
         r.api_key = request.headers[self.API_HEADER]
-        s = self.db.get_session()
-        try:
-            r.agent = s.query(DbKeychestAgent).filter(DbKeychestAgent.api_key == r.api_key).first()
-        finally:
-            util.silent_close(s)
+        r.s = s = self.db.get_session()
 
+        r.agent = s.query(DbKeychestAgent).filter(DbKeychestAgent.api_key == r.api_key).first()
         if r.agent is None:
             logger.warning('Agent API key not found: %s' % util.take(r.api_key, 64))
             abort(403)
 
+        r.ip = request.remote_addr
+        self._update_last_seen(s, r)
+        s.commit()
+
         self.local_data.r = r
         return r
 
-    def process_payload(self, request):
+    def _process_payload(self, request):
         """
         Decrypts payload, fails request in case of a problem
         :param request:
@@ -180,6 +220,20 @@ class RestAPI(object):
             abort(403)
         return js
 
+    def _update_last_seen(self, s, r):
+        """
+        Updates last seen indicator for agent record
+        :param s:
+        :param r:
+        :type r: AugmentedRequest
+        :return:
+        """
+        # update cached last dns scan id
+        stmt = salch.update(DbKeychestAgent) \
+            .where(DbKeychestAgent.api_key == r.api_key) \
+            .values(last_seen_active_at=salch.func.now(), last_seen_ip=r.ip)
+        s.execute(stmt)
+
     def on_keep_alive(self, request=None):
         """
         Simple keepalive
@@ -188,13 +242,18 @@ class RestAPI(object):
         """
         return jsonify({'result': True})
 
-    def on_get_targets(self, request=None):
+    @wrap_requests()
+    def on_get_targets(self, r=None, request=None):
         """
         Loads watch targets for sync.
+        :param r:
         :param request:
         :return:
         """
-        self.auth_request(request)
+        s = r.s
+        recs = s.query(DbWatchTarget).filter(DbWatchTarget.agent_id == r.agent.id).all()
+        dicts = [DbHelper.to_dict(x) for x in recs]
+        dicts = [util.jsonify(x) for x in dicts]
+        return jsonify({'result': True, 'targets': dicts})
 
-        return jsonify({'result': True})
 
