@@ -1025,3 +1025,17 @@ def chunk(x, size=1):
     return ret
 
 
+def take(x, cnt=1):
+    """
+    Takes first cnt elements from x
+    :param x:
+    :param cnt:
+    :return:
+    """
+    if x is None:
+        return None
+
+    return x[0:cnt]
+
+
+
