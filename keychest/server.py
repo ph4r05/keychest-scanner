@@ -3407,6 +3407,44 @@ class Server(object):
     # API
     #
 
+    def init_agent(self):
+        """
+        Initializes agent runtime.
+        Also inserts new
+        :return:
+        """
+        if not self.agent_mode:
+            return  # just safety check not to do mess in the database
+
+        s = None
+        try:
+            # insert dummy user for watch association
+            s = self.db.get_session()
+            user = s.query(DbUser).filter(DbUser.id == 1).first()
+            if user is None:
+                user = DbUser()
+                user.id = 1
+                user.name = 'PLACEHOLDER'
+                user.email = 'local@master.net'
+                user.created_at = user.updated_at = salch.func.now()
+                s.add(user)
+                s.commit()
+
+        finally:
+            util.silent_close(s)
+
+    def agent_sync_hosts(self, resp):
+        """
+        Syncs hosts with the master by calling get hosts method and syncing
+        :param resp:
+        :return:
+        """
+
+    def agent_merge_hosts(self, resp):
+        """
+        Merges loaded hosts from the master
+        :return:
+        """
 
     #
     # DB cleanup
@@ -3589,8 +3627,12 @@ class Server(object):
         self.watcher_thread.setDaemon(True)
         self.watcher_thread.start()
 
-        # rest server
-        self.init_api()
+        # REST server needed only for master mode for now (may be changed in future).
+        # Init agent mode if needed.
+        if self.agent_mode:
+            self.init_agent()
+        else:
+            self.init_api()
 
         # Daemon vs. run mode.
         if self.args.daemon:
