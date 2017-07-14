@@ -1200,7 +1200,7 @@ class ResultModelUpdater(object):
 
         else:
             obj.num_scans = 1
-            obj.updated_ad = sa.func.now()
+            obj.updated_at = sa.func.now()
             obj.last_scan_at = sa.func.now()
             if obj_update_fnc is not None:
                 obj_update_fnc(obj, last_scan=last_scan)
