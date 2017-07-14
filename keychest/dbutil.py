@@ -1160,13 +1160,12 @@ class DbHelper(object):
         if model is None:
             return None
 
-        obj = copy.deepcopy(model)
         if cols is None:
             cols = model.__table__.columns
         ret = collections.OrderedDict()
 
         for col in cols:
-            val = getattr(obj, col.name)
+            val = getattr(model, col.name)
             if isinstance(col, ColTransformWrapper):
                 val = col.transform(val)
 
