@@ -142,6 +142,15 @@ class Config(object):
 
     # Is running in agent mode
     @property
+    def enable_rest_api(self):
+        return self.get_config('enable_rest_api', False)
+
+    @enable_rest_api.setter
+    def enable_rest_api(self, val):
+        self.set_config('enable_rest_api', val)
+
+    # Is running in agent mode
+    @property
     def agent_mode(self):
         return self.get_config('agent_mode', False)
 
