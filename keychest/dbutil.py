@@ -1299,6 +1299,17 @@ class ResultModelUpdater(object):
         else:
             raise ValueError('Unrecognized scan result, cannot persist')
 
+        ResultModelUpdater.update_cache_raw(s, cache, skip_search)
+
+    @staticmethod
+    def update_cache_raw(s, cache, skip_search=False):
+        """
+        :param s:
+        :param cache:
+        :type cache: DbLastScanCache
+        :param skip_search:
+        :return:
+        """
         try:
             should_add = skip_search
             if not skip_search:
