@@ -136,7 +136,7 @@ class CertificateAltName(Base):
     """
     __tablename__ = 'certificate_alt_names'
     cert_id = Column(ForeignKey('certificates.id', name='cert_alt_name_cert_id', ondelete='CASCADE'),
-                     nullable=False, index=True)  # certificate ID foreign key
+                     nullable=False, index=True, primary_key=True)  # certificate ID foreign key
     alt_name = Column(String(255), index=True, primary_key=True, nullable=False)
 
 
