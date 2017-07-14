@@ -3427,24 +3427,7 @@ class Server(object):
         try:
             # insert dummy user for watch association
             s = self.db.get_session()
-            user = s.query(DbUser).filter(DbUser.id == 1).first()
-            if user is None:
-                user = DbUser()
-                user.id = 1
-                user.name = 'PLACEHOLDER'
-                user.email = 'local@master.net'
-                user.created_at = user.updated_at = salch.func.now()
-                s.add(user)
-                s.commit()
-
-            org = s.query(DbOrganization).filter(DbOrganization.id == 1).first()
-            if org is None:
-                org = DbOrganization()
-                org.id = 1
-                org.name = 'PLACEHOLDER'
-                org.created_at = org.updated_at = salch.func.now()
-                s.add(org)
-                s.commit()
+            self._agent_init_sentinels(s)
 
             # Start publisher thread
             publish_thread = threading.Thread(target=self.agent_publisher_main, args=())
@@ -3458,6 +3441,30 @@ class Server(object):
 
         finally:
             util.silent_close(s)
+
+    def _agent_init_sentinels(self, s):
+        """
+        Initializes agent sentinels - DB placeholders
+        :return:
+        """
+        user = s.query(DbUser).filter(DbUser.id == 1).first()
+        if user is None:
+            user = DbUser()
+            user.id = 1
+            user.name = 'PLACEHOLDER'
+            user.email = 'local@master.net'
+            user.created_at = user.updated_at = salch.func.now()
+            s.add(user)
+            s.commit()
+
+        org = s.query(DbOrganization).filter(DbOrganization.id == 1).first()
+        if org is None:
+            org = DbOrganization()
+            org.id = 1
+            org.name = 'PLACEHOLDER'
+            org.created_at = org.updated_at = salch.func.now()
+            s.add(org)
+            s.commit()
 
     def _agent_request_get(self, url, **kwds):
         """
