@@ -45,6 +45,7 @@ class AugmentedRequest(object):
         self.api_key = None
         self.ip = None
         self.agent = None  # type: DbKeychestAgent
+        self.last_results = None
 
 
 class RestAPI(object):
@@ -354,8 +355,8 @@ class RestAPI(object):
         Called on scan returned a new result.
         Heavy lifting method for processing results data sent from the agent.
 
-        data.json = {results:[ res ]}
-        res = {new_res: nr, prev_res: lr}
+        data.json = {scans:[ res ]}
+        res = {new_scan: nr, prev_scan_id: lr}
 
         We might check for last results and if prev result does not match our result just reject this update.
         Client then should ask for last scan IDs and push all missing ones.
@@ -373,9 +374,10 @@ class RestAPI(object):
         :param request:
         :return:
         """
-        # lasts = self._get_last_scans(r.s, r)
         # logger.debug(request)
         # logger.debug(json.dumps(request.json, indent=2))
+
+        # r.last_results = self._get_last_scans(r.s, r)
         self.server.agent_on_new_results(r.s, r, request.json)
         return jsonify({'result': True})
 

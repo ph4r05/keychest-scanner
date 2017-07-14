@@ -3770,6 +3770,7 @@ class Server(object):
 
         try:
             new_scan = job.new_scan
+            old_scan = job.old_scan
             if not isinstance(new_scan, (DbDnsResolve, DbHandshakeScanJob)):
                 return
 
@@ -3777,7 +3778,10 @@ class Server(object):
             if new_scan_dict is None:
                 return
 
-            scans = [new_scan_dict]
+            scans = [{'new_scan': new_scan_dict, 'prev_scan_id': None}]
+            if old_scan is not None and hasattr(old_scan, 'id'):
+                scans['prev_scan_id'] = old_scan.id
+
             req = {'scans': scans}
             req_json = util.jsonify(req)
 
@@ -3865,16 +3869,19 @@ class Server(object):
         :return:
         """
         scans = results['scans']
-        for scan in scans:
+        for scan_rec in scans:
+            scan = scan_rec['new_scan']
+            old_scan_id = scan_rec['prev_scan_id']
+
             if scan['_type'] == 'DbDnsResolve':
-                self._agent_process_dns(s, r, scan)
+                self._agent_process_dns(s, r, scan, old_scan_id)
             elif scan['_type'] == 'DbHandshakeScanJob':
-                self._agent_process_tls(s, r, scan)
+                self._agent_process_tls(s, r, scan, old_scan_id)
             else:
                 logger.warning('Unrecognized publish: %s' % scan['_type'])
                 pass  # TODO: unrecognized
 
-    def _agent_process_tls(self, s, r, tls):
+    def _agent_process_tls(self, s, r, tls, old_scan_id=None):
         """
         TLS
         :param s:
@@ -3955,7 +3962,7 @@ class Server(object):
 
         return loaded_fprints
 
-    def _agent_process_dns(self, s, r, dns):
+    def _agent_process_dns(self, s, r, dns, old_scan_id=None):
         """
         DNS
         :param s:
