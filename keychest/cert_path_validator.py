@@ -55,9 +55,9 @@ class SubValidationResult(object):
         self.validation_errors = {}  # idx -> validation error
 
     def __repr__(self):
-        return '<SubValidationResult(certs_valid=%r, fprints_valid=%r, validation_order=%r, validation_steps=%r,' \
-               'validation_errors=%r)>' \
-               % (self.certs_valid, self.fprints_valid, self.validation_order, self.validation_steps,
+        return '<SubValidationResult(certs_valid=%r, fprints_cnt=%r, fprints_valid=%r, validation_order=%r, ' \
+               'validation_steps=%r, validation_errors=%r)>' \
+               % (self.certs_valid, len(self.fprints), self.fprints_valid, self.validation_order, self.validation_steps,
                   self.validation_errors)
 
 
@@ -296,7 +296,7 @@ class PathValidator(object):
                 context.verified_fprints.add(fprint)
 
         except X509StoreContextError as cex:  # translate specific exception to our general exception
-            self.trace_logger.log(cex, custom_msg='Exc in path validation')
+            self.trace_logger.log(cex, custom_msg='Exc in path validation, interm: %s. ' % interm_mode)
 
             # message - error, depth, message, certificate which caused an error
             ex = ValidationOsslException('Validation failed', cause=cex)
