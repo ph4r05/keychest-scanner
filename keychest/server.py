@@ -214,6 +214,10 @@ class Server(object):
             logger.error('Server debug and daemon are mutually exclusive')
             raise ValueError('Invalid start arguments')
 
+        self.agent_mode = self.config.agent_mode
+        if self.agent_mode and util.is_empty(self.config.master_endpoint):
+            raise ValueError('Master endpoint is required in agent mode')
+
     def init_log(self):
         """
         Initializes logging
