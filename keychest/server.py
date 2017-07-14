@@ -3896,9 +3896,9 @@ class Server(object):
         db_dns = DbHelper.to_model(dns, DbDnsResolve)
 
         db_dns.id = None
-        db_dns.created_ad = salch.func.now()
-        db_dns.updated_at = salch.func.now()
-        db_dns.last_scan_at = salch.func.now()
+        db_dns.created_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+        db_dns.updated_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+        db_dns.last_scan_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
         s.add(db_dns)
         s.flush()
 
@@ -3916,10 +3916,7 @@ class Server(object):
         # update cached last dns scan id
         stmt = salch.update(DbWatchTarget) \
             .where(DbWatchTarget.id == db_dns.watch_id) \
-            .where(salch.or_(
-            DbWatchTarget.last_dns_scan_id == None,
-            DbWatchTarget.last_dns_scan_id < db_dns.id)
-        ).values(last_dns_scan_id=db_dns.id)
+            .values(last_dns_scan_id=db_dns.id, last_scan_at=salch.func.now())  # TODO: refactor last scan at
         s.execute(stmt)
 
         ResultModelUpdater.update_cache(s, db_dns_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
