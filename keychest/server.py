@@ -3542,6 +3542,7 @@ class Server(object):
             assoc.user_id = 1
             assoc.deleted_at = None
             assoc.disabled_at = None
+            assoc.created_at = assoc.updated_at = salch.func.now()
             try:
                 s.add(assoc)
             except Exception as e:
