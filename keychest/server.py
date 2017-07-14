@@ -3621,6 +3621,7 @@ class Server(object):
             return None
 
         watch = DbWatchTarget()
+        watch.id = watch_json['id']
         watch.scan_host = watch_json['scan_host']
         watch.scan_port = watch_json['scan_port']
         watch.scan_scheme = watch_json['scan_scheme']
@@ -3630,6 +3631,7 @@ class Server(object):
             watch.service_id = svc.id
 
         db_watch, is_new = ModelUpdater.load_or_insert(s, watch, [
+            DbWatchTarget.id,
             DbWatchTarget.scan_host,
             DbWatchTarget.scan_port,
             DbWatchTarget.scan_scheme,
@@ -3648,6 +3650,7 @@ class Server(object):
             return None
 
         svc = DbWatchService()
+        svc.id = svc_json['id']
         svc.service_name = svc_json['service_name']
         svc.created_at = datetime.fromtimestamp(svc_json['created_at'])
         svc.updated_at = datetime.fromtimestamp(svc_json['updated_at'])
