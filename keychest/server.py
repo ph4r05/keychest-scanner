@@ -2470,6 +2470,15 @@ class Server(object):
                     s.commit()
                     done = True
 
+                    # Alt names
+                    if not util.is_empty(cert_db.alt_names_arr):
+                        for alt_name in cert_db.alt_names_arr:
+                            c_alt = CertificateAltName()
+                            c_alt.cert_id = cert_db.id
+                            c_alt.alt_name = alt_name
+                            s.add(c_alt)
+                        s.commit()
+
                 except Exception as e:
                     self.trace_logger.log(e, custom_msg='Probably constraint violation')
                     s.rollback()
