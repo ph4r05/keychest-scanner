@@ -32,7 +32,7 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType
+from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType
 import util_cert
 from api import RestAPI
 
@@ -3857,6 +3857,65 @@ class Server(object):
             ret = {str(k): sub_dict(obj[k]) for k in obj}
 
         return ret
+
+    def agent_on_new_results(self, s, r, results):
+        """
+        Processes new results from the agent
+        :param s:
+        :param results:
+        :return:
+        """
+        scans = results['scans']
+        for scan in scans:
+            if scan['_type'] == 'DbDnsResolve':
+                self._agent_process_dns(s, r, scan)
+            elif scan['_type'] == 'DbHandshakeScanJob':
+                pass
+            else:
+                logger.warning('Unrecognized publish: %s' % scan['_type'])
+                pass  # TODO: unrecognized
+
+    def _agent_process_dns(self, s, r, dns):
+        """
+        DNS
+        :param s:
+        :param dns:
+        :return:
+        """
+        last = s.query(DbLastScanCache) \
+            .filter(DbLastScanCache.obj_id == dns['watch_id']) \
+            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN) \
+            .filter(DbLastScanCache.scan_type == DbScanType.DNS) \
+            .first()
+
+        if last is not None and last.scan_id >= dns['id']:
+            return
+
+        # Insert
+        db_dns_orig = DbHelper.to_model(dns, DbDnsResolve)
+        db_dns = DbHelper.to_model(dns, DbDnsResolve)
+
+        db_dns.id = None
+        db_dns.created_ad = salch.func.now()
+        db_dns.updated_at = salch.func.now()
+        db_dns.last_scan_at = salch.func.now()
+        s.add(db_dns)
+        s.flush()
+
+        dns_entries = []
+        for idx, tup in enumerate(dns['dns_res']):
+            family, addr = tup
+            entry = DbDnsEntry()
+            entry.is_ipv6 = family == 10
+            entry.is_internal = TlsDomainTools.is_ip_private(addr)
+            entry.ip = addr
+            entry.res_order = idx
+            entry.scan_id = db_dns.id
+            s.add(entry)
+
+        ResultModelUpdater.update_cache(s, db_dns_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
+        s.commit()
+        logger.debug('DNS scan added : %s' % db_dns.id)
 
     #
     # DB cleanup
