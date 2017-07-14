@@ -15,6 +15,31 @@ workarounds, but one can also use ``--user`` switch for pip.
 
     pip install --user cryptography
 
+
+Dependencies
+------------
+
+::
+
+    pip install MySql-Python
+    pip install SQLAlchemy
+    pip install alembic
+
+
+Ubuntu:
+
+::
+
+    sudo apt-get install python-pip python-dev libmysqlclient-dev
+
+
+CentOS:
+
+::
+
+    sudo yum install python python-devel mysql-devel redhat-rpm-config gcc
+
+
 PIP update appdirs error
 ------------------------
 
