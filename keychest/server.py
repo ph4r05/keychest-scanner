@@ -3,6 +3,7 @@
 
 """
 Server part of the script
+NOTE: this file will be refactored soon, pls any edits consult with maintainer
 """
 
 from past.builtins import cmp
