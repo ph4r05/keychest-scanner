@@ -101,3 +101,18 @@ Operation
     epiper supervisorctl restart keychest
     epiper supervisorctl status
 
+
+
+Troubleshooting
+---------------
+
+Symptom: :code:`ImportError: No module named ssl_tls`
+
+Solution:
+
+::
+
+    /bin/rm -rf /usr/local/lib/python2.7/dist-packages/scapy*
+    pip install scapy==2.3.2
+    ./install.sh
+
