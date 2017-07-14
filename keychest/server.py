@@ -3605,7 +3605,7 @@ class Server(object):
             logger.error('Exception: %s' % e)
             self.trace_logger.log(e)
 
-        logger.info('Status loop terminated')
+        logger.info('Cleanup loop terminated')
 
     def reload_blacklist(self):
         """
