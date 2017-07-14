@@ -17,7 +17,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
     DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
     DbOrganization, DbOrganizationGroup, DbKeychestAgent, \
-    ResultModelUpdater
+    ResultModelUpdater, ModelUpdater
 import dbutil
 from stat_sem import StatSemaphore
 
@@ -3488,21 +3488,91 @@ class Server(object):
                 if attempt + 1 >= attempts:
                     raise
 
-    def agent_sync_hosts(self, resp):
+    def agent_sync_hosts(self, s, resp):
         """
         Syncs hosts with the master by calling get hosts method and syncing
+        :param s:
         :param resp:
         :return:
         """
         targets = self._agent_request_get(url='/api/v1.0/get_targets')
         targets = targets['targets']
-        self.agent_merge_hosts(targets)
+        self.agent_merge_hosts(s, targets)
 
-    def agent_merge_hosts(self, resp):
+    def agent_merge_hosts(self, s, targets):
         """
         Merges loaded hosts from the master
         :return:
         """
+        allowed_ids = []
+        for target in targets:
+            svc = self.agent_svc_to_db(s, target['trans_service'])
+            watch = self.agent_watch_to_db(s, target, svc=svc)
+            allowed_ids.append(watch.id)
+
+        # load all assocs, insert new ones
+        assocs = s.query(DbWatchAssoc).filter(DbWatchAssoc.watch_id.in_(allowed_ids)).all()
+        associated_watches = set([x.watch_id for x in assocs])
+        watches_to_assoc = list(set(allowed_ids) - associated_watches)
+        for wid in watches_to_assoc:
+            assoc = DbWatchAssoc()
+            assoc.watch_id = wid
+            assoc.user_id = 1
+            assoc.deleted_at = None
+            assoc.disabled_at = None
+            try:
+                s.add(assoc)
+            except Exception as e:
+                s.rollback()
+                logger.warning('Could not add WID: %s: %s' % (wid, e))
+
+        # delete assocs where watch id not in the allowed ids
+        stmt = salch.delete(DbWatchAssoc) \
+            .where(DbWatchAssoc.watch_id.notin_(allowed_ids))
+        s.execute(stmt)
+
+    def agent_watch_to_db(self, s, watch_json, svc=None, top_domain=None):
+        """
+        Transforms a watch to a db object
+        :param s:
+        :param host_json:
+        :return:
+        """
+        if host_json is None:
+            return None
+
+        watch = DbWatchTarget()
+        watch.scan_host = watch_json['scan_host']
+        watch.scan_port = watch_json['scan_port']
+        watch.scan_scheme = watch_json['scan_scheme']
+        watch.scan_connect = watch_json['scan_connect']
+        if svc is not None:
+            watch.service_id = svc.id
+
+        db_watch, is_new = ModelUpdater.load_or_insert(s, watch, [
+            DbWatchTarget.scan_host,
+            DbWatchTarget.scan_port,
+            DbWatchTarget.scan_scheme,
+            DbWatchTarget.scan_connect,
+            DbWatchTarget.service_id
+        ])
+        return db_watch
+
+    def agent_svc_to_db(self, s, svc_json):
+        """
+        Transforms to an object
+        :param svc_json:
+        :return:
+        """
+        if svc_json is None:
+            return None
+
+        svc = DbWatchService()
+        svc.service_name = svc_json['service_name']
+        svc.created_at = datetime.fromtimestamp(svc_json['created_at'])
+        svc.updated_at = datetime.fromtimestamp(svc_json['updated_at'])
+        db_svc, is_new = ModelUpdater.load_or_insert(s, svc, [DbWatchService.service_name])
+        return db_svc
 
     #
     # DB cleanup
