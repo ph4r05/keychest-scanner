@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from past.builtins import basestring    # pip install future
+from past.builtins import long
 
 import os
 import re
@@ -1067,5 +1068,22 @@ def jsonify(obj):
     else:
         return obj
 
+
+def is_string(x):
+    """
+    Py23 string type detection
+    :param x:
+    :return:
+    """
+    return isinstance(x, basestring)
+
+
+def is_number(x):
+    """
+    Py23 number detect
+    :param x:
+    :return:
+    """
+    return isinstance(x, (int, long, float))
 
 
