@@ -293,6 +293,8 @@ class DbHandshakeScanJob(Base):
         self.trans_certs = {}
         self.trans_sub_res = []
         self.trans_validation_res = None
+        self.trans_sub_rsa = None
+        self.trans_sub_ecc = None
 
 
 class DbSubTlsScan(Base):
