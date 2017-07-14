@@ -2097,13 +2097,16 @@ class Server(object):
         else:
             ips = list(ips)
 
-        sub = s.query(DbLastScanCache.scan_id)\
+        subq = s.query(DbLastScanCache.scan_id)\
             .filter(DbLastScanCache.cache_type==0)\
             .filter(DbLastScanCache.scan_type==DbScanType.TLS)\
             .filter(DbLastScanCache.obj_id==watch_id)\
             .filter(DbLastScanCache.aux_key.in_(ips))\
             .subquery('x')
-        return s.query(DbHandshakeScanJob).filter(DbHandshakeScanJob.id.in_(sub)).all()
+
+        return s.query(DbHandshakeScanJob) \
+            .join(subq, subq.c.scan_id == DbHandshakeScanJob.id) \
+            .all()
 
     def load_last_tls_scan(self, s, watch_id=None, ip=None):
         """
