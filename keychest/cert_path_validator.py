@@ -250,6 +250,7 @@ class PathValidator(object):
 
                     result.validation_order.append(idx)
                     result.fprints_valid.append(fprint)
+                    result.validation_errors[idx] = None
 
                 except ValidationOsslException as vex:
                     vex.result = result
