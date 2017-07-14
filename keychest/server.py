@@ -3489,7 +3489,9 @@ class Server(object):
         attempts = kwds.get('attempts', 3)
         for attempt in range(attempts):
             try:
-                return requests.request(method=method, url=self.config.master_endpoint + url, **kwds)
+                r = requests.request(method=method, url=self.config.master_endpoint + url, **kwds)
+                r.raise_for_status()
+                return r
 
             except Exception as e:
                 logger.info('Exception in master request %s: %s' % (url, e))
