@@ -1149,7 +1149,7 @@ class ModelUpdater(object):
         :param attempts:
         :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
         """
-        for attempt in attempts:
+        for attempt in range(attempts):
             if not fetch_first or attempt > 0:
                 if not attempt == 0:  # insert first, then commit transaction before it may fail.
                     s.commit()
