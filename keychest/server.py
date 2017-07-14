@@ -263,7 +263,8 @@ class Server(object):
         """
         self.terminate = True
         self.stop_event.set()
-        self.api.shutdown_server()
+        if self.api:
+            self.api.shutdown_server()
 
     def is_running(self):
         """
