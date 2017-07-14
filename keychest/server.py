@@ -4105,6 +4105,10 @@ class Server(object):
         Initializes rest endpoint
         :return:
         """
+        if not self.config.enable_rest_api:
+            logger.info('REST API disabled by configuration')
+            return
+
         self.api = RestAPI()
         self.api.server = self
         self.api.config = self.config
