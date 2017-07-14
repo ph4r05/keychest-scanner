@@ -1528,7 +1528,7 @@ class Server(object):
         else:
             cur_scan.watch_id = job.target.id
             cur_scan.num_scans = 1
-            cur_scan.updated_ad = salch.func.now()
+            cur_scan.updated_at = salch.func.now()
             cur_scan.last_scan_at = salch.func.now()
             s.add(cur_scan)
             s.flush()
@@ -1635,7 +1635,7 @@ class Server(object):
             db_scan.watch_id = job.target.id
             db_scan.num_scans = 1
             db_scan.last_scan_at = salch.func.now()
-            db_scan.updated_ad = salch.func.now()
+            db_scan.updated_at = salch.func.now()
             s.add(db_scan)
             s.commit()
             logger.info('TLS scan is different, lastscan: %s for %s' % (last_scan, db_scan.ip_scanned))
@@ -1693,7 +1693,7 @@ class Server(object):
         else:
             crtsh_query_db.watch_id = job.target.id
             crtsh_query_db.num_scans = 1
-            crtsh_query_db.updated_ad = salch.func.now()
+            crtsh_query_db.updated_at = salch.func.now()
             crtsh_query_db.last_scan_at = salch.func.now()
             s.add(crtsh_query_db)
             s.commit()
@@ -1857,7 +1857,7 @@ class Server(object):
         else:
             scan_db.watch_id = job.target.id
             scan_db.num_scans = 1
-            scan_db.updated_ad = salch.func.now()
+            scan_db.updated_at = salch.func.now()
             scan_db.last_scan_at = salch.func.now()
             s.add(scan_db)
 
@@ -1919,7 +1919,7 @@ class Server(object):
         else:
             crtsh_query_db_base.sub_watch_id = job.target.id
             crtsh_query_db_base.num_scans = 1
-            crtsh_query_db_base.updated_ad = salch.func.now()
+            crtsh_query_db_base.updated_at = salch.func.now()
             crtsh_query_db_base.last_scan_at = salch.func.now()
             s.add(crtsh_query_db_base)
         s.commit()
@@ -1940,7 +1940,7 @@ class Server(object):
         else:
             crtsh_query_db.sub_watch_id = job.target.id
             crtsh_query_db.num_scans = 1
-            crtsh_query_db.updated_ad = salch.func.now()
+            crtsh_query_db.updated_at = salch.func.now()
             crtsh_query_db.last_scan_at = salch.func.now()
             s.add(crtsh_query_db)
 
