@@ -127,6 +127,10 @@ class Certificate(Base):
     def all_names(self):
         return list(self.alt_names_arr) + ([self.cname] if self.cname else [])
 
+    def visit_fnc(self, fnc):
+        self.alt_names_arr = fnc(self.alt_names_arr)
+        return self
+
 
 class CertificateAltName(Base):
     """
@@ -296,6 +300,14 @@ class DbHandshakeScanJob(Base):
         self.trans_sub_rsa = None
         self.trans_sub_ecc = None
 
+    def visit_fnc(self, fnc):
+        self.trans_certs = fnc(self.trans_certs)
+        self.trans_sub_res = fnc(self.trans_sub_res)
+        self.trans_validation_res = fnc(self.trans_validation_res)
+        self.trans_sub_rsa = fnc(self.trans_sub_rsa)
+        self.trans_sub_ecc = fnc(self.trans_sub_ecc)
+        return self
+
 
 class DbSubTlsScan(Base):
     """
@@ -368,6 +380,10 @@ class DbHandshakeScanJobResult(Base):
     def __init__(self):
         self.trans_cert = None
 
+    def visit_fnc(self, fnc):
+        self.trans_cert = fnc(self.trans_cert)
+        return self
+
 
 class DbWatchTarget(Base):
     """
@@ -403,6 +419,11 @@ class DbWatchTarget(Base):
     def __init__(self):
         self.trans_service = None
         self.trans_top_domain = None
+
+    def visit_fnc(self, fnc):
+        self.trans_service = fnc(self.trans_service)
+        self.trans_top_domain = fnc(self.trans_top_domain)
+        return self
 
 
 class DbUser(Base):
@@ -603,6 +624,11 @@ class DbDnsResolve(Base):
         self.dns_res = util.defval(util.try_load_json(self.dns), [])
         self.dns_status = self.status
 
+    def visit_fnc(self, fnc):
+        self.dns_res = fnc(self.dns_res)
+        self.dns_status = fnc(self.dns_status)
+        return self
+
 
 class DbDnsEntry(Base):
     """
@@ -698,6 +724,10 @@ class DbSubdomainResultCache(Base):
     @orm.reconstructor
     def init_on_load(self):
         self.trans_result = util.defval(util.try_load_json(self.result), [])
+
+    def visit_fnc(self, fnc):
+        self.trans_result = fnc(self.trans_result)
+        return self
 
 
 class DbSubdomainWatchResultEntry(Base):
@@ -819,6 +849,11 @@ class DbWatchService(Base):
     def __init__(self):
         self.trans_top_domain = None
         self.trans_crtsh_input = None
+
+    def visit_fnc(self, fnc):
+        self.trans_top_domain = fnc(self.trans_top_domain)
+        self.trans_crtsh_input = fnc(self.trans_crtsh_input)
+        return self
 
 
 class DbWatchLocalService(Base):
