@@ -3762,6 +3762,7 @@ class Server(object):
             except Exception as e:
                 logger.error('Uncaught exception in publish queue process: %s' % e)
                 self.trace_logger.log(e, custom_msg='Publish queue process')
+                time.sleep(5)  # prevent submitting too fast in case of an error
             finally:
                 self.agent_queue.task_done()
         except QEmpty:
