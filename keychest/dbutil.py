@@ -1034,6 +1034,27 @@ class DbHelper(object):
         return tuple(ret)
 
     @staticmethod
+    def set_if_none(obj, cols, val):
+        """
+        Sets val to the obj.col if the current value is null.
+        Set is done in-place.
+        :param obj:
+        :param cols:
+        :param val:
+        :return:
+        """
+        if obj is None or cols is None:
+            return None
+
+        if not isinstance(cols, list):
+            cols = list([cols])
+
+        for col in cols:
+            cval = getattr(obj, col.name)
+            if cval is None:
+                setattr(obj, col.name, val)
+
+    @staticmethod
     def query_filter_model(q, cols, obj):
         """
         Adds filter to the query based on the cols & model
