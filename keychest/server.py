@@ -2374,15 +2374,9 @@ class Server(object):
                 # new certificate - add
                 # lockfree - add, if exception on add, try fetch, then again add,
                 if fprint not in cert_existing:
-                    cert_db, is_new_cert = self._add_cert_or_fetch(s, cert_db)
+                    cert_db, is_new_cert = self._add_cert_or_fetch(s, cert_db, add_alts=True)
                     if is_new_cert:
                         num_new_results += 1
-                        for alt_name in util.stable_uniq(alt_names):
-                            alt_db = CertificateAltName()
-                            alt_db.cert_id = cert_db.id
-                            alt_db.alt_name = alt_name
-                            s.add(alt_db)
-                        s.flush()
                 else:
                     cert_db = cert_existing[fprint]
 
@@ -2438,7 +2432,7 @@ class Server(object):
         scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
         s.flush()
 
-    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False):
+    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
         """
         Tries to insert new certificate to the DB.
         If fails due to constraint violation (somebody preempted), it tries to load
@@ -2471,8 +2465,8 @@ class Server(object):
                     done = True
 
                     # Alt names
-                    if not util.is_empty(cert_db.alt_names_arr):
-                        for alt_name in cert_db.alt_names_arr:
+                    if add_alts and not util.is_empty(cert_db.alt_names_arr):
+                        for alt_name in util.stable_uniq(util.compact(cert_db.alt_names_arr)):
                             c_alt = CertificateAltName()
                             c_alt.cert_id = cert_db.id
                             c_alt.alt_name = alt_name
@@ -2632,15 +2626,8 @@ class Server(object):
                 self.trace_logger.log(e)
 
             new_cert = cert_db
-            cert_db, is_new = self._add_cert_or_fetch(s, cert_db, fetch_first=True)
-            if is_new:
-                for alt_name in util.stable_uniq(alt_names):
-                    alt_db = CertificateAltName()
-                    alt_db.cert_id = cert_db.id
-                    alt_db.alt_name = alt_name
-                    s.add(alt_db)
-                s.commit()
-            else:   # cert exists, fill in missing fields if empty
+            cert_db, is_new = self._add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
+            if not is_new:   # cert exists, fill in missing fields if empty
                 mm = Certificate
                 changes = DbHelper.update_model_null_values(cert_db, new_cert, [
                     mm.crt_sh_id, mm.crt_sh_ca_id, mm.parent_id,
