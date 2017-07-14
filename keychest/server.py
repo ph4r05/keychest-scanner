@@ -3913,7 +3913,17 @@ class Server(object):
             entry.scan_id = db_dns.id
             s.add(entry)
 
+        # update cached last dns scan id
+        stmt = salch.update(DbWatchTarget) \
+            .where(DbWatchTarget.id == db_dns.watch_id) \
+            .where(salch.or_(
+            DbWatchTarget.last_dns_scan_id == None,
+            DbWatchTarget.last_dns_scan_id < db_dns.id)
+        ).values(last_dns_scan_id=db_dns.id)
+        s.execute(stmt)
+
         ResultModelUpdater.update_cache(s, db_dns_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
+        ResultModelUpdater.update_cache(s, db_dns, cache_type=DbLastScanCacheType.LOCAL_SCAN)
         s.commit()
         logger.debug('DNS scan added : %s' % db_dns.id)
 
