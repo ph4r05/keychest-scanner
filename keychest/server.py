@@ -3436,7 +3436,7 @@ class Server(object):
                 s.add(user)
                 s.commit()
 
-            org = s.query(DbOrganization).filter(DbOrganization == 1).first()
+            org = s.query(DbOrganization).filter(DbOrganization.id == 1).first()
             if org is None:
                 org = DbOrganization()
                 org.id = 1
