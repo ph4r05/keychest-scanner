@@ -373,7 +373,10 @@ class RestAPI(object):
         :param request:
         :return:
         """
-        lasts = self._get_last_scans(r.s, r)
-
+        # lasts = self._get_last_scans(r.s, r)
+        # logger.debug(request)
+        # logger.debug(json.dumps(request.json, indent=2))
+        self.server.agent_on_new_results(r.s, r, request.json)
+        return jsonify({'result': True})
 
 
