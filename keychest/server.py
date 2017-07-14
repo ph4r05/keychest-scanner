@@ -43,6 +43,7 @@ import time
 import re
 import os
 import sys
+import copy
 import types
 import util
 import math
@@ -64,6 +65,7 @@ from datetime import datetime, timedelta
 import sqlalchemy as salch
 from sqlalchemy.orm.query import Query as SaQuery
 from sqlalchemy import case, literal_column
+from sqlalchemy.orm.session import make_transient
 
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShException, CrtShTimeoutException
 import ph4whois
@@ -3454,8 +3456,10 @@ class Server(object):
             return  # nothing to do in server mode now. Later - recomputation, caching, UI eventing, ...
 
         psh = AgentResultPush()
-        psh.old_scan = old_scan
-        psh.new_scan = new_scan
+        psh.old_scan = DbHelper.clone_model(s, old_scan)
+        psh.new_scan = DbHelper.clone_model(s, new_scan)
+        DbHelper.detach(s, psh.old_scan)
+        DbHelper.detach(s, psh.new_scan)
         psh.job = job
 
         self.agent_queue.put(psh, False)
@@ -3677,6 +3681,7 @@ class Server(object):
                 except Exception as e:
                     logger.error('Exception in host sync: %s' % e)
                     self.trace_logger.log(e)
+                    last_sync_check = time.time()
 
         except Exception as e:
             logger.error('Exception: %s' % e)
@@ -3699,12 +3704,13 @@ class Server(object):
                     if last_sync_check + 5 > cur_time and not self.agent_publish_event.is_set():
                         continue
 
-                    # s = None
-                    # try:
-                    #     s = self.db.get_session()
-                    #     pass
-                    # finally:
-                    #     util.silent_close(s)
+                    s = None
+                    try:
+                        s = self.db.get_session()
+                        self.agent_publish(s)
+
+                    finally:
+                        util.silent_close(s)
 
                     last_sync_check = cur_time
 
@@ -3717,6 +3723,137 @@ class Server(object):
             self.trace_logger.log(e)
 
         logger.info('Agent publish loop terminated')
+
+    def agent_publish(self, s):
+        """
+        Main publish entry point
+        :return:
+        """
+        # TODO: fetch all last scans from the master, load all scans greater than those provided and publish
+        # TODO    missing first. Then process queue with new scans - ignore those already being sent.
+
+        # Queue processing
+        self._agent_publish_queue(s)
+
+    def _agent_publish_queue(self, s):
+        """
+        Processes agents publish queue
+        :param s:
+        :return:
+        """
+        self.agent_publish_event.clear()  # reset signal - we are processing already
+        job = None  # type: AgentResultPush
+        try:
+            job = self.agent_queue.get(True, timeout=1.0)
+            try:
+                self._agent_queue_job(s, job)
+            except Exception as e:
+                logger.error('Uncaught exception in publish queue process: %s' % e)
+                self.trace_logger.log(e, custom_msg='Publish queue process')
+            finally:
+                self.agent_queue.task_done()
+        except QEmpty:
+            return
+
+    def _agent_queue_job(self, s, job):
+        """
+        Processes one agent job for publish
+        :param s:
+        :param job:
+        :type job: AgentResultPush
+        :return:
+        """
+        if job is None:
+            return
+
+        try:
+            new_scan = job.new_scan
+            if not isinstance(new_scan, (DbDnsResolve, DbHandshakeScanJob)):
+                return
+
+            new_scan_dict = self.agent_dictize_scan(s, new_scan)
+            if new_scan_dict is None:
+                return
+
+            scans = [new_scan_dict]
+            req = {'scans': scans}
+            req_json = util.jsonify(req)
+
+            resp = self._agent_request_post(url='/api/v1.0/new_results', json=req_json)
+            logger.debug(resp)
+
+        except Exception as e:
+            logger.warning('Could not push, reenqueue: %s' % e)
+            self.trace_logger.log(e, custom_msg='publish reenqueue')
+            self.agent_queue.put(job)
+
+    def agent_dictize_scan(self, s, obj):
+        """
+        Converts a scan to a dict serializable over the channel to the master
+        :param s:
+        :param obj:
+        :return:
+        """
+        def sub_dict(inp):
+            return self.agent_dictize_scan(s, inp)
+
+        ret = obj
+        if isinstance(obj, DbDnsResolve):
+            ret = DbHelper.to_dict(obj)
+            ret['dns_res'] = util.defval(util.try_load_json(obj.dns), [])
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbHandshakeScanJob):
+            cols = DbHandshakeScanJob.__table__.columns + [
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_certs'), sub_dict),
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_sub_res'), sub_dict)
+            ]
+            ret = DbHelper.to_dict(obj, cols=cols)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, Certificate):
+            ret = DbHelper.to_dict(obj)
+            ret['alt_names_arr'] = util.defval(util.try_load_json(obj.alt_names), [])
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbHandshakeScanJobResult):
+            cols = DbHandshakeScanJobResult.__table__.columns + [
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_cert'), sub_dict),
+            ]
+            ret = DbHelper.to_dict(obj, cols=cols)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbWatchTarget):
+            cols = DbWatchTarget.__table__.columns + [
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_service'), sub_dict),
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_top_domain'), sub_dict)
+            ]
+            ret = DbHelper.to_dict(obj, cols=cols)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbWatchService):
+            cols = DbWatchService.__table__.columns + [
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_top_domain'), sub_dict),
+                dbutil.ColTransformWrapper(dbutil.TransientCol(name='trans_crtsh_input'), sub_dict)
+            ]
+            ret = DbHelper.to_dict(obj, cols=cols)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbBaseDomain):
+            ret = DbHelper.to_dict(obj)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, DbCrtShQueryInput):
+            ret = DbHelper.to_dict(obj)
+            ret['_type'] = obj.__class__.__name__
+
+        elif isinstance(obj, types.ListType):
+            ret = [sub_dict(x) for x in obj]
+
+        elif isinstance(obj, types.DictionaryType):
+            ret = {str(k): sub_dict(obj[k]) for k in obj}
+
+        return ret
 
     #
     # DB cleanup
