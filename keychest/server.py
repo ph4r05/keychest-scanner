@@ -20,6 +20,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     ResultModelUpdater, ModelUpdater
 import dbutil
 from stat_sem import StatSemaphore
+from agent import AgentResultPush
 
 from redis_client import RedisClient
 from redis_queue import RedisQueue
@@ -141,6 +142,9 @@ class Server(object):
         self.tls_scanner = TlsScanner()
         self.test_timeout = 5
         self.api = None
+
+        self.agent_publish_event = threading.Event()  # if set to true publish now
+        self.agent_queue = PriorityQueue()  # queue of results to publish
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -3446,6 +3450,16 @@ class Server(object):
         :param job:
         :return:
         """
+        if not self.agent_mode:
+            return  # nothing to do in server mode now. Later - recomputation, caching, UI eventing, ...
+
+        psh = AgentResultPush()
+        psh.old_scan = old_scan
+        psh.new_scan = new_scan
+        psh.job = job
+
+        self.agent_queue.put(psh, False)
+        self.agent_publish_event.set()
 
     #
     # API
@@ -3648,7 +3662,7 @@ class Server(object):
                 try:
                     time.sleep(0.25)
                     cur_time = time.time()
-                    if last_sync_check + 5 > cur_time:
+                    if last_sync_check + 10 > cur_time:
                         continue
 
                     s = None
@@ -3682,7 +3696,7 @@ class Server(object):
                 try:
                     time.sleep(0.25)
                     cur_time = time.time()
-                    if last_sync_check + 5 > cur_time:
+                    if last_sync_check + 5 > cur_time and not self.agent_publish_event.is_set():
                         continue
 
                     # s = None
