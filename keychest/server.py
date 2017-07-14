@@ -2432,64 +2432,6 @@ class Server(object):
         scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
         s.flush()
 
-    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
-        """
-        Tries to insert new certificate to the DB.
-        If fails due to constraint violation (somebody preempted), it tries to load
-        certificate with the same fingerprint. If fails, repeats X times.
-        Automatically commits the transaction before inserting - could fail under high load.
-        :param s:
-        :param cert_db:
-        :type cert_db: Certificate
-        :return:
-        """
-        close_after_done = False
-        if s is None:
-            s = self.db.get_session()
-            close_after_done = True
-
-        def _close_s():
-            if s is None:
-                return
-            if close_after_done:
-                util.silent_close(s)
-
-        for attempt in range(5):
-            done = False
-            if not fetch_first or attempt > 0:
-                if not attempt == 0:  # insert first, then commit transaction before it may fail.
-                    s.commit()
-                try:
-                    s.add(cert_db)
-                    s.commit()
-                    done = True
-
-                    # Alt names
-                    if add_alts and not util.is_empty(cert_db.alt_names_arr):
-                        for alt_name in util.stable_uniq(util.compact(cert_db.alt_names_arr)):
-                            c_alt = CertificateAltName()
-                            c_alt.cert_id = cert_db.id
-                            c_alt.alt_name = alt_name
-                            s.add(c_alt)
-                        s.commit()
-
-                except Exception as e:
-                    self.trace_logger.log(e, custom_msg='Probably constraint violation')
-                    s.rollback()
-
-            if done:
-                _close_s()
-                return cert_db, 1
-
-            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
-            if cert is not None:
-                _close_s()
-                return cert, 0
-
-            time.sleep(0.01)
-        _close_s()
-        raise Error('Could not store / load certificate')
-
     def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
         """
         Connects to the host, performs simple connection analysis - HTTP connect, HTTPS connect, follow redirects.
@@ -3112,6 +3054,64 @@ class Server(object):
 
         return ret if was_array else None
 
+    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
+        """
+        Tries to insert new certificate to the DB.
+        If fails due to constraint violation (somebody preempted), it tries to load
+        certificate with the same fingerprint. If fails, repeats X times.
+        Automatically commits the transaction before inserting - could fail under high load.
+        :param s:
+        :param cert_db:
+        :type cert_db: Certificate
+        :return:
+        """
+        close_after_done = False
+        if s is None:
+            s = self.db.get_session()
+            close_after_done = True
+
+        def _close_s():
+            if s is None:
+                return
+            if close_after_done:
+                util.silent_close(s)
+
+        for attempt in range(5):
+            done = False
+            if not fetch_first or attempt > 0:
+                if not attempt == 0:  # insert first, then commit transaction before it may fail.
+                    s.commit()
+                try:
+                    s.add(cert_db)
+                    s.commit()
+                    done = True
+
+                    # Alt names
+                    if add_alts and not util.is_empty(cert_db.alt_names_arr):
+                        for alt_name in util.stable_uniq(util.compact(cert_db.alt_names_arr)):
+                            c_alt = CertificateAltName()
+                            c_alt.cert_id = cert_db.id
+                            c_alt.alt_name = alt_name
+                            s.add(c_alt)
+                        s.commit()
+
+                except Exception as e:
+                    self.trace_logger.log(e, custom_msg='Probably constraint violation')
+                    s.rollback()
+
+            if done:
+                _close_s()
+                return cert_db, 1
+
+            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
+            if cert is not None:
+                _close_s()
+                return cert, 0
+
+            time.sleep(0.01)
+        _close_s()
+        raise Error('Could not store / load certificate')
+
     def load_top_domain(self, s, top_domain, attempts=5):
         """
         Loads or creates a new top domain record.
@@ -3473,6 +3473,8 @@ class Server(object):
         """
         if not self.agent_mode:
             return  # just safety check not to do mess in the database
+
+        logger.debug('Master endpoint: %s' % self.config.master_endpoint)
 
         s = None
         try:
@@ -3903,7 +3905,7 @@ class Server(object):
         id_to_cert = {id: loaded_certs[id_to_fprint[id]] for id in id_to_fprint.keys()}
         id_to_our_id = {id: id_to_cert[id].id for id in id_to_cert.keys()}
 
-        db_tls.cert_id_leaf = id_to_our_id[db_tls.cert_id_leaf]
+        db_tls.cert_id_leaf = id_to_our_id[db_tls.cert_id_leaf] if db_tls.cert_id_leaf is not None else None
         db_tls.certs_ids = util.defval(util.try_load_json(db_tls.certs_ids), [])
         db_tls.certs_ids = json.dumps([id_to_our_id[x] for x in db_tls.certs_ids])
         s.add(db_tls)
@@ -4186,8 +4188,10 @@ class Server(object):
         # REST server needed only for master mode for now (may be changed in future).
         # Init agent mode if needed.
         if self.agent_mode:
+            logger.info(' ==== Keychest scanner running in the Agent mode ==== ')
             self.init_agent()
         else:
+            logger.info(' ==== Keychest scanner running in the Master mode ==== ')
             self.init_api()
 
         # Daemon vs. run mode.
