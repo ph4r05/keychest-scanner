@@ -3508,7 +3508,8 @@ class Server(object):
         :param s:
         :return:
         """
-        targets = self._agent_request_get(url='/api/v1.0/get_targets')
+        resp = self._agent_request_get(url='/api/v1.0/get_targets')
+        targets = resp.json()
         targets = targets['targets']
         self.agent_merge_hosts(s, targets)
 
@@ -3543,6 +3544,7 @@ class Server(object):
         stmt = salch.delete(DbWatchAssoc) \
             .where(DbWatchAssoc.watch_id.notin_(allowed_ids))
         s.execute(stmt)
+        s.commit()
 
     def agent_watch_to_db(self, s, watch_json, svc=None, top_domain=None):
         """
@@ -3551,7 +3553,7 @@ class Server(object):
         :param host_json:
         :return:
         """
-        if host_json is None:
+        if watch_json is None:
             return None
 
         watch = DbWatchTarget()
@@ -3559,6 +3561,7 @@ class Server(object):
         watch.scan_port = watch_json['scan_port']
         watch.scan_scheme = watch_json['scan_scheme']
         watch.scan_connect = watch_json['scan_connect']
+        watch.created_at = salch.func.now()
         if svc is not None:
             watch.service_id = svc.id
 
