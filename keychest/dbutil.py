@@ -9,6 +9,7 @@ import copy
 import collections
 import errors
 import time
+import types
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
@@ -17,6 +18,7 @@ from sqlalchemy.sql import expression
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
+from sqlalchemy.orm.session import make_transient
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import INTEGER
 import sqlalchemy as sa
@@ -1203,6 +1205,80 @@ class DbHelper(object):
                 val = col.transform(val)
             setattr(ret, col.name, val)
         return ret
+
+    @staticmethod
+    def clone_model(s, obj):
+        """
+        Clones model with visitor function support for clonning transient fields.
+        New model is detached from all sessions retaining all values.
+        :param s:
+        :param obj:
+        :return:
+        """
+        if obj is None:
+            return None
+        model = obj.__class__
+        cols = model.__table__.columns
+        ret = copy.copy(obj)
+
+        def sub_clone(obj):
+            return DbHelper.clone_model(s, obj)
+
+        def visit(obj):
+            if isinstance(obj, types.ListType):
+                return [visit(x) for x in obj]
+            elif isinstance(obj, types.DictionaryType):
+                return {k: visit(obj[k]) for k in obj}
+            elif hasattr(obj, 'visit_fnc'):
+                rt2 = obj.visit_fnc(visit)
+                return rt2 if rt2 == ret else sub_clone(rt2)
+            elif obj != ret and isinstance(obj, Base):
+                return sub_clone(obj)
+            else:
+                return obj
+        ret = visit(ret)
+
+        for col in cols:
+            val = getattr(obj, col.name)
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+            setattr(ret, col.name, val)
+        return ret
+
+    @staticmethod
+    def detach(s, obj):
+        """
+        Detaches object from the session.
+        :param s:
+        :param obj:
+        :return:
+        """
+        def rt_detach(obj):
+            try:
+                s.expunge(obj)
+            except:
+                pass
+            return obj
+
+        def sub_detach(obj):
+            return DbHelper.detach(s, obj)
+
+        def rec_detach(obj2):
+            if isinstance(obj2, types.ListType):
+                return [rec_detach(x) for x in obj2]
+            elif isinstance(obj2, types.DictionaryType):
+                return {k: rec_detach(obj2[k]) for k in obj2}
+            elif hasattr(obj2, 'visit_fnc'):
+                ret = obj2.visit_fnc(rec_detach)
+                return ret if ret == obj else sub_detach(ret)
+            elif obj2 != obj and isinstance(obj2, Base):
+                return sub_detach(obj2)
+            elif isinstance(obj2, Base):
+                return rt_detach(obj2)
+            else:
+                return obj2
+
+        return rec_detach(obj)
 
 
 class DbException(errors.Error):
