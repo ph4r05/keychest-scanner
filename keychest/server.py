@@ -569,14 +569,18 @@ class Server(object):
         crt_sh = None
         raw_query = self.get_crtsh_text_query(query)
         query_type = self.get_crtsh_query_type(query)
+        job_type = self.get_job_type(job_data)
 
         # wildcard background scan - higher timeout
         scan_kwargs = {}
-        if self.get_job_type(job_data) == JobType.BACKGROUND:
+        cert_load_count = 500  # 500 certificates in one batch
+        if job_type == JobType.BACKGROUND:
             if query_type == CrtshInputType.LIKE_WILDCARD:
                 scan_kwargs['timeout'] = 20
             if query_type == CrtshInputType.EXACT:
                 scan_kwargs['timeout'] = 10
+        elif job_type == JobType.UI:
+            cert_load_count = 30
 
         try:
             crt_sh = self.crt_sh_proc.query(raw_query, **scan_kwargs)
@@ -631,7 +635,7 @@ class Server(object):
                 s.add(crtsh_res_db)
 
         # load pem for new certificates
-        for new_crt_id in sorted(list(new_ids), reverse=True)[:500]:
+        for new_crt_id in sorted(list(new_ids), reverse=True)[:cert_load_count]:
             db_cert, subres = \
                 self.fetch_new_certs(s, job_data, new_crt_id,
                                      [x for x in crt_sh.results if int(x.id) == new_crt_id][0],
