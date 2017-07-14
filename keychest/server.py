@@ -1563,9 +1563,13 @@ class Server(object):
 
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+        self.wp_process_dns(s, job, job_scan.aux)
+
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_scan, new_scan=cur_scan, job=job)
 
         # finished with success
-        self.wp_process_dns(s, job, job_scan.aux)
         job_scan.ok()
 
     def wp_process_dns(self, s, job, last_scan):
@@ -1650,6 +1654,11 @@ class Server(object):
 
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_scan, new_scan=db_scan, job=job)
+
         return True
 
     def wp_scan_crtsh(self, s, job, last_scan):
@@ -1704,6 +1713,10 @@ class Server(object):
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_scan, new_scan=crtsh_query_db, job=job)
+
         # finished with success
         job_scan.ok()
 
@@ -1733,15 +1746,17 @@ class Server(object):
         query_base, is_new = self.get_crtsh_input(s, job.target.scan_host, 0)
 
         # perform crtsh queries, result management
-        is_same_as_before, crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base = \
+        is_same_as_before_sc, crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base = \
             self.wp_scan_wildcard_query(s, query=query, query_base=query_base,
                                         job=job, job_spec=job_spec, last_scan=last_scan)
 
         # load previous cached result, may be empty.
         last_cache_res = self.load_last_subs_result(s, watch_id=job.watch_id())
+        is_same_as_before = is_same_as_before_sc or last_cache_res is None
+        db_sub = None
 
         # new result - store new subdomain data, invalidate old results
-        if not is_same_as_before or last_cache_res is None:
+        if not is_same_as_before:
             # - extract domains to the result cache....
             # - load previously saved certs, not loaded now, from db
             # TODO: load previous result, just add altnames added in new certificates.
@@ -1805,6 +1820,10 @@ class Server(object):
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
 
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_cache_res, new_scan=db_sub, job=job)
+
         # finished with success
         job_scan.ok()
 
@@ -1863,6 +1882,10 @@ class Server(object):
 
         # TODO: store gap if there is one
         # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_scan, new_scan=scan_db, job=job)
 
         job_scan.ok()
 
@@ -3409,6 +3432,20 @@ class Server(object):
             finally:
                 pass
         logger.info('Queue scanner terminated')
+
+    #
+    # Eventing
+    #
+
+    def on_new_scan(self, s, old_scan, new_scan, job=None):
+        """
+        Event called on a new scan result.
+        :param s:
+        :param old_scan:
+        :param new_scan:
+        :param job:
+        :return:
+        """
 
     #
     # API
