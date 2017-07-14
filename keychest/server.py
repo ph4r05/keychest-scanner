@@ -3443,6 +3443,11 @@ class Server(object):
 
             # TODO: start publisher thread
 
+            # Start host sync thread
+            host_sync_thread = threading.Thread(target=self.agent_sync_hosts_main, args=())
+            host_sync_thread.setDaemon(True)
+            host_sync_thread.start()
+
         finally:
             util.silent_close(s)
 
@@ -3488,11 +3493,10 @@ class Server(object):
                 if attempt + 1 >= attempts:
                     raise
 
-    def agent_sync_hosts(self, s, resp):
+    def agent_sync_hosts(self, s):
         """
         Syncs hosts with the master by calling get hosts method and syncing
         :param s:
-        :param resp:
         :return:
         """
         targets = self._agent_request_get(url='/api/v1.0/get_targets')
@@ -3573,6 +3577,40 @@ class Server(object):
         svc.updated_at = datetime.fromtimestamp(svc_json['updated_at'])
         db_svc, is_new = ModelUpdater.load_or_insert(s, svc, [DbWatchService.service_name])
         return db_svc
+
+    def agent_sync_hosts_main(self):
+        """
+        Main thread for hosts sync with the master
+        :return:
+        """
+        logger.info('Agent host sync thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+        try:
+            last_sync_check = 0
+            while not self.stop_event.is_set():
+                try:
+                    time.sleep(0.25)
+                    cur_time = time.time()
+                    if last_sync_check + 5 > cur_time:
+                        continue
+
+                    s = None
+                    try:
+                        s = self.db.get_session()
+                        self.agent_sync_hosts(s)
+                    finally:
+                        util.silent_close(s)
+
+                    last_sync_check = cur_time
+
+                except Exception as e:
+                    logger.error('Exception in host sync: %s' % e)
+                    self.trace_logger.log(e)
+
+        except Exception as e:
+            logger.error('Exception: %s' % e)
+            self.trace_logger.log(e)
+
+        logger.info('Agent host sync loop terminated')
 
     #
     # DB cleanup
