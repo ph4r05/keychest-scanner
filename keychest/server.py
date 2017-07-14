@@ -3879,10 +3879,91 @@ class Server(object):
             if scan['_type'] == 'DbDnsResolve':
                 self._agent_process_dns(s, r, scan)
             elif scan['_type'] == 'DbHandshakeScanJob':
-                pass
+                self._agent_process_tls(s, r, scan)
             else:
                 logger.warning('Unrecognized publish: %s' % scan['_type'])
                 pass  # TODO: unrecognized
+
+    def _agent_process_tls(self, s, r, tls):
+        """
+        TLS
+        :param s:
+        :param r:
+        :param tls:
+        :return:
+        """
+        last = s.query(DbLastScanCache) \
+            .filter(DbLastScanCache.obj_id == tls['watch_id']) \
+            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN) \
+            .filter(DbLastScanCache.scan_type == DbScanType.TLS) \
+            .filter(DbLastScanCache.aux_key == tls['ip_scanned']) \
+            .first()
+
+        if last is not None and last.scan_id >= tls['id']:
+            return
+
+        db_tls_orig = DbHelper.to_model(tls, DbHandshakeScanJob)
+        db_tls = DbHelper.to_model(tls, DbHandshakeScanJob)
+        db_tls.id = None
+        db_tls.created_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+        db_tls.updated_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+        db_tls.last_scan_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+
+        # Certificates... fprint, load, if non existent then create
+        loaded_certs = self._agent_proc_certificates(s, r, tls['trans_certs'])  # fprint -> Certificate
+        id_to_fprint = {tls['trans_certs'][k]['id']: k for k in tls['trans_certs']}
+        id_to_cert = {id: loaded_certs[id_to_fprint[id]] for id in id_to_fprint.keys()}
+        id_to_our_id = {id: id_to_cert[id].id for id in id_to_cert.keys()}
+
+        db_tls.cert_id_leaf = id_to_our_id[db_tls.cert_id_leaf]
+        db_tls.certs_ids = util.defval(util.try_load_json(db_tls.certs_ids), [])
+        db_tls.certs_ids = json.dumps([id_to_our_id[x] for x in db_tls.certs_ids])
+        s.add(db_tls)
+        s.flush()
+
+        # Sub res
+        for sub_res in tls['trans_sub_res']:
+            db_sub = DbHelper.to_model(sub_res, DbHandshakeScanJobResult)
+            db_sub.crt_id = id_to_cert[sub_res['crt_id']]
+            db_sub.scan_id = db_tls.id
+            db_sub.id = None
+            s.add(db_sub)
+        s.flush()
+
+        # Caches
+        ResultModelUpdater.update_cache(s, db_tls_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
+        ResultModelUpdater.update_cache(s, db_tls, cache_type=DbLastScanCacheType.LOCAL_SCAN)
+        s.commit()
+        logger.debug('TLS scan added : %s IP %s' % (db_tls.id, db_tls.ip_scanned))
+
+    def _agent_proc_certificates(self, s, r, certs):
+        """
+        Certificate process
+        :param s:
+        :param r:
+        :param cert: fprint->cert map
+        :return:
+        """
+        if certs is None:
+            return {}
+
+        fprints = list(certs.keys())
+        loaded_fprints = self.cert_load_fprints(s, fprints)
+        missing_fprints = set(fprints) - set(loaded_fprints.keys())
+
+        for fprint in missing_fprints:
+            cert = certs[fprint]
+
+            db_crt_orig = DbHelper.to_model(cert, Certificate)
+            db_crt = DbHelper.to_model(cert, Certificate)
+            db_crt.id = None
+            db_crt.parent_id = None
+
+            db_crt_new, is_new = self._add_cert_or_fetch(s, db_crt)
+            loaded_fprints[db_crt_new.fprint_sha1] = db_crt_new
+            logger.debug('Added agent certificate: %s - %s' % (db_crt.id, db_crt.fprint_sha1))
+
+        return loaded_fprints
 
     def _agent_process_dns(self, s, r, dns):
         """
