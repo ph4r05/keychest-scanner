@@ -1182,7 +1182,27 @@ class DbHelper(object):
         return ret
 
     @staticmethod
-    def to_model(obj, model=None, cols=None, ret=None):
+    def try_unpack_column(val, col):
+        """
+        Tries to deserialize packed column.
+        E.g. for datetime tries to build back datetime object from timestamp
+        :param val:
+        :param col:
+        :return:
+        """
+        if val is None or col is None:
+            return None
+
+        if isinstance(col.type, DateTime):
+            if util.is_string(val):
+                return util.defval(util.try_parse_datetime_string(val), val)
+            elif util.is_number(val):
+                return util.defval(util.try_get_datetime_from_timestamp(val), val)
+
+        return val
+
+    @staticmethod
+    def to_model(obj, model=None, cols=None, ret=None, unpack_cols=False):
         """
         Transforms dict model to the desired model by extracting cols from it.
         Does not set default values, those are left intact
@@ -1190,6 +1210,7 @@ class DbHelper(object):
         :param model: model class
         :param cols: columns collection
         :param ret: model to fill in, None by default (new is created from model class)
+        :param unpack_cols: e.g., if datetime column tries to build datetime object from the current value in the field
         :return:
         """
         if model is None and ret is not None:
@@ -1201,6 +1222,8 @@ class DbHelper(object):
 
         for col in cols:
             val = obj[col.name] if col.name in obj else None
+            if unpack_cols:
+                val = DbHelper.try_unpack_column(val, col)
             if isinstance(col, ColTransformWrapper):
                 val = col.transform(val)
             setattr(ret, col.name, val)
