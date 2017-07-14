@@ -3901,11 +3901,11 @@ class Server(object):
             return
 
         db_tls_orig = DbHelper.to_model(tls, DbHandshakeScanJob)
-        db_tls = DbHelper.to_model(tls, DbHandshakeScanJob)
+        db_tls = DbHelper.to_model(tls, DbHandshakeScanJob, unpack_cols=True)
         db_tls.id = None
-        db_tls.created_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
-        db_tls.updated_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
-        db_tls.last_scan_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+
+        DbHelper.set_if_none(db_tls, val=salch.func.now(), cols=[
+            DbHandshakeScanJob.created_at, DbHandshakeScanJob.updated_at, DbHandshakeScanJob.last_scan_at])
 
         # Certificates... fprint, load, if non existent then create
         loaded_certs = self._agent_proc_certificates(s, r, tls['trans_certs'])  # fprint -> Certificate
@@ -3981,12 +3981,12 @@ class Server(object):
 
         # Insert
         db_dns_orig = DbHelper.to_model(dns, DbDnsResolve)
-        db_dns = DbHelper.to_model(dns, DbDnsResolve)
-
+        db_dns = DbHelper.to_model(dns, DbDnsResolve, unpack_cols=True)
         db_dns.id = None
-        db_dns.created_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
-        db_dns.updated_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
-        db_dns.last_scan_at = salch.func.now()  # TODO: from agent, transform to datetime again, auto
+
+        DbHelper.set_if_none(db_dns, val=salch.func.now(), cols=[
+            DbDnsResolve.created_at, DbDnsResolve.updated_at, DbDnsResolve.last_scan_at])
+
         s.add(db_dns)
         s.flush()
 
