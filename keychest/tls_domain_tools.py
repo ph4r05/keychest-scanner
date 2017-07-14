@@ -485,13 +485,13 @@ class TlsDomainTools(object):
         """
         if isinstance(url, TargetUrl):
             return url
-        elif isinstance(url, basestring):
+        elif util.is_string(url):
             return TargetUrl(url=url)
-        elif isinstance(url, types.TupleType) and len(url) == 3:
+        elif isinstance(url, tuple) and len(url) == 3:
             return TargetUrl(scheme=url[0], host=url[1], port=url[2])
         elif url is None:
             return url
-        elif isinstance(url, (types.IntType, types.LongType, types.FloatType, types.BooleanType)):
+        elif util.is_number(url) or isinstance(url, bool):
             raise ValueError('Unsupported input - numbers')
         else:
             return TargetUrl(url=str(url))
