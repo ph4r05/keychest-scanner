@@ -945,6 +945,28 @@ class DbHelper(object):
         return obj
 
     @staticmethod
+    def transform_model(obj, cols):
+        """
+        Transforms model with ColTransformWrapper cols
+        :param obj:
+        :param cols:
+        :return:
+        """
+        if obj is None:
+            return None
+        if cols is None:
+            return obj
+
+        for col in cols:
+            if not isinstance(col, ColTransformWrapper):
+                continue
+
+            val = getattr(obj, col.name)
+            val = col.transform(val)
+            setattr(obj, col.name, val)
+        return obj
+
+    @staticmethod
     def project_model(obj, projection, default_vals=False):
         """
         Projection returns tuple of the columns in the projection.
@@ -1119,6 +1141,31 @@ class DbHelper(object):
                         val = col.transform(val)
 
             ret[col.name] = val
+        return ret
+
+    @staticmethod
+    def to_model(obj, model=None, cols=None, ret=None):
+        """
+        Transforms dict model to the desired model by extracting cols from it.
+        Does not set default values, those are left intact
+        :param obj: object to read from
+        :param model: model class
+        :param cols: columns collection
+        :param ret: model to fill in, None by default (new is created from model class)
+        :return:
+        """
+        if model is None and ret is not None:
+            model = ret.__class__
+        if cols is None:
+            cols = model.__table__.columns
+        if ret is None:
+            ret = model()
+
+        for col in cols:
+            val = obj[col.name] if col.name in obj else None
+            if isinstance(col, ColTransformWrapper):
+                val = col.transform(val)
+            setattr(ret, col.name, val)
         return ret
 
 
