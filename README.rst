@@ -30,14 +30,14 @@ Ubuntu:
 
 ::
 
-    sudo apt-get install python-pip python-dev libmysqlclient-dev
+    sudo apt-get install python-pip python-dev libmysqlclient-dev libxml2-dev libxslt1-dev supervisor
 
 
 CentOS:
 
 ::
 
-    sudo yum install python python-devel mysql-devel redhat-rpm-config gcc
+    sudo yum install python python-devel mysql-devel redhat-rpm-config gcc libxml2 libxml2-devel libxslt libxslt-devel
 
 
 PIP update appdirs error

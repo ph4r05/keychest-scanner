@@ -21,6 +21,7 @@ install_requires = [
     'SQLAlchemy>=1.1',
     'shellescape',
     'flask',
+    'lxml',
     'MarkupSafe>=0.23',  # problem with deps
     'redis',
     'hiredis',
