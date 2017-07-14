@@ -3441,7 +3441,10 @@ class Server(object):
                 s.add(org)
                 s.commit()
 
-            # TODO: start publisher thread
+            # Start publisher thread
+            publish_thread = threading.Thread(target=self.agent_publisher_main, args=())
+            publish_thread.setDaemon(True)
+            publish_thread.start()
 
             # Start host sync thread
             host_sync_thread = threading.Thread(target=self.agent_sync_hosts_main, args=())
@@ -3611,6 +3614,40 @@ class Server(object):
             self.trace_logger.log(e)
 
         logger.info('Agent host sync loop terminated')
+
+    def agent_publisher_main(self):
+        """
+        Main thread publishing results to the master
+        :return:
+        """
+        logger.info('Agent publish thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+        try:
+            last_sync_check = 0
+            while not self.stop_event.is_set():
+                try:
+                    time.sleep(0.25)
+                    cur_time = time.time()
+                    if last_sync_check + 5 > cur_time:
+                        continue
+
+                    # s = None
+                    # try:
+                    #     s = self.db.get_session()
+                    #     pass
+                    # finally:
+                    #     util.silent_close(s)
+
+                    last_sync_check = cur_time
+
+                except Exception as e:
+                    logger.error('Exception in publish: %s' % e)
+                    self.trace_logger.log(e)
+
+        except Exception as e:
+            logger.error('Exception: %s' % e)
+            self.trace_logger.log(e)
+
+        logger.info('Agent publish loop terminated')
 
     #
     # DB cleanup
