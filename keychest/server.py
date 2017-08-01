@@ -1763,7 +1763,7 @@ class Server(object):
 
         # load previous cached result, may be empty.
         last_cache_res = self.load_last_subs_result(s, watch_id=job.watch_id())
-        is_same_as_before = is_same_as_before_sc or last_cache_res is None
+        is_same_as_before = is_same_as_before_sc and last_cache_res is not None
         db_sub = None
 
         # new result - store new subdomain data, invalidate old results
