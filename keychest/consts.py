@@ -86,4 +86,8 @@ class DbLastScanCacheType(object):
     MASTER_SCAN = 11  # caching last results seen from master
 
 
+class IpType(object):
+    NOT_IP = 0
+    IPv4 = 1
+    IPv6 = 2
 

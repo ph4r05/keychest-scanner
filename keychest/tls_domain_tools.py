@@ -18,6 +18,7 @@ import socket
 from trace_logger import Tracelogger
 import tldextract
 from IPy import IP
+from consts import IpType
 
 
 logger = logging.getLogger(__name__)
@@ -406,16 +407,41 @@ class TlsDomainTools(object):
         return scheme, port
 
     @staticmethod
+    def get_ip_type(hostname):
+        """
+        Returns 0 if the host is not IP, 1 for IPv4, 2 for IPv6
+        :param hostname:
+        :return:
+        """
+        if TlsDomainTools.is_valid_ipv4_address(hostname):
+            return IpType.IPv4
+        if TlsDomainTools.is_valid_ipv6_address(hostname):
+            return IpType.IPv6
+        return IpType.NOT_IP
+
+    @staticmethod
     def is_ip(hostname):
         """
         Returns true if the hostname is IPv4 or IPv6
         :param hostname:
         :return:
         """
+        ipv4 = TlsDomainTools.is_valid_ipv4_address(hostname)
+        if ipv4:
+            return True
+        return TlsDomainTools.is_valid_ipv6_address(hostname)
+
+    @staticmethod
+    def is_valid_ipv4_address(hostname):
+        """
+        Returns true if the hostname is IPv4
+        :param hostname:
+        :return:
+        """
         r = r'^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$'
         if re.match(r, hostname):
             return True
-        return TlsDomainTools.is_valid_ipv6_address(hostname)
+        return False
 
     @staticmethod
     def is_valid_ipv6_address(address):
