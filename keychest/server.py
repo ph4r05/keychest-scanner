@@ -33,7 +33,7 @@ from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType
+from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 import util_cert
 from api import RestAPI
 
@@ -748,7 +748,9 @@ class Server(object):
         """
         domain = job_data['scan_host']
         watch_id = util.defvalkey(job_data, 'watch_id')
-        if not TlsDomainTools.can_whois(domain):
+        is_ip = TlsDomainTools.get_ip_type(domain)
+
+        if is_ip == IpType.NOT_IP and not TlsDomainTools.can_whois(domain):
             logger.debug('Domain %s not elligible to DNS scan' % domain)
             return
 
@@ -760,14 +762,18 @@ class Server(object):
         scan_db.updated_at = salch.func.now()
 
         try:
-            results = socket.getaddrinfo(domain, 443,
-                                         0,
-                                         socket.SOCK_STREAM,
-                                         socket.IPPROTO_TCP)
+            if is_ip != IpType.NOT_IP:
+                # Synthetic DNS resolution - unification mechanism for IP based watches (same fetch queries for all targets)
+                res = [(2 if is_ip == IpType.IPv4 else 10, domain)]
+            else:
+                results = socket.getaddrinfo(domain, 443,
+                                             0,
+                                             socket.SOCK_STREAM,
+                                             socket.IPPROTO_TCP)
 
-            res = []
-            for cur in results:
-                res.append((cur[0], cur[4][0]))
+                res = []
+                for cur in results:
+                    res.append((cur[0], cur[4][0]))
 
             scan_db.dns_res = res
             scan_db.dns_status = 1
