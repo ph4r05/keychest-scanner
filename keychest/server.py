@@ -362,6 +362,7 @@ class Server(object):
 
             # DNS scan
             db_dns, dns_entries = self.scan_dns(s, job_data, domain, job_db)
+            self.update_last_dns_scan_id(s, db_dns)
             s.commit()
 
             self.update_scan_job_state(job_db, 'dns-done', s)
@@ -1551,13 +1552,7 @@ class Server(object):
             s.commit()
 
             # update cached last dns scan id
-            stmt = salch.update(DbWatchTarget)\
-                .where(DbWatchTarget.id == cur_scan.watch_id)\
-                .where(salch.or_(
-                    DbWatchTarget.last_dns_scan_id == None,
-                    DbWatchTarget.last_dns_scan_id < cur_scan.id)
-                ).values(last_dns_scan_id=cur_scan.id)
-            s.execute(stmt)
+            self.update_last_dns_scan_id(s, cur_scan)
             
             job_scan.aux = cur_scan
 
@@ -3330,6 +3325,33 @@ class Server(object):
             .filter(DbWatchAssoc.deleted_at == None)\
             .filter(DbWatchAssoc.disabled_at == None))
 
+    def update_last_dns_scan_id(self, s, db_dns):
+        """
+        update cached last dns scan id in the watch_target
+        :param s:
+        :param db_dns:
+        :return:
+        """
+        stmt = salch.update(DbWatchTarget) \
+            .where(DbWatchTarget.id == db_dns.watch_id) \
+            .where(salch.or_(
+            DbWatchTarget.last_dns_scan_id == None,
+            DbWatchTarget.last_dns_scan_id < db_dns.id)
+        ).values(last_dns_scan_id=db_dns.id)
+        s.execute(stmt)
+
+    def update_watch_last_scan_at(self, s, watch_id):
+        """
+        Updates last scan for the watch to now
+        :param s:
+        :param watch_id:
+        :return:
+        """
+        stmt = salch.update(DbWatchTarget) \
+            .where(DbWatchTarget.id == watch_id) \
+            .values(last_scan_at=salch.func.now())
+        s.execute(stmt)
+
     #
     # Workers - Redis interactive jobs
     #
@@ -4009,10 +4031,8 @@ class Server(object):
             s.add(entry)
 
         # update cached last dns scan id
-        stmt = salch.update(DbWatchTarget) \
-            .where(DbWatchTarget.id == db_dns.watch_id) \
-            .values(last_dns_scan_id=db_dns.id, last_scan_at=salch.func.now())  # TODO: refactor last scan at
-        s.execute(stmt)
+        self.update_last_dns_scan_id(s, db_dns)
+        self.update_watch_last_scan_at(s, db_dns.watch_id)
 
         ResultModelUpdater.update_cache(s, db_dns_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
         ResultModelUpdater.update_cache(s, db_dns, cache_type=DbLastScanCacheType.LOCAL_SCAN)
