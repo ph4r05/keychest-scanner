@@ -400,8 +400,9 @@ class DbWatchTarget(Base):
     scan_scheme = Column(String(255), nullable=True)
     scan_port = Column(String(255), nullable=True)
     scan_connect = Column(SmallInteger, default=0)  # TLS or STARTTLS
+    is_ip_host = Column(SmallInteger, default=0)  # watch target specified with IP
 
-    # Explicit SNI / service name to scan on host if multiplexing.
+    # Explicit SNI / service name to scan on host if multiplexing / raw IP for internal networks.
     service_id = Column(ForeignKey('watch_service.id', name='wt_watch_service_id', ondelete='SET NULL'),
                         nullable=True, index=True)
     top_domain_id = Column(ForeignKey('base_domain.id', name='wt_base_domain_id', ondelete='SET NULL'),
@@ -615,6 +616,7 @@ class DbDnsResolve(Base):
     num_res = Column(SmallInteger, default=0, nullable=False)
     num_ipv4 = Column(SmallInteger, default=0, nullable=False)
     num_ipv6 = Column(SmallInteger, default=0, nullable=False)
+    is_synthetic = Column(SmallInteger, default=0, nullable=False)  # dummy value inserted manually
     dns = Column(Text, nullable=True)  # normalized json with dns results
 
     def __init__(self):
