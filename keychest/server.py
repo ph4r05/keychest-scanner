@@ -362,7 +362,6 @@ class Server(object):
 
             # DNS scan
             db_dns, dns_entries = self.scan_dns(s, job_data, domain, job_db)
-            self.update_last_dns_scan_id(s, db_dns)
             s.commit()
 
             self.update_scan_job_state(job_db, 'dns-done', s)
@@ -1559,6 +1558,7 @@ class Server(object):
 
             # update cached last dns scan id
             self.update_last_dns_scan_id(s, cur_scan)
+            self.update_watch_ip_type(s, job.target)
             
             job_scan.aux = cur_scan
 
@@ -3357,6 +3357,26 @@ class Server(object):
             .where(DbWatchTarget.id == watch_id) \
             .values(last_scan_at=salch.func.now())
         s.execute(stmt)
+
+    def update_watch_ip_type(self, s, target, domain=None):
+        """
+        Fixes IP type for new watches
+        :param s:
+        :param target:
+        :type target: DbWatchTarget
+        :param domain:
+        :return:
+        """
+        if target is not None:
+            ip_type = TlsDomainTools.get_ip_type(target.scan_host)
+            if ip_type == target.is_ip_host:
+                return
+
+            target.is_ip_host = ip_type
+            stmt = salch.update(DbWatchTarget) \
+                .where(DbWatchTarget.id == target.id) \
+                .values(is_ip_host=target.is_ip_host)
+            s.execute(stmt)
 
     #
     # Workers - Redis interactive jobs
