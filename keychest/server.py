@@ -764,6 +764,8 @@ class Server(object):
             if is_ip != IpType.NOT_IP:
                 # Synthetic DNS resolution - unification mechanism for IP based watches (same fetch queries for all targets)
                 res = [(2 if is_ip == IpType.IPv4 else 10, domain)]
+                scan_db.is_synthetic = True
+                
             else:
                 results = socket.getaddrinfo(domain, 443,
                                              0,
