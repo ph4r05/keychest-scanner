@@ -11,6 +11,7 @@ import datetime
 import traceback
 import errors
 import requests.exceptions as rex
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -224,9 +225,11 @@ class CrtProcessor(object):
         ret = CrtShIndexResponse(query=query)
         attempts = kwargs.get('attempts', self.attempts)
         timeout = kwargs.get('timeout', self.timeout)
+
+        svc_query = re.sub(r'\\*_', '\\_', query)
         for attempt in range(attempts):
             try:
-                res = requests.get(self.BASE_URL, params={'q': query}, timeout=timeout)
+                res = requests.get(self.BASE_URL, params={'q': svc_query}, timeout=timeout)
                 res.raise_for_status()
                 data = res.text
 
