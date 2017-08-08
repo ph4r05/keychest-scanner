@@ -31,7 +31,8 @@ install_requires = [
     'tldextract',
     'ph4-python-whois>=0.6.8',
     'IPy',
-    'python-dateutil'
+    'python-dateutil',
+    'idna<2.6,>=2.5'  # TODO: resolve this
 ]
 
 # env markers in extras_require cause problems with older pip: #517
