@@ -697,8 +697,8 @@ class Server(object):
                 if resp is None:  # not found
                     scan_db.status = 2
                 else:
-                    scan_db.registrant_cc = util.first(resp.country)
-                    scan_db.registrar = util.first(resp.registrar)
+                    scan_db.registrant_cc = util.utf8ize(util.first(resp.country))
+                    scan_db.registrar = util.utf8ize(util.first(resp.registrar))
                     scan_db.expires_at = util.first(resp.expiration_date)
                     scan_db.registered_at = util.first(resp.creation_date)
                     scan_db.rec_updated_at = util.first(resp.updated_date)
