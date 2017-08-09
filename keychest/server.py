@@ -1876,7 +1876,7 @@ class Server(object):
             s.add(scan_db)
 
         # top domain assoc
-        if job.target.top_domain_id != top_domain.id:
+        if job.target.top_domain_id is None or job.target.top_domain_id != top_domain.id:
             job.target.top_domain_id = top_domain.id
             s.merge(job.target)
         s.commit()
@@ -2783,6 +2783,7 @@ class Server(object):
         if top_domain_obj is not None:
             model.top_domain_id = top_domain_obj.id
         s.merge(model)
+        s.commit()
 
     def is_blacklisted(self, domain):
         """
