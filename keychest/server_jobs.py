@@ -50,6 +50,7 @@ class ScanResults(object):
 class JobTypes(object):
     TARGET = 1
     SUB = 2
+    UI = 3
 
     def __init__(self):
         pass
@@ -113,6 +114,59 @@ class BaseJob(object):
 
     def __repr__(self):
         return '<BaseJob(type=%r, attempts=%r, later=%r)>' % (self.type, self.attempts, self.later)
+
+
+class RedisJob(BaseJob):
+    """
+    UI invoked redis queued job
+    """
+    def __init__(self, target=None, periodicity=None, watch_service=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbWatchTarget
+        :param periodicity:
+        :param watch_service:
+        :type watch_service: DbWatchService
+        :param args:
+        :param kwargs:
+        """
+        super(RedisJob, self).__init__(type=JobTypes.UI)
+
+        self.target = target  # type: DbWatchTarget
+        self.service = watch_service  # type: DbWatchService
+
+        self.primary_ip = None
+        self.ips = []
+        self.scan_dns = ScanResults()
+        self.scan_tls = ScanResults()
+        self.scan_crtsh = ScanResults()
+        self.scan_whois = ScanResults()
+
+    def key(self):
+        return 'u%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later
+
+    def url(self):
+        """
+        Returns url object from the target
+        :return:
+        """
+        return TargetUrl(scheme=self.target.scan_scheme, host=self.target.scan_host, port=self.target.scan_port)
+
+    def watch_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<RedisJob(target=<WatcherTarget(id=%r, host=%r, self=%r)>, attempts=%r, last_scan_at=%r)>' \
+               % (self.target.id, self.target.scan_host, self.target, self.attempts, self.target.last_scan_at)
+
 
 
 class PeriodicJob(BaseJob):
