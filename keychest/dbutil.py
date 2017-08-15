@@ -442,6 +442,10 @@ class DbUser(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=None)
 
+    timezone = Column(String(191), nullable=True)
+    utc_offset = Column(Integer, nullable=False, default=0)
+    last_email_report_sent_at = Column(DateTime, default=None)
+
 
 class DbWatchAssoc(Base):
     """
