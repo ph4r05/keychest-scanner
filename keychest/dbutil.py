@@ -895,6 +895,7 @@ class DbEmailNews(Base):
     updated_at = Column(DateTime, default=func.now())
 
     schedule_at = Column(DateTime, default=None, nullable=True)  # date of the desired sending, or created_at
+    valid_to = Column(DateTime, default=None, nullable=True)  # validity date to, default NULL
     deleted_at = Column(DateTime, default=None, nullable=True)
     disabled_at = Column(DateTime, default=None, nullable=True)  # do not send this entry
 
