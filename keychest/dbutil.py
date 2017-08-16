@@ -884,6 +884,39 @@ class DbWatchLocalService(Base):
     updated_at = Column(DateTime, default=func.now())
 
 
+class DbEmailNews(Base):
+    """
+    Simple email news messages appended to the footer of the email to inform user about new stuff.
+    """
+    __tablename__ = 'email_news'
+    id = Column(BigInteger, primary_key=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    schedule_at = Column(DateTime, default=None, nullable=True)  # date of the desired sending, or created_at
+    deleted_at = Column(DateTime, default=None, nullable=True)
+    disabled_at = Column(DateTime, default=None, nullable=True)  # do not send this entry
+
+    message = Column(Text, nullable=True)
+
+
+class DbEmailNewsUserAssoc(Base):
+    """
+    Track of the email news sent to the user
+    """
+    __tablename__ = 'email_news_user'
+    id = Column(BigInteger, primary_key=True)
+
+    user_id = Column(ForeignKey('users.id', name='fk_email_news_user_users_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+    email_news_id = Column(ForeignKey('email_news.id', name='fk_email_news_user_email_news_id', ondelete='CASCADE'),
+                           nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 #
 # DB helper objects
 #  - query building, model comparison, projections
