@@ -21,6 +21,9 @@ def upgrade():
     op.add_column('users', sa.Column('last_email_report_sent_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('timezone', sa.String(length=191), nullable=True))
     op.add_column('users', sa.Column('utc_offset', sa.Integer(), nullable=False))
+    op.add_column('users', sa.Column('is_superadmin', sa.SmallInteger(), nullable=False))
+    op.add_column('users', sa.Column('last_email_no_servers_sent_at', sa.DateTime(), nullable=True))
+    op.add_column('users', sa.Column('weekly_emails_disabled', sa.SmallInteger(), nullable=False))
     # ### end Alembic commands ###
 
 
@@ -29,4 +32,7 @@ def downgrade():
     op.drop_column('users', 'utc_offset')
     op.drop_column('users', 'timezone')
     op.drop_column('users', 'last_email_report_sent_at')
+    op.drop_column('users', 'weekly_emails_disabled')
+    op.drop_column('users', 'last_email_no_servers_sent_at')
+    op.drop_column('users', 'is_superadmin')
     # ### end Alembic commands ###
