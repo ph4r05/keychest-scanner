@@ -446,6 +446,7 @@ class DbUser(Base):
     timezone = Column(String(191), nullable=True)
     utc_offset = Column(Integer, nullable=False, default=0)
     last_email_report_sent_at = Column(DateTime, default=None)
+    last_email_report_enqueued_at = Column(DateTime, default=None)
     weekly_emails_disabled = Column(SmallInteger, nullable=False, default=0)
     last_email_no_servers_sent_at = Column(DateTime, default=None)
 
