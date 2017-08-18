@@ -21,10 +21,10 @@ def upgrade():
     op.add_column('users', sa.Column('last_email_report_sent_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('last_email_report_enqueued_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('timezone', sa.String(length=191), nullable=True))
-    op.add_column('users', sa.Column('utc_offset', sa.Integer(), nullable=False))
-    op.add_column('users', sa.Column('is_superadmin', sa.SmallInteger(), nullable=False))
+    op.add_column('users', sa.Column('utc_offset', sa.Integer(), nullable=False, server_default='0'))
+    op.add_column('users', sa.Column('is_superadmin', sa.SmallInteger(), nullable=False, server_default='0'))
     op.add_column('users', sa.Column('last_email_no_servers_sent_at', sa.DateTime(), nullable=True))
-    op.add_column('users', sa.Column('weekly_emails_disabled', sa.SmallInteger(), nullable=False))
+    op.add_column('users', sa.Column('weekly_emails_disabled', sa.SmallInteger(), nullable=False, server_default='0'))
     # ### end Alembic commands ###
 
 

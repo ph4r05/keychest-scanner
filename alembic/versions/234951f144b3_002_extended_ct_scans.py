@@ -112,7 +112,8 @@ def upgrade():
     op.add_column(u'user_watch_target', sa.Column('auto_scan_added_at', sa.DateTime(), nullable=True))
     op.add_column(u'user_watch_target', sa.Column('disabled_at', sa.DateTime(), nullable=True))
 
-    op.add_column('user_subdomain_watch_target', sa.Column('auto_fill_watches', sa.SmallInteger(), nullable=False))
+    op.add_column('user_subdomain_watch_target', sa.Column('auto_fill_watches', sa.SmallInteger(), nullable=False,
+                                                           server_default='0'))
 
     op.add_column('scan_handshakes', sa.Column('tls_alert_code', sa.Integer(), nullable=True))
     op.add_column('scan_handshakes', sa.Column('err_valid_ossl_code', sa.Integer(), nullable=True))

@@ -64,7 +64,7 @@ def upgrade():
     op.create_index(op.f('ix_scan_dns_entry_scan_id'), 'scan_dns_entry', ['scan_id'], unique=False)
     op.create_index(op.f('ix_scan_dns_entry_ip'), 'scan_dns_entry', ['ip'], unique=False)
 
-    op.add_column(u'scan_handshakes', sa.Column('is_ipv6', sa.SmallInteger(), nullable=False))
+    op.add_column(u'scan_handshakes', sa.Column('is_ipv6', sa.SmallInteger(), nullable=False, server_default='0'))
 
     op.alter_column(u'user_subdomain_watch_target', 'auto_fill_watches',
                     existing_type=mysql.SMALLINT(display_width=6),
