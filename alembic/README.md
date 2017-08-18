@@ -48,3 +48,11 @@ changes.
 alembic upgrade head --sql
 ```
 
+### Default values
+
+Alembic autodetection does not work well with default values - they are not detected.
+Add default values manually for tables used by PHP
+
+```
+op.add_column('users', sa.Column('magiccc', sa.SmallInteger(), nullable=False, server_default='0'))
+```
