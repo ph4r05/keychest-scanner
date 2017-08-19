@@ -1336,7 +1336,7 @@ class Server(object):
         :return:
         """
         job_scan = job.scan_dns  # type: ScanResults
-        last_scan = self.load_last_dns_scan(s, job.watch_id())
+        last_scan = self.load_last_dns_scan_optim(s, job.watch_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
                 and last_scan.last_scan_at > self._diff_time(self.delta_dns, rnd=True):
@@ -2238,6 +2238,22 @@ class Server(object):
             return None
         q = s.query(DbDnsResolve).filter(DbDnsResolve.watch_id == watch_id)
         return q.order_by(DbDnsResolve.last_scan_at.desc()).limit(1).first()
+
+    def load_last_dns_scan_optim(self, s, watch_id=None):
+        """
+        Loads the latest DNS scan - optimized version
+        :param s:
+        :param watch_id:
+        :return:
+        :rtype DbDnsResolve
+        """
+        if watch_id is None:
+            return None
+
+        return s.query(DbDnsResolve).select_from(DbWatchTarget) \
+            .join(DbDnsResolve, DbDnsResolve.id == DbWatchTarget.last_dns_scan_id) \
+            .filter(DbWatchTarget.id == watch_id) \
+            .first()
 
     def load_last_subs_result(self, s, watch_id=None):
         """
