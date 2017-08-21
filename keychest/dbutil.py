@@ -58,6 +58,7 @@ class ScanJob(Base):
     scan_host = Column(String(255), nullable=True)
     scan_scheme = Column(String(255), nullable=True)
     scan_port = Column(String(255), nullable=True)
+    scan_ip = Column(String(255), nullable=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
