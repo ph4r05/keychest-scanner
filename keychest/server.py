@@ -357,15 +357,20 @@ class Server(object):
             # load job object
             job_db = s.query(ScanJob).filter(ScanJob.uuid == job_data['uuid']).first()
 
-            # TODO: scan CT database
-            # ...
-
+            #
             # DNS scan
             db_dns, dns_entries = self.scan_dns(s, job_data, domain, job_db)
             s.commit()
 
             self.update_scan_job_state(job_db, 'dns-done', s)
 
+            # pick default IP address for TLS scan
+            if db_dns and db_dns.status == 1 and len(dns_entries) > 0:
+                scan_ip = util.defvalkey(job_data, 'scan_ip', default=None, take_none=False)
+                if util.is_empty(scan_ip):
+                    job_data['scan_ip'] = dns_entries[0].ip
+
+            #
             # crt.sh scan - only if DNS is correct
             if db_dns and db_dns.status == 1:
                 try:
@@ -378,17 +383,15 @@ class Server(object):
 
             self.update_scan_job_state(job_db, 'crtsh-done', s)
 
-            # TODO: search for more subdomains, *.domain, %.domain
-            # ...
-
-            # direct host scan
+            #
+            # TLS direct host scan
             if db_dns and db_dns.status == 1:
                 self.scan_handshake(s, job_data, domain, job_db)
                 s.commit()
 
             self.update_scan_job_state(job_db, 'tls-done', s)
 
-            # whois scan - only if DNS was done correctly
+            # Whois scan - only if DNS was done correctly
             if db_dns and db_dns.status == 1:
                 self.scan_whois(s, job_data, domain, job_db)
 
@@ -480,7 +483,9 @@ class Server(object):
         :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
         """
         domain = job_data['scan_host']
-        domain_sni = util.defvalkey(job_data, 'scan_sni', domain)
+        domain_sni = util.defvalkey(job_data, 'scan_sni', domain, take_none=False)
+        domain = util.defvalkey(job_data, 'scan_ip', domain, take_none=False)
+
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
             logger.debug('Domain %s not elligible to handshake' % domain)
