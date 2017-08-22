@@ -469,6 +469,9 @@ class DbUserLoginHistory(Base):
     user_id = Column(ForeignKey('users.id', name='user_login_history_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
 
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=None)
+
     login_at = Column(DateTime, default=None, nullable=True)
     login_ip = Column(String(191), nullable=True)
 
