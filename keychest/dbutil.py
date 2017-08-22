@@ -446,10 +446,31 @@ class DbUser(Base):
     is_superadmin = Column(SmallInteger, nullable=False, default=0)
     timezone = Column(String(191), nullable=True)
     utc_offset = Column(Integer, nullable=False, default=0)
+
+    last_login_id = Column(ForeignKey('user_login_history.id', name='users_user_login_history_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
+    last_login_at = Column(DateTime, default=None, nullable=True)  # cached version
+    cur_login_at = Column(DateTime, default=None, nullable=True)
+    last_action_at = Column(DateTime, default=None, nullable=True)
+
+    weekly_emails_disabled = Column(SmallInteger, nullable=False, default=0)
     last_email_report_sent_at = Column(DateTime, default=None)
     last_email_report_enqueued_at = Column(DateTime, default=None)
-    weekly_emails_disabled = Column(SmallInteger, nullable=False, default=0)
     last_email_no_servers_sent_at = Column(DateTime, default=None)
+
+
+class DbUserLoginHistory(Base):
+    """
+    Logins of the user
+    """
+    __tablename__ = 'user_login_history'
+    id = Column(INTEGER(10, unsigned=True), primary_key=True)
+
+    user_id = Column(ForeignKey('users.id', name='user_login_history_users_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+
+    login_at = Column(DateTime, default=None, nullable=True)
+    login_ip = Column(String(191), nullable=True)
 
 
 class DbWatchAssoc(Base):
