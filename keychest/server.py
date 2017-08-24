@@ -3122,13 +3122,22 @@ class Server(object):
                     s.commit()
                     done = True
 
-                    # Alt names
+                    # Insert all alt names for the certificate
                     if add_alts and not util.is_empty(cert_db.alt_names_arr):
-                        for alt_name in util.stable_uniq(util.compact(cert_db.alt_names_arr)):
+                        uniq_sorted_alt_names = util.stable_uniq(util.compact(cert_db.alt_names_arr))
+                        for alt_name in uniq_sorted_alt_names:
                             c_alt = CertificateAltName()
                             c_alt.cert_id = cert_db.id
                             c_alt.alt_name = alt_name
+                            c_alt.is_wildcard = TlsDomainTools.has_wildcard(alt_name)
                             s.add(c_alt)
+                        s.commit()
+
+                        # Live migration to domain database
+                        for alt_name in uniq_sorted_alt_names:
+                            if TlsDomainTools.has_wildcard(alt_name):
+                                continue
+                            self.load_domain_name(s, domain_name=alt_name, pre_commit=False, fetch_first=True)
                         s.commit()
 
                 except Exception as e:
@@ -3370,11 +3379,13 @@ class Server(object):
                 .values(is_ip_host=target.is_ip_host)
             s.execute(stmt)
 
-    def load_domain_name(self, s, domain_name):
+    def load_domain_name(self, s, domain_name, fetch_first=True, pre_commit=True):
         """
         Arbitrary domain name
         :param s:
         :param domain_name:
+        :param fetch_first:
+        :param pre_commit:
         :return:
         """
         obj = DbDomainName()
@@ -3392,8 +3403,8 @@ class Server(object):
         ret = dbutil.ModelUpdater \
             .load_or_insert(s, obj=obj, select_cols=[DbDomainName.domain_name],
                             pre_add_fnc=pre_add,
-                            pre_commit=True,
-                            fetch_first=True,
+                            pre_commit=pre_commit,
+                            fetch_first=fetch_first,
                             fail_sleep=0.01,
                             trace_logger=self.trace_logger,
                             log_message='domain name fetch/save error: %s' % domain_name)
