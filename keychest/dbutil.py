@@ -978,10 +978,10 @@ class DbTlsScanDesc(Base):
     __table_args__ = (UniqueConstraint('ip_id', 'sni_id', 'scan_port', name='uk_scan_tls_desc_unique'),)
     id = Column(BigInteger, primary_key=True)
 
-    ip_id = Column(ForeignKey('ip_address.id', name='fk_scan_tls_desc_ip_address_id', ondelete='SET NULL'),
-                   nullable=True, index=True)
-    sni_id = Column(ForeignKey('watch_service.id', name='fk_scan_tls_desc_watch_service_id', ondelete='SET NULL'),
-                    nullable=True, index=True)
+    ip_id = Column(ForeignKey('ip_address.id', name='fk_scan_tls_desc_ip_address_id', ondelete='CASCADE'),
+                   nullable=False, index=True)
+    sni_id = Column(ForeignKey('watch_service.id', name='fk_scan_tls_desc_watch_service_id', ondelete='CASCADE'),
+                    nullable=False, index=True)
     scan_port = Column(Integer, nullable=False, default=443)
 
 
@@ -1013,9 +1013,9 @@ class DbTlsScanDescExt(Base):
     id = Column(BigInteger, primary_key=True)
 
     tls_desc_id = Column(ForeignKey('scan_tls_desc.id', name='fk_scan_tls_desc_ext_scan_tls_desc_id',
-                                    ondelete='CASCADE'), nullable=True, index=True)
+                                    ondelete='CASCADE'), nullable=False, index=True)
     tls_params_id = Column(ForeignKey('scan_tls_params.id', name='fk_scan_tls_desc_ext_scan_tls_params_id',
-                                      ondelete='CASCADE'), nullable=True, index=True)
+                                      ondelete='CASCADE'), nullable=False, index=True)
 
 
 #
@@ -1098,12 +1098,12 @@ class DbIpScanRecordUser(Base):
     Also helps with deduplication of watch target scans.
     """
     __tablename__ = 'user_ip_scan_record'
-    __table_args__ = (UniqueConstraint('user_id', 'ip_scan_record_id', name='wa_user_watcher_uniqe'),)
+    __table_args__ = (UniqueConstraint('user_id', 'ip_scan_record_id', name='uk_user_ip_scan_record_unique'),)
     id = Column(BigInteger, primary_key=True)
 
     user_id = Column(ForeignKey('users.id', name='fk_user_ip_scan_record_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
-    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_result_ip_scan_record_id',
+    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_record_ip_scan_record_id',
                                           ondelete='CASCADE'), nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
