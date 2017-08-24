@@ -91,3 +91,6 @@ class IpType(object):
     IPv4 = 1
     IPv6 = 2
 
+    NET_IPv4 = 2
+    NET_IPv6 = 10
+

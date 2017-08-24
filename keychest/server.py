@@ -769,7 +769,7 @@ class Server(object):
             if is_ip != IpType.NOT_IP:
                 # Synthetic DNS resolution - unification mechanism for IP based watches
                 # (same fetch queries for all targets)
-                res = [(2 if is_ip == IpType.IPv4 else 10, domain)]
+                res = [(TlsDomainTools.get_ip_family(type_idx=is_ip), domain)]
                 scan_db.is_synthetic = True
                 
             else:

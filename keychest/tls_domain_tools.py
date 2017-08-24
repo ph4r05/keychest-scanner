@@ -420,6 +420,21 @@ class TlsDomainTools(object):
         return IpType.NOT_IP
 
     @staticmethod
+    def get_ip_family(ip=None, type_idx=None):
+        """
+        Returns 0 if the host is not IP, 1 for IPv4, 2 for IPv6
+        :param hostname:
+        :return:
+        """
+        if ip is not None:
+            type_idx = TlsDomainTools.get_ip_type(ip)
+        if type_idx == IpType.IPv4:
+            return IpType.NET_IPv4
+        if type_idx == IpType.IPv6:
+            return IpType.NET_IPv6
+        return IpType.NOT_IP
+
+    @staticmethod
     def is_ip(hostname):
         """
         Returns true if the hostname is IPv4 or IPv6
