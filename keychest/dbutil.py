@@ -1021,6 +1021,42 @@ class DbTlsScanDescExt(Base):
 
 
 #
+# v2.0 App scan
+#
+
+
+class DbWebAppScan(Base):
+    """
+    Base web app scan results - follow, hsts, pinning
+    """
+    __tablename__ = 'scan_web_app'
+    id = Column(BigInteger, primary_key=True)
+
+    host_id = Column(ForeignKey('scan_tls_desc.id', name='fk_scan_web_app_scan_tls_desc_id', ondelete='SET NULL'),
+                   nullable=True, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    last_scan_at = Column(DateTime, default=None)  # last scan with this result (periodic scanner)
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    req_https_result = Column(String(64), nullable=True)  # result of HTTPs req - no follow direct request
+    follow_http_result = Column(String(64), nullable=True)  # result of HTTP req with follow redirects.
+    follow_https_result = Column(String(64), nullable=True)  # result of HTTPs req with follow redirects
+    follow_http_url = Column(String(255), nullable=True)  # URL after loading HTTP page
+    follow_https_url = Column(String(255), nullable=True)  # URL after loading HTTPs page
+
+    hsts_present = Column(SmallInteger, default=0)  # HSTS
+    hsts_max_age = Column(BigInteger, nullable=True)  # HSTS
+    hsts_include_subdomains = Column(SmallInteger, nullable=True)  # HSTS
+    hsts_preload = Column(SmallInteger, nullable=True)  # HSTS
+
+    pinning_present = Column(SmallInteger, default=0)  # Certificate pinning
+    pinning_report_only = Column(SmallInteger, nullable=True)  # Certificate pinning
+    pinning_pins = Column(Text, nullable=True)  # Certificate pinning, json encoded pins
+
+
+#
 # IP scanning
 #
 
