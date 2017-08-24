@@ -929,6 +929,188 @@ class DbWatchLocalService(Base):
     updated_at = Column(DateTime, default=func.now())
 
 
+#
+# v2.0 New normalized base objects
+#
+
+
+class DbDomainName(Base):
+    """
+    Whole domain name representation.
+
+    Simple ID for the domain name.
+     - Designed mainly to improve storage efficiency as domain names can be long. Used in scan results.
+     - Optimizes storage of SAN in the certificates
+     - Caches SLD link.
+    """
+    __tablename__ = 'domain_name'
+    id = Column(BigInteger, primary_key=True)
+    domain_name = Column(String(255), nullable=False, unique=True)
+    top_domain_id = Column(ForeignKey('base_domain.id', name='domain_name_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)  # SLD link
+
+
+class DbIpAddress(Base):
+    """
+    IP address representation
+
+    Simple ID for the IP address.
+     - Designed mainly to improve storage efficiency as IPv6 addresses are rather long. Used in scan results.
+    """
+    __tablename__ = 'ip_address'
+    id = Column(BigInteger, primary_key=True)
+    ip_addr = Column(String(255), nullable=False, unique=True)
+    ip_type = Column(SmallInteger, nullable=False, default=2)
+
+
+#
+# v2.0 Normalized TLS scan definitions
+#
+
+
+class DbTlsScanDesc(Base):
+    """
+    TLS scan descriptor.
+    Complete description of the particular TLS scan (IP, port, SNI)
+
+    Can serve as an unique universal key to the TLS host scan (deduplication, last scan caching), especially in the
+    complication scenarios like: ordinary watch targets, custom DNS resolve targets, IP-only hosts, floating IPs
+    """
+    __tablename__ = 'scan_tls_desc'
+    __table_args__ = (UniqueConstraint('ip_id', 'sni_id', 'scan_port', name='uk_scan_tls_desc_unique'),)
+    id = Column(BigInteger, primary_key=True)
+
+    ip_id = Column(ForeignKey('ip_address.id', name='fk_scan_tls_desc_ip_address_id', ondelete='SET NULL'),
+                   nullable=True, index=True)
+    sni_id = Column(ForeignKey('watch_service.id', name='fk_scan_tls_desc_watch_service_id', ondelete='SET NULL'),
+                    nullable=True, index=True)
+    scan_port = Column(Integer, nullable=False, default=443)
+
+
+class DbTlsScanParams(Base):
+    """
+    TLS scan parameters.
+
+    Unrelated to the endpoint, specifies properties of the test (the request) - tls ver, key type, cipher suite set.
+    """
+    __tablename__ = 'scan_tls_params'
+    __table_args__ = (UniqueConstraint('tls_ver', 'key_type', 'cipersuite_set', name='uk_scan_tls_params_unique'),)
+    id = Column(BigInteger, primary_key=True)
+
+    tls_ver = Column(String(16), nullable=True)  # SSL2, SSL3, ...
+    key_type = Column(SmallInteger, default=0, nullable=True)  # RSA / ECC / DSS
+    cipersuite_set = Column(BigInteger, default=0, nullable=True)
+
+
+class DbTlsScanDescExt(Base):
+    """
+    Extended TLS scan descriptor.
+    Complete description of the particular TLS scan (IP, port, SNI)
+
+    Can serve as an unique universal key to the TLS host scan (deduplication, last scan caching), especially in the
+    complication scenarios like: ordinary watch targets, custom DNS resolve targets, IP-only hosts, floating IPs
+    """
+    __tablename__ = 'scan_tls_desc_ext'
+    __table_args__ = (UniqueConstraint('tls_desc_id', 'tls_params_id', name='uk_scan_tls_desc_ext_unique'),)
+    id = Column(BigInteger, primary_key=True)
+
+    tls_desc_id = Column(ForeignKey('scan_tls_desc.id', name='fk_scan_tls_desc_ext_scan_tls_desc_id',
+                                    ondelete='CASCADE'), nullable=True, index=True)
+    tls_params_id = Column(ForeignKey('scan_tls_params.id', name='fk_scan_tls_desc_ext_scan_tls_params_id',
+                                      ondelete='CASCADE'), nullable=True, index=True)
+
+
+#
+# IP scanning
+#
+
+
+class DbIpScanRecord(Base):
+    """
+    IP scanning record.
+    Scans the IPv4 range and looks for the servers
+    """
+    __tablename__ = 'ip_scan_record'
+    id = Column(BigInteger, primary_key=True)
+
+    service_name = Column(String(255), nullable=False)  # SNI to look for
+    service_id = Column(ForeignKey('watch_service.id', name='fk_ip_scan_record_watch_service_id', ondelete='SET NULL'),
+                        nullable=True, index=True)  # service record for ref, joins, unification.
+
+    ip_beg = Column(String(24), nullable=False)
+    ip_end = Column(String(24), nullable=False)
+    ip_beg_int = Column(BigInteger, nullable=True)  # int representation of the IPv4 start of the scan
+    ip_end_int = Column(BigInteger, nullable=True)  # int representation of the IPv4 end of the scan
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
+    last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    def __init__(self):
+        self.trans_top_domain = None
+
+    def visit_fnc(self, fnc):
+        self.trans_top_domain = fnc(self.trans_top_domain)
+        return self
+
+
+class DbIpScanRecordUser(Base):
+    """
+    User -> IpScanRecord target association
+    Enables to have watch_target id immutable to have valid results with target_id.
+    Also helps with deduplication of watch target scans.
+    """
+    __tablename__ = 'user_ip_scan_record'
+    __table_args__ = (UniqueConstraint('user_id', 'ip_scan_record_id', name='wa_user_watcher_uniqe'),)
+    id = Column(BigInteger, primary_key=True)
+
+    user_id = Column(ForeignKey('users.id', name='fk_user_ip_scan_record_users_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_result_ip_scan_record_id',
+                                          ondelete='CASCADE'), nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
+    disabled_at = Column(DateTime, default=None, nullable=True)  # user disables this entry
+
+    scan_periodicity = Column(BigInteger, nullable=True)
+    auto_fill_watches = Column(SmallInteger, default=0, nullable=False) # if 1 new hosts will be converted to active watches
+
+
+class DbIpScanResult(Base):
+    """
+    IP scanning result.
+    """
+    __tablename__ = 'ip_scan_result'
+    id = Column(BigInteger, primary_key=True)
+    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_result_ip_scan_record_id',
+                                          ondelete='CASCADE'), nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    finished_at = Column(DateTime, default=None)
+    duration = Column(BigInteger, default=0, nullable=True)
+
+    last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
+    last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
+    num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    num_ips_alive = Column(Integer, default=0, nullable=False)
+    num_ips_found = Column(Integer, default=0, nullable=False)
+    ips_alive = Column(Text, nullable=True)  # normalized json with dns results
+    ips_found = Column(Text, nullable=True)  # normalized json with dns results
+
+    def __init__(self):
+        self.trans_top_domain = None
+
+    def visit_fnc(self, fnc):
+        self.trans_top_domain = fnc(self.trans_top_domain)
+        return self
+
 
 #
 # Emailing
