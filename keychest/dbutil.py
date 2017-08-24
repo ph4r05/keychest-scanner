@@ -1681,9 +1681,13 @@ class ModelUpdater(object):
         :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
         """
         for attempt in range(attempts):
+
             if not fetch_first or attempt > 0:
-                if not attempt == 0 and pre_commit:  # if inserting first, then commit transaction before it may fail.
-                    s.commit()
+
+                if pre_commit:  # if inserting first, then commit transaction before it may fail.
+                    if (fetch_first and attempt == 1) or (not fetch_first and attempt == 0):
+                        s.commit()
+
                 try:
                     if pre_add_fnc is not None:
                         pre_add_fnc(obj)
@@ -1698,7 +1702,7 @@ class ModelUpdater(object):
                         trace_logger.log(e, custom_msg=log_message)
 
             try:
-                sq = DbHelper.query_filter_model(s.query(obj.__table__), select_cols, obj)
+                sq = DbHelper.query_filter_model(s.query(obj.__class__), select_cols, obj)
                 db_obj = sq.first()
                 if db_obj is not None:
                     return db_obj, 0
