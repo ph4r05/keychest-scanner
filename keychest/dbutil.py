@@ -1436,7 +1436,8 @@ class ModelUpdater(object):
     Generic helper with read/inserts
     """
     @staticmethod
-    def load_or_insert(s, obj, select_cols, fetch_first=True, attempts=5, pre_commit=True):
+    def load_or_insert(s, obj, select_cols, fetch_first=True, attempts=5, pre_commit=True,
+                       trace_logger=None, log_message=None, fail_sleep=None, pre_add_fnc=None):
         """
         Tries to insert new object to the DB which has defined some unique constraints.
 
@@ -1455,8 +1456,11 @@ class ModelUpdater(object):
         :param select_cols: cols to filter on for the fetch
         :param fetch_first: if True the fetch operation is attempted first - useful if there is a high chance of existence
         :param attempts: number of attempts
-        :param pre_commit: if True the session is commited if fetch_first is False as the insert may fail and rollback
+        :param pre_commit: if True the session is committed if fetch_first is False as the insert may fail and rollback
                             the whole transaction - also changes made before this call.
+        :param trace_logger: trace logger to log failure
+        :param log_message: message to use with trace logger
+        :param fail_sleep: sleep time to sleep after failure
         :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
         """
         for attempt in range(attempts):
@@ -1464,17 +1468,30 @@ class ModelUpdater(object):
                 if not attempt == 0 and pre_commit:  # if inserting first, then commit transaction before it may fail.
                     s.commit()
                 try:
+                    if pre_add_fnc is not None:
+                        pre_add_fnc(obj)
+
                     s.add(obj)
                     s.commit()
                     return obj, 1
 
                 except Exception as e:
                     s.rollback()
+                    if trace_logger:
+                        trace_logger.log(e, custom_msg=log_message)
 
-            sq = DbHelper.query_filter_model(s.query(obj.__table__), select_cols, obj)
-            db_obj = sq.first()
-            if db_obj is not None:
-                return db_obj, 0
+            try:
+                sq = DbHelper.query_filter_model(s.query(obj.__table__), select_cols, obj)
+                db_obj = sq.first()
+                if db_obj is not None:
+                    return db_obj, 0
+
+            except Exception as e:
+                if trace_logger:
+                    trace_logger.log(e, custom_msg=log_message)
+
+            if fail_sleep is not None:
+                time.sleep(fail_sleep)
 
         raise DbTooManyFails('Could not load / store object')
 
