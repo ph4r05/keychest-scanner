@@ -1411,19 +1411,32 @@ class ModelUpdater(object):
     Generic helper with read/inserts
     """
     @staticmethod
-    def load_or_insert(s, obj, select_cols, fetch_first=True, attempts=5):
+    def load_or_insert(s, obj, select_cols, fetch_first=True, attempts=5, pre_commit=True):
         """
-        General load if exists / store if not approach with attempts.
-        :param s:
-        :param obj:
-        :param select_cols:
-        :param fetch_first:
-        :param attempts:
+        Tries to insert new object to the DB which has defined some unique constraints.
+
+        The unique constraints helps to avoid duplicates in the DB and in this particular case
+        facilitates the lock-free add or fetch of the unique object.
+
+        Many threads may compete to add / fetch the object, one manages to insert, others load the given object.
+        Used mainly to save / load base objects, such as IP addresses, domains, etc. which are used in other relations
+        as references.
+
+        The same process is repeated X times.
+        Automatically commits the transaction before inserting - could fail under high load.
+
+        :param s: session
+        :param obj: object to insert if there is None
+        :param select_cols: cols to filter on for the fetch
+        :param fetch_first: if True the fetch operation is attempted first - useful if there is a high chance of existence
+        :param attempts: number of attempts
+        :param pre_commit: if True the session is commited if fetch_first is False as the insert may fail and rollback
+                            the whole transaction - also changes made before this call.
         :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
         """
         for attempt in range(attempts):
             if not fetch_first or attempt > 0:
-                if not attempt == 0:  # insert first, then commit transaction before it may fail.
+                if not attempt == 0 and pre_commit:  # if inserting first, then commit transaction before it may fail.
                     s.commit()
                 try:
                     s.add(obj)
@@ -1442,14 +1455,18 @@ class ModelUpdater(object):
 
 
 class ResultModelUpdater(object):
+    """
+    DB Helper object for common tasks, e.g. to insert / update objects, cache.
+    """
     @staticmethod
     def insert_or_update(s, select_cols, cmp_cols, obj,
                          last_scan_update_fnc=None,
                          obj_update_fnc=None):
         """
-        Works on a generic results model changing diffs.
-        Selects model from DB using select_cols, based on obj table.
-        required columns: last_scan_at, num_scans for result aggregation
+        Selects model from DB, compares to the givne one, if there is a difference on given cols, the given one is
+        inserted to the DB.
+         - Works on a generic results model changing diffs.
+         - Required columns in the model : last_scan_at, num_scans for result aggregation
         :param s:
         :param select_cols:
         :param cmp_cols:
