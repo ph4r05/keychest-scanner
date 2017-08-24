@@ -13,11 +13,13 @@ from core import Core
 from config import Config
 from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
-    DbScanGaps, DbScanHistory, DbUser, DbLastRecordCache, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
+    DbScanGaps, DbScanHistory, DbUser, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
     DbDnsResolve, DbCrtShQueryInput, \
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
     DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
     DbOrganization, DbOrganizationGroup, DbKeychestAgent, \
+    DbDomainName, DbIpAddress, DbTlsScanDesc, DbTlsScanParams, DbTlsScanDescExt, \
+    DbIpScanRecord, DbIpScanRecordUser, DbIpScanResult, \
     ResultModelUpdater, ModelUpdater
 import dbutil
 from stat_sem import StatSemaphore
@@ -3154,33 +3156,14 @@ class Server(object):
         :return:
         :rtype Tuple[DbBaseDomain, is_new]
         """
-        for attempt in range(attempts):
-            try:
-                ret = s.query(DbBaseDomain).filter(DbBaseDomain.domain_name == top_domain).first()
-                if ret is not None:
-                    return ret, 0
+        obj = DbBaseDomain()
+        obj.domain_name = top_domain
 
-            except Exception as e:
-                logger.error('Error fetching top domain from DB: %s : %s' % (top_domain, e))
-                self.trace_logger.log(e, custom_msg='top domain fetch error')
-
-            # insert attempt now
-            if attempt == 0:
-                s.commit()  # commit before insert, race condition may violate constraint
-            try:
-                ret = DbBaseDomain()
-                ret.domain_name = top_domain
-                s.add(ret)
-                s.flush()
-                return ret, 1
-
-            except Exception as e:
-                s.rollback()
-                logger.error('Error inserting top domain from DB: %s : %s' % (top_domain, e))
-                self.trace_logger.log(e, custom_msg='top domain fetch error')
-
-            time.sleep(0.01)
-        raise Error('Could not store / load top domain')
+        ret = dbutil.ModelUpdater\
+            .load_or_insert(s, obj=obj, select_cols=[DbBaseDomain.domain_name],
+                            pre_commit=True, fetch_first=True, fail_sleep=0.01,
+                            trace_logger=self.trace_logger, log_message='top domain fetch/save error')
+        return ret
 
     def load_crtsh_input(self, s, domain, query_type=0, attempts=5, **kwargs):
         """
@@ -3192,45 +3175,29 @@ class Server(object):
         :return
         :rtype tuple[DbCrtShQueryInput, bool]
         """
-        for attempt in range(attempts):
-            try:
-                ret = s.query(DbCrtShQueryInput)\
-                    .filter(DbCrtShQueryInput.iquery == domain)\
-                    .filter(DbCrtShQueryInput.itype == query_type)\
-                    .first()
-                if ret is not None:
-                    return ret, 0
+        obj = DbCrtShQueryInput()
+        obj.iquery = domain
+        obj.itype = query_type
+        obj.created_at = salch.func.now()
 
-            except Exception as e:
-                logger.error('Error fetching crtsh query from DB: %s-%s : %s' % (domain, query_type, e))
-                self.trace_logger.log(e, custom_msg='crtsh input fetch error')
+        def pre_add(obj):
+            if obj.sld_id is not None:
+                return
 
-            if attempt == 0:
-                s.commit()
+            # top domain load
+            top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain))
+            if top_domain_obj is not None:
+                obj.sld_id = top_domain_obj.id
 
-            # insert attempt now
-            try:
-                ret = DbCrtShQueryInput()
-                ret.iquery = domain
-                ret.itype = query_type
-                ret.created_at = salch.func.now()
-
-                # top domain
-                top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain))
-                if top_domain_obj is not None:
-                    ret.sld_id = top_domain_obj.id
-
-                s.add(ret)
-                s.commit()
-                return ret, 1
-
-            except Exception as e:
-                s.rollback()
-                logger.error('Error inserting crtsh input to DB: %s : %s' % (domain, e))
-                self.trace_logger.log(e, custom_msg='crtsh input fetch error')
-
-            time.sleep(0.01)
-        raise Error('Could not store / load crtsh input')
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s=s, obj=obj, select_cols=[DbCrtShQueryInput.iquery, DbCrtShQueryInput.itype],
+                            pre_add_fnc=pre_add,
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='crtsh input fetch/save error: %s' % domain)
+        return ret
 
     def try_get_top_domain(self, domain):
         """
@@ -3402,6 +3369,130 @@ class Server(object):
                 .where(DbWatchTarget.id == target.id) \
                 .values(is_ip_host=target.is_ip_host)
             s.execute(stmt)
+
+    def load_domain_name(self, s, domain_name):
+        """
+        Arbitrary domain name
+        :param s:
+        :param domain_name:
+        :return:
+        """
+        obj = DbDomainName()
+        obj.domain_name = domain_name
+
+        def pre_add(obj):
+            if obj.top_domain_id is not None:
+                return
+
+            # top domain load
+            top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain_name))
+            if top_domain_obj is not None:
+                obj.top_domain_id = top_domain_obj.id
+
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s, obj=obj, select_cols=[DbDomainName.domain_name],
+                            pre_add_fnc=pre_add,
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='domain name fetch/save error: %s' % domain_name)
+        return ret
+
+    def load_ip_address(self, s, ip):
+        """
+        IP address load/save
+        :param s:
+        :param ip:
+        :return:
+        """
+        obj = DbIpAddress()
+        obj.ip_addr = ip
+
+        def pre_add(obj):
+            if obj.ip_type is not None:
+                return
+            obj.ip_type = TlsDomainTools.get_ip_family(ip)
+
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s, obj=obj, select_cols=[DbIpAddress.ip_addr],
+                            pre_add_fnc=pre_add,
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='IP fetch/save error: %s' % ip)
+        return ret
+
+    def load_tls_desc(self, s, ip_id, svc_id, port=443):
+        """
+        TLS descriptor
+        :param s:
+        :param ip_id:
+        :param svc_id:
+        :param port:
+        :return:
+        """
+        obj = DbTlsScanDesc()
+        obj.ip_id = ip_id
+        obj.sni_id = svc_id
+        obj.port = port
+
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s, obj=obj,
+                            select_cols=[DbTlsScanDesc.ip_id, DbTlsScanDesc.sni_id, DbTlsScanDesc.scan_port],
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='TLS desc fetch/save error: %s:%s %s' % (ip_id, svc_id, port))
+        return ret
+
+    def load_tls_params(self, s, tls_ver=1, key_type=1, ciphers=None):
+        """
+        TLS scan parameters
+        :param s:
+        :param tls_ver:
+        :param key_type:
+        :param ciphers:
+        :return:
+        """
+        obj = DbTlsScanParams()
+        obj.tls_ver = tls_ver
+        obj.key_type = key_type
+        obj.cipersuite_set = ciphers
+
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s, obj=obj,
+                            select_cols=[DbTlsScanParams.tls_ver, DbTlsScanParams.key_type, DbTlsScanParams.ciphers],
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='TLS param fetch/save error: %s %s %s' % (tls_ver, key_type, ciphers))
+        return ret
+
+    def load_tls_desc_ex(self, s, desc_id, param_id):
+        """
+        Desc & param load
+        :param s:
+        :param desc_id:
+        :param param_id:
+        :return:
+        """
+        obj = DbTlsScanDescExt()
+        obj.tls_desc_id = desc_id
+        obj.tls_params_id = param_id
+
+        ret = dbutil.ModelUpdater \
+            .load_or_insert(s, obj=obj,
+                            select_cols=[DbTlsScanDescExt.tls_desc_id, DbTlsScanDescExt.tls_params_id],
+                            pre_commit=True,
+                            fetch_first=True,
+                            fail_sleep=0.01,
+                            trace_logger=self.trace_logger,
+                            log_message='TLS desc ext fetch/save error: %s %s' % (desc_id, param_id))
+        return ret
 
     #
     # Workers - Redis interactive jobs
