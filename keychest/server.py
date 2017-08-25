@@ -486,7 +486,13 @@ class Server(object):
         """
         domain = job_data['scan_host']
         domain_sni = util.defvalkey(job_data, 'scan_sni', domain, take_none=False)
-        domain = util.defvalkey(job_data, 'scan_ip', domain, take_none=False)
+        scan_ip = util.defvalkey(job_data, 'scan_ip', None)
+
+        if scan_ip is not None and not TlsDomainTools.is_ip(scan_ip):
+            logger.debug('Invalid IP %s' % scan_ip)
+            return
+        elif scan_ip is not None:
+            domain = scan_ip
 
         sys_params = job_data['sysparams']
         if not TlsDomainTools.can_connect(domain):
