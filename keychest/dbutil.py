@@ -461,6 +461,7 @@ class DbUser(Base):
     remember_token = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=None)
+    accredit = Column(String(100), default=None)
 
     is_superadmin = Column(SmallInteger, nullable=False, default=0)
     timezone = Column(String(191), nullable=True)
