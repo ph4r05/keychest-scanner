@@ -21,8 +21,6 @@ def upgrade():
     op.add_column('users', sa.Column('cur_login_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('last_action_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('last_login_at', sa.DateTime(), nullable=True))
-    op.add_column('users', sa.Column('created_at', sa.DateTime(), nullable=True))
-    op.add_column('users', sa.Column('updated_at', sa.DateTime(), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -31,6 +29,4 @@ def downgrade():
     op.drop_column('users', 'last_login_at')
     op.drop_column('users', 'last_action_at')
     op.drop_column('users', 'cur_login_at')
-    op.drop_column('users', 'updated_at')
-    op.drop_column('users', 'created_at')
     # ### end Alembic commands ###
