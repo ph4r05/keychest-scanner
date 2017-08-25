@@ -23,6 +23,8 @@ def upgrade():
     sa.Column('user_id', mysql.INTEGER(display_width=10, unsigned=True), nullable=False),
     sa.Column('login_at', sa.DateTime(), nullable=True),
     sa.Column('login_ip', sa.String(length=191), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='user_login_history_users_id', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
