@@ -80,56 +80,36 @@ class CyclicToolsTest(unittest.TestCase):
         self.assertLessEqual(max(group), phi)
         self.assertGreater(min(group), 0)
 
+    def test_cyclic(self):
+        self.sub_cyclic(10)
+        self.sub_cyclic(11)
+        self.sub_cyclic(23)
+        self.sub_cyclic(25)
+        self.sub_cyclic(67)
+        self.sub_cyclic(953)
+        self.sub_cyclic(1721)
+        self.sub_cyclic(25, sophie=True)
+        self.sub_cyclic(67, randomize=True)
+        self.sub_cyclic(23, randomize=True)
+        self.sub_cyclic(25, randomize=True)
+        self.sub_cyclic(953, randomize=True)
+        self.sub_cyclic(953, randomize=True)
 
+    def sub_cyclic(self, n, sophie=False, randomize=False):
+        """
+        Tests sub-cyclic generator for given n
+        :return:
+        """
+        cl = CyclicTools(n)
+        cl.init(sophie=sophie, random_offset=randomize)
+        group = list(cl.iter())
 
-
-    #
-    # def test_vercmp(self):
-    #     self.assertEqual(util.version_cmp('5.4', '5.4'), 0)
-    #     self.assertEqual(util.version_cmp('5.4', '5.5'), -1)
-    #     self.assertEqual(util.version_cmp('5.6', '5.5'), 1)
-    #
-    #     self.assertEqual(util.version_cmp('5.4', '5.4.3', max_comp=2), 0)
-    #     self.assertEqual(util.version_cmp('5.4', '5.4.3', max_comp=3), -1)
-    #
-    #     self.assertEqual(util.version_cmp('5.4.20-4', '5.4.20-4'), 0)
-    #     self.assertEqual(util.version_cmp('5.4.20-4', '5.4.20-5'), -1)
-    #     self.assertEqual(util.version_cmp('5.4.20-4', '5.4.3'), 1)
-    #
-    # def test_trim(self):
-    #     self.assertEqual(util.version_trim('5.4.20-4'), '5.4.20-4')
-    #     self.assertEqual(util.version_trim('5.4.20-4', 2), '5.4')
-    #     self.assertEqual(util.version_trim('5.4.20-4', 1), '5')
-    #
-    # def test_pick_filter(self):
-    #     versions = [
-    #         ('a', '5.3.12'), ('b', '5.3.12'),
-    #         ('a', '5.4.12'), ('b', '5.4.12'),
-    #         ('a', '5.5.12'), ('a', '5.5.12'),
-    #         ('a', '5.6.12'), ('a', '5.6.12'),
-    #         ('a', '7.2'), ('a', '7.2')
-    #     ]
-    #
-    #     res = util.version_filter(versions, key=lambda x: x[1], exact_version='5.5')
-    #     self.assertEqual(len(res), 2)
-    #     self.assertEqual(res[0][1], '5.5.12')
-    #
-    #     res = util.version_filter(versions, key=lambda x: x[1], exact_version='5.5.12')
-    #     self.assertEqual(len(res), 2)
-    #     self.assertEqual(res[0][1], '5.5.12')
-    #
-    #     res = util.version_filter(versions, key=lambda x: x[1], min_version='5.4', max_version='5.99')
-    #     self.assertEqual(len(res), 6)
-    #
-    #     res = util.version_pick(versions, key=lambda x: x[1], pick_min=True)
-    #     self.assertEqual(len(res), 2)
-    #     self.assertEqual(res[0][1], '5.3.12')
-    #     self.assertEqual(res[1][1], '5.3.12')
-    #
-    #     res = util.version_pick(versions, key=lambda x: x[1], pick_max=True)
-    #     self.assertEqual(len(res), 2)
-    #     self.assertEqual(res[0][1], '7.2')
-    #     self.assertEqual(res[1][1], '7.2')
+        self.assertEqual(len(group), n)
+        self.assertEqual(len(list(set(group))), n)
+        self.assertIn(0, group)
+        self.assertIn(1, group)
+        self.assertLessEqual(max(group), n)
+        self.assertGreaterEqual(min(group), 0)
 
 
 if __name__ == "__main__":
