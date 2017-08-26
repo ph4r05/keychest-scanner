@@ -8,7 +8,7 @@ Server job classes
 from past.builtins import cmp
 import collections
 from tls_domain_tools import TargetUrl
-from dbutil import DbWatchService, DbWatchTarget
+from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord
 
 
 class ScanResults(object):
@@ -51,6 +51,7 @@ class JobTypes(object):
     TARGET = 1
     SUB = 2
     UI = 3
+    IP_SCAN = 4
 
     def __init__(self):
         pass
@@ -168,7 +169,6 @@ class RedisJob(BaseJob):
                % (self.target.id, self.target.scan_host, self.target, self.attempts, self.target.last_scan_at)
 
 
-
 class PeriodicJob(BaseJob):
     """
     Represents periodic job loaded from the db
@@ -263,4 +263,45 @@ class PeriodicReconJob(BaseJob):
         return '<PeriodicReconJob(target=<DbSubdomainWatchTarget(id=%r, host=%r, self=%r)>, attempts=%r, later=%r,' \
                'last_scan_at=%r)>' \
                % (self.target.id, self.target.scan_host, self.target, self.attempts, self.later,
+                  self.target.last_scan_at)
+
+
+class PeriodicIpScanJob(BaseJob):
+    """
+    Represents periodic job loaded from the db - ip scanning
+    """
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbIpScanRecord
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicIpScanJob, self).__init__(type=JobTypes.IP_SCAN)
+
+        self.target = target
+        self.periodicity = periodicity
+        self.scan_ip_scan = ScanResults()
+
+    def key(self):
+        return 'r%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.last_scan_at is None, \
+               self.target.last_scan_at
+
+    def watch_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<PeriodicIpScanJob(target=<DbIpScanRecord(id=%r, start=%r, end=%r, self=%r)>, attempts=%r, later=%r,' \
+               'last_scan_at=%r)>' \
+               % (self.target.id, self.target.ip_beg, self.target.ip_end, self.target, self.attempts, self.later,
                   self.target.last_scan_at)
