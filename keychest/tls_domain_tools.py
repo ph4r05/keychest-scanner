@@ -596,6 +596,16 @@ class TlsDomainTools(object):
         return '.'.join(reversed(ip))
 
     @staticmethod
+    def ip_range(ip_beg, ip_end):
+        """
+        Returns size of the IP address range given by two IP addresses
+        :param ip_beg:
+        :param ip_end:
+        :return:
+        """
+        return 1 + TlsDomainTools.ip_to_int(ip_end) - TlsDomainTools.ip_to_int(ip_beg)
+
+    @staticmethod
     def iter_ips(ip_start=None, ip_stop=None, ip_start_int=None, ip_stop_int=None):
         """
         Iterates over the IP range in the random order - not to trigger IDS while scanning.
