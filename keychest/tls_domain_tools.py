@@ -19,6 +19,7 @@ from trace_logger import Tracelogger
 import tldextract
 from IPy import IP
 from consts import IpType
+from cyclic_tools import CyclicTools
 
 
 logger = logging.getLogger(__name__)
@@ -563,3 +564,35 @@ class TlsDomainTools(object):
         except:
             pass
         return False
+
+    @staticmethod
+    def ip_to_int(ip):
+        """
+        Converts IPv4 to integer.
+        123.123.123.123 -> int
+
+        :param ip:
+        :return:
+        """
+        octets = str(ip).split('.')
+        if len(octets) != 4:
+            raise ValueError('Invalid IPv4 format, 4 octets required')
+
+        res = 0
+        for idx, octet in enumerate([int(x) for x in reversed(octets)]):
+            res |= octet << (8*idx)
+
+        return res
+
+    @staticmethod
+    def int_to_ip(n):
+        """
+        Converts 32bit integer to the IP
+        :param n:
+        :return:
+        """
+        ip = [str((n >> (8*i)) & 0xff) for i in range(0, 4)]
+        return '.'.join(reversed(ip))
+
+    
+
