@@ -2426,6 +2426,43 @@ class Server(object):
         q = s.query(DbSubdomainResultCache).filter(DbSubdomainResultCache.watch_id == watch_id)
         return q.order_by(DbSubdomainResultCache.last_scan_at.desc()).limit(1).first()
 
+    def load_last_ip_scan_result(self, s, record_id=None):
+        """
+        Loads the latest IP scanning result
+        :param s:
+        :param record_id:
+        :return:
+        :rtype DbIpScanResult
+        """
+        if record_id is None:
+            return None
+        q = s.query(DbIpScanResult).filter(DbIpScanResult.ip_scan_record_id == record_id)
+        return q.order_by(DbIpScanResult.last_scan_at.desc()).limit(1).first()
+
+    def load_last_ip_scan_result_cached(self, s, record_id=None):
+        """
+        Loads the latest IP scanning result - cached variant to avoid inconsistencies
+        when cache is not updated but the last result is returned fresh (frontend use caches - gets old data)
+
+        :param s:
+        :param record_id:
+        :return:
+        :rtype DbIpScanResult
+        """
+        if record_id is None:
+            return None
+
+        q = s.query(DbIpScanResult) \
+            .select_from(DbLastScanCache) \
+            .join(DbIpScanResult, salch.and_(
+                DbLastScanCache == DbLastScanCacheType.LOCAL_SCAN,
+                DbLastScanCache.scan_type == DbScanType.IP_SCAN,
+                DbLastScanCache.obj_id == record_id,
+                DbLastScanCache.scan_id == DbIpScanResult.id
+            ))
+
+        return q.first()
+
     #
     # Helpers
     #
