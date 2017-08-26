@@ -15,12 +15,15 @@ class CyclicTools(object):
         self.prime = prime
         self.prime_m1_fact = None
         self.generator = generator
+        self.initial = 1
         self.n = n
 
-    def init(self, n=None):
+    def init(self, n=None, sophie=False, random_offset=False):
         """
         Finds nearest prime and a random generator
         :param n:
+        :param sophie: Find Sophie-Germain prime - more generators
+        :param random_offset: Randomize offset of the generated sequence
         :return:
         """
         if n is not None:
@@ -29,20 +32,24 @@ class CyclicTools(object):
         if self.n is None:
             raise ValueError('n cannot be None')
 
-        self.prime = CyclicTools.next_prime(self.n + 1)
+        self.prime = CyclicTools.next_prime(self.n + 1, nice=sophie)
         self.prime_m1_fact = list(set(CyclicTools.prime_factors(self.prime - 1)))
         self.generator = CyclicTools.find_generator(self.prime, self.prime_m1_fact)
+        self.initial = 1
+
+        if random_offset:
+            self.initial = pow(self.generator, random.randint(1, self.prime - 2), self.prime)
 
     def iter(self):
         """
-        Iterator
+        Iterator on the [0, n)
         :return:
         """
         g0 = self.generator
-        g = self.generator
+        g = self.initial
         for i in xrange(0, self.prime - 1):
             g = (g * g0) % self.prime
-            if (g - 1) > self.n:
+            if (g - 1) >= self.n:
                 continue
             yield g - 1
 
