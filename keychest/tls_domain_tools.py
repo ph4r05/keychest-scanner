@@ -594,5 +594,29 @@ class TlsDomainTools(object):
         ip = [str((n >> (8*i)) & 0xff) for i in range(0, 4)]
         return '.'.join(reversed(ip))
 
-    
+    @staticmethod
+    def iter_ips(ip_start=None, ip_stop=None, ip_start_int=None, ip_stop_int=None):
+        """
+        Iterates over the IP range in the random order - not to trigger IDS while scanning.
+        :param ip_start:
+        :param ip_stop:
+        :param ip_start_int:
+        :param ip_stop_int:
+        :return:
+        """
+        if ip_start_int is None:
+            ip_start_int = TlsDomainTools.ip_to_int(ip_start)
+
+        if ip_stop_int is None:
+            ip_stop_int = TlsDomainTools.ip_to_int(ip_stop)
+
+        if ip_stop_int < ip_start_int:
+            raise ValueError('Invalid IP order, end > start')
+
+        # TODO: if range < 100 elements, do by range & shuffle
+        ctool = CyclicTools(ip_stop_int - ip_start_int)
+        ctool.init()
+
+        for cur in ctool.iter():
+            yield TlsDomainTools.int_to_ip(ip_start_int + cur)
 
