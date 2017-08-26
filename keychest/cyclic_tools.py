@@ -42,9 +42,9 @@ class CyclicTools(object):
         g = self.generator
         for i in xrange(0, self.prime - 1):
             g = (g * g0) % self.prime
-            if g > self.n:
+            if (g - 1) > self.n:
                 continue
-            yield g
+            yield g - 1
 
     @staticmethod
     def next_prime(inp, nice=False):
