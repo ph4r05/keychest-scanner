@@ -15,6 +15,7 @@ import errors
 import types
 import re
 import socket
+import random
 from trace_logger import Tracelogger
 import tldextract
 from IPy import IP
@@ -613,9 +614,18 @@ class TlsDomainTools(object):
         if ip_stop_int < ip_start_int:
             raise ValueError('Invalid IP order, end > start')
 
-        # TODO: if range < 100 elements, do by range & shuffle
-        ctool = CyclicTools(ip_stop_int - ip_start_int)
-        ctool.init()
+        # Simple case - small range, generate sequence and shuffle
+        if (ip_stop_int - ip_start_int) < 250:
+            lst = range(ip_start_int, ip_stop_int + 1)
+            random.shuffle(lst)
+            for cur in lst:
+                yield TlsDomainTools.int_to_ip(cur)
+            return
+
+        # General case - large range, generate random cyclic group of similar size and generate elements
+        # in random order.
+        ctool = CyclicTools(1 + ip_stop_int - ip_start_int)
+        ctool.init(random_offset=True)
 
         for cur in ctool.iter():
             yield TlsDomainTools.int_to_ip(ip_start_int + cur)
