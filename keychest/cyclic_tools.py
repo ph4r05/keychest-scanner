@@ -86,6 +86,10 @@ class CyclicTools(object):
         return True
 
     @staticmethod
+    def is_prime(a):
+        return CyclicTools.prime3(a)
+
+    @staticmethod
     def prime_factors(n):
         """
         Simple trial division factorization
@@ -120,15 +124,17 @@ class CyclicTools(object):
         return num
 
     @staticmethod
-    def find_generator(p, fact):
+    def find_generator(p, fact=None):
         """
         4.80 Handbook of applied cryptography - finding generator of a cyclic group
         http://cacr.uwaterloo.ca/hac/about/chap4.pdf
 
         :param p: group order (prime pls)
-        :param fact: ((p-1) / 2) prime factorization
+        :param fact: (p-1) prime factorization
         :return:
         """
+        if fact is None:
+            fact = list(set(CyclicTools.prime_factors(p-1)))
         nps = [p / k for k in fact]
         while True:
             g = random.randint(2, p - 1)
