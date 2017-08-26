@@ -34,7 +34,7 @@ from cert_path_validator import PathValidator, ValidationException, ValidationOs
 from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, ScanResults
+from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 import util_cert
 from api import RestAPI
@@ -910,6 +910,38 @@ class Server(object):
         return q.group_by(DbSubdomainWatchTarget.id, DbSubdomainWatchAssoc.scan_type)\
                 .order_by(DbSubdomainWatchTarget.last_scan_at)  # select the oldest scanned first
 
+    def load_active_ip_scan_targets(self, s, last_scan_margin=300, randomize=True):
+        """
+        Loads active IP scan jobs to scan, from the oldest.
+        After loading the result is a tuple (DbIpScanRecordUser, min_periodicity).
+
+        :param s : SaQuery query
+        :type s: SaQuery
+        :param last_scan_margin: margin for filtering out records that were recently processed.
+        :param randomize:
+        :return:
+        """
+        q = s.query(
+            DbIpScanRecord,
+            salch.func.min(DbIpScanRecordUser.scan_periodicity).label('min_periodicity')
+        ) \
+            .select_from(DbIpScanRecordUser) \
+            .join(DbIpScanRecord, DbIpScanRecordUser.ip_scan_record_id == DbIpScanRecord.id) \
+            .filter(DbIpScanRecordUser.deleted_at == None)
+
+        if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
+            cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
+            q = q.filter(salch.or_(
+                DbIpScanRecord.last_scan_at < cur_margin,
+                DbIpScanRecord.last_scan_at == None
+            ))
+
+        return q.group_by(DbIpScanRecord.id) \
+            .order_by(DbIpScanRecord.last_scan_at)  # select the oldest scanned first
+
     def _min_scan_margin(self):
         """
         Computes minimal scan margin from the scan timeouts
@@ -948,14 +980,16 @@ class Server(object):
         Initializes data structures required for data processing
         :return:
         """
-        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.2 + 1))
-        num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads left
+        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)) # 15 %
+        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)) # 15 %
+        num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads available
         logger.info('Max watch: %s, Max recon: %s' % (num_max_watch, num_max_recon))
 
         # semaphore array init
         self.watcher_job_semaphores = {
             JobTypes.TARGET: StatSemaphore(num_max_watch),
-            JobTypes.SUB: StatSemaphore(num_max_recon)
+            JobTypes.SUB: StatSemaphore(num_max_recon),
+            JobTypes.IP_SCAN: StatSemaphore(num_max_ips)
         }
 
         # periodic worker start
@@ -1011,6 +1045,7 @@ class Server(object):
         try:
             self._periodic_feeder_watch(s)
             self._periodic_feeder_recon(s)
+            self._periodic_feeder_ips(s)
 
         finally:
             util.silent_close(s)
@@ -1068,6 +1103,39 @@ class Server(object):
 
                 # TODO: analyze if this job should be processed or results are recent, no refresh is needed
                 job = PeriodicReconJob(target=watch_target, periodicity=min_periodicity)
+                self._periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
+
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
+
+    def _periodic_feeder_ips(self, s):
+        """
+        Load watcher jobs - ip scanning jobs
+        :param s:
+        :return:
+        """
+        if self._periodic_queue_is_full(JobTypes.IP_SCAN):
+            return
+
+        try:
+            min_scan_margin = int(self.delta_wildcard.total_seconds())
+            query = self.load_active_ip_scan_targets(s, last_scan_margin=min_scan_margin)
+            iterator = query.yield_per(100)
+            for x in iterator:
+                watch_target, min_periodicity = x
+
+                if self._periodic_queue_is_full(JobTypes.IP_SCAN):
+                    return
+
+                # TODO: analyze if this job should be processed or results are recent, no refresh is needed
+                job = PeriodicIpScanJob(target=watch_target, periodicity=min_periodicity)
                 self._periodic_add_job(job)
 
         except QFull:
@@ -1155,6 +1223,8 @@ class Server(object):
                     self.periodic_process_job_body(job)
                 elif job.type == JobTypes.SUB:
                     self.periodic_process_recon_job_body(job)
+                elif job.type == JobTypes.IP_SCAN:
+                    self.periodic_process_ips_job_body(job)
                 else:
                     raise ValueError('Unrecognized job type: %s' % job.type)
 
@@ -1495,6 +1565,81 @@ class Server(object):
             job_scan.fail()
 
             logger.error('CRT sh wildcard exception: %s' % e)
+            self.trace_logger.log(e, custom_msg='CRT sh wildcard')
+
+    def periodic_process_ips_job_body(self, job):
+        """
+        IP scanner job processing - the body
+        :param job:
+        :type job: PeriodicIpScanJob
+        :return:
+        """
+        logger.debug('Processing IP scan recon job: %s, qsize: %s, sems: %s'
+                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+        s = None
+        url = None
+
+        try:
+            if not TlsDomainTools.is_valid_ipv4_address(job.target.ip_beg) or \
+                    not TlsDomainTools.is_valid_ipv4_address(job.target.ip_end):
+                raise InvalidHostname('Invalid host name')
+
+            if TlsDomainTools.ip_range(job.target.ip_beg, job.target.ip_end) > 2**26:
+                raise InvalidHostname('IP range is too big')
+
+            s = self.db.get_session()
+
+            self.periodic_scan_ip_range(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.scan_ip_scan.is_failed():
+                logger.info('Job failed, wildcard: %s' % (job.scan_ip_scan.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidHostname as ih:
+            logger.debug('Invalid host: %s' % url)
+            job.success_scan = True  # TODO: back-off / disable, fatal error
+
+        except Exception as e:
+            logger.debug('Exception when processing the IP scan job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_close(s)
+
+    def periodic_scan_ip_range(self, s, job):
+        """
+        Scanning IP range, looking for services
+        :param s:
+        :param job:
+        :return:
+        """
+        job_scan = job.scan_ip_scan  # type: ScanResults
+
+        # last scan determined by special wildcard query for the watch host
+
+
+        # last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
+        # if last_scan is not None \
+        #         and last_scan.last_scan_at \
+        #         and last_scan.last_scan_at > self._diff_time(self.delta_wildcard, rnd=True):
+        #     job_scan.skip(last_scan)
+        #     return  # scan is relevant enough
+
+        try:
+            # self.wp_scan_crtsh_wildcard(s, job, last_scan)
+            pass
+
+        except Exception as e:
+            job_scan.fail()
+
+            logger.error('IP scanning exception: %s' % e)
             self.trace_logger.log(e, custom_msg='CRT sh wildcard')
 
     #
