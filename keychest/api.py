@@ -259,10 +259,11 @@ class RestAPI(object):
         :return:
         """
         lasts = s.query(DbLastScanCache) \
-            .join(DbWatchTarget, DbWatchTarget.id == DbLastScanCache.obj_id) \
+            .join(DbWatchTarget, salch.and_(
+                DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN,
+                DbLastScanCache.scan_type.in_([DbScanType.DNS, DbScanType.TLS]),
+                DbLastScanCache.obj_id == DbWatchTarget.id)) \
             .filter(DbWatchTarget.agent_id == r.agent.id) \
-            .filter(DbLastScanCache.cache_type == DbLastScanCacheType.AGENT_SCAN) \
-            .filter(DbLastScanCache.scan_type.in_([DbScanType.DNS, DbScanType.TLS])) \
             .all()
         return lasts
 
