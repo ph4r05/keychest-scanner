@@ -1167,10 +1167,17 @@ class DbIpScanResult(Base):
     ips_found = Column(Text, nullable=True)  # normalized json with dns results
 
     def __init__(self):
-        self.trans_top_domain = None
+        self.trans_ips_alive = []
+        self.trans_ips_found = []
+
+    @orm.reconstructor
+    def init_on_load(self):
+        self.trans_ips_alive = util.defval(util.try_load_json(self.ips_alive), [])
+        self.trans_ips_found = util.defval(util.try_load_json(self.ips_found), [])
 
     def visit_fnc(self, fnc):
-        self.trans_top_domain = fnc(self.trans_top_domain)
+        self.trans_ips_alive = fnc(self.trans_ips_alive)
+        self.trans_ips_found = fnc(self.trans_ips_found)
         return self
 
 
