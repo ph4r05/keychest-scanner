@@ -2140,35 +2140,29 @@ class Server(object):
         """
         job_scan = job.scan_ip_scan  # type: ScanResults
         job_spec = self._create_job_spec(job)
+        job_spec['dns_ok'] = True
+        job_spec['scan_sni'] = job.target.service_name
+        job_spec['scan_host'] = job.target.service_name
 
         # perform crtsh queries, result management
-        self.wp_scan_ip_body(s, job, last_scan)
+        scan_db = self.wp_scan_ip_body(s, job, job_spec, last_scan)
 
-        db_sub = None
-        is_same_as_before = False
+        # Compare with last result, store if new one or update the old one
+        is_same_as_before = self.diff_scan_ip_scan(scan_db, last_scan)
+        if is_same_as_before:
+            last_scan.last_scan_at = salch.func.now()
+            last_scan.num_scans += 1
+            last_scan = s.merge(last_scan)
 
-        # new result - store new subdomain data, invalidate old results
-        if not is_same_as_before:
-
-            # Result
-            db_sub = DbIpScanResult()
-            db_sub.ip_scan_record_id = job.record_id()
-            db_sub.created_at = salch.func.now()
-            db_sub.updated_at = salch.func.now()
-            db_sub.last_scan_at = salch.func.now()
-            db_sub.num_scans = 1
-
-            mm = DbSubdomainResultCache
-            is_same, db_sub_new, last_scan = \
-                ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
+        else:
+            s.add(scan_db)
             s.commit()
 
-            # update last scan cache
-            if not is_same:
-                ResultModelUpdater.update_cache(s, db_sub_new)
+            ResultModelUpdater.update_cache(s, scan_db)
+            s.commit()
 
             # Add new watcher targets automatically - depends on the assoc model, if enabled
-            self.auto_fill_ip_watches(s, job, db_sub)  # returns is_same, obj, last_scan
+            self.auto_fill_ip_watches(s, job, scan_db)  # returns is_same, obj, last_scan
 
         s.commit()
 
@@ -2177,28 +2171,68 @@ class Server(object):
 
         # Eventing
         if not is_same_as_before:
-            self.on_new_scan(s, old_scan=last_scan, new_scan=db_sub, job=job)
+            self.on_new_scan(s, old_scan=last_scan, new_scan=scan_db, job=job)
 
         # finished with success
         job_scan.ok()
 
-    def wp_scan_ip_body(self, s, job, last_scan):
+    def wp_scan_ip_body(self, s, job, job_spec, last_scan):
         """
         The scanning body
         :param s:
         :param job:
+        :type job: PeriodicIpScanJob
+        :param job_spec:
         :param last_scan:
         :return:
         """
-        # iterate over IPs, throw exception on deamon termination -> unfinished job gets cleaned without update
+        rec = job.target
         ip_int_beg = TlsDomainTools.ip_to_int(job.target.ip_beg)
         ip_int_end = TlsDomainTools.ip_to_int(job.target.ip_end)
         iter = TlsDomainTools.iter_ips(ip_start_int=ip_int_beg, ip_stop_int=ip_int_end)
+
+        time_start = time.time()
+        live_ips = []
+        valid_ips = []
         for ip in iter:
+            # Server termination - abort job, will be performed all over again next time
             if not self.is_running():
                 raise ServerShuttingDown('IP scanning aborted')
-            pass
-        
+
+            # TODO: easy parallelization, threads, input = job_spec, output = handshake, db_scan
+            # Greater chunks are needed, 1 IP per thread is not efficient, take at least 10 per thread.
+            job_spec['scan_ip'] = ip
+            handshake_res, db_scan = \
+                self.scan_handshake(s, job_spec, None, None, store_job=False,
+                                    do_connect_analysis=False, do_process_certificates=False)
+
+            if db_scan.err_code:
+                continue
+
+            live_ips.append(ip)
+            if db_scan.valid_hostname:
+                valid_ips.append(ip)
+
+        live_ips.sort()
+        valid_ips.sort()
+
+        res = DbIpScanResult()
+        res.ip_scan_record_id = rec.id
+        res.created_at = salch.func.now()
+        res.updated_at = salch.func.now()
+        res.last_scan_at = salch.func.now()
+        res.finished_at = salch.func.now()
+
+        res.duration = time.time() - time_start
+        res.num_ips_alive = len(live_ips)
+        res.num_ips_found = len(valid_ips)
+        res.ips_alive = json.dumps(live_ips)
+        res.ips_found = json.dumps(valid_ips)
+        res.trans_ips_alive = live_ips
+        res.trans_ips_found = valid_ips
+
+        return res
+
     #
     # Scan Results
     #
@@ -2317,6 +2351,26 @@ class Server(object):
         :return:
         """
         return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_crtsh_wildcard())
+
+    def _res_compare_cols_ip_scan(self):
+        """
+        Returns list of columns for the result.
+        When comparing two different results, these cols should be taken into account.
+        :return:
+        """
+        m = DbIpScanResult
+        return [m.num_ips_found, m.ips_found]
+
+    def diff_scan_ip_scan(self, cur_scan, last_scan):
+        """
+        Checks the previous and current scan for significant differences.
+        :param cur_scan:
+        :type cur_scan: DbIpScanResult
+        :param last_scan:
+        :type last_scan: DbIpScanResult
+        :return:
+        """
+        return DbHelper.models_tuples_compare(cur_scan, last_scan, self._res_compare_cols_ip_scan())
 
     #
     # Scan helpers
