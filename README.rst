@@ -37,7 +37,10 @@ CentOS:
 
 ::
 
-    sudo yum install python python-devel mysql-devel redhat-rpm-config gcc libxml2 libxml2-devel libxslt libxslt-devel
+    sudo yum install -y python python-pip python-devel mysql-devel redhat-rpm-config gcc libxml2 \
+    libxml2-devel libxslt libxslt-devel openssl-devel sqlite-devel
+
+    sudo yum install -y gcc git vim htop
 
 
 PIP update appdirs error
