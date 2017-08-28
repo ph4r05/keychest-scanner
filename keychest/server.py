@@ -163,6 +163,7 @@ class Server(object):
         self.delta_crtsh = timedelta(hours=12)
         self.delta_whois = timedelta(hours=48)
         self.delta_wildcard = timedelta(days=2)
+        self.delta_ip_scan = timedelta(days=2)
 
     def check_pid(self, retry=True):
         """
@@ -1584,7 +1585,7 @@ class Server(object):
                     not TlsDomainTools.is_valid_ipv4_address(job.target.ip_end):
                 raise InvalidHostname('Invalid host name')
 
-            if TlsDomainTools.ip_range(job.target.ip_beg, job.target.ip_end) > 2**26:
+            if TlsDomainTools.ip_range(job.target.ip_beg, job.target.ip_end) > 2**14:
                 raise InvalidHostname('IP range is too big')
 
             s = self.db.get_session()
@@ -1617,30 +1618,28 @@ class Server(object):
         """
         Scanning IP range, looking for services
         :param s:
-        :param job:
+        :param PeriodicIpScanJob job:
         :return:
         """
         job_scan = job.scan_ip_scan  # type: ScanResults
 
         # last scan determined by special wildcard query for the watch host
-
-
-        # last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
-        # if last_scan is not None \
-        #         and last_scan.last_scan_at \
-        #         and last_scan.last_scan_at > self._diff_time(self.delta_wildcard, rnd=True):
-        #     job_scan.skip(last_scan)
-        #     return  # scan is relevant enough
+        last_scan = self.load_last_ip_scan_result_cached(s, record_id=job.record_id())
+        if last_scan is not None \
+                and last_scan.last_scan_at \
+                and last_scan.last_scan_at > self._diff_time(self.delta_ip_scan, rnd=True):
+            job_scan.skip(last_scan)
+            return  # scan is relevant enough
 
         try:
-            # self.wp_scan_crtsh_wildcard(s, job, last_scan)
+            self.wp_scan_ip_scan(s, job, last_scan)
             pass
 
         except Exception as e:
             job_scan.fail()
 
             logger.error('IP scanning exception: %s' % e)
-            self.trace_logger.log(e, custom_msg='CRT sh wildcard')
+            self.trace_logger.log(e, custom_msg='IP scanning')
 
     #
     # Scan bodies
@@ -1979,7 +1978,6 @@ class Server(object):
 
             # Add new watcher targets automatically - depends on the assoc model, if enabled
             self.auto_fill_new_watches(s, job, db_sub)  # returns is_same, obj, last_scan
-            # TODO: emit events with event manager.
 
         # Store scan history
         # hist = DbScanHistory()
@@ -2120,6 +2118,68 @@ class Server(object):
         s.commit()
         return is_same_as_before_base and is_same_as_before, \
                crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base
+
+    def wp_scan_ip_scan(self, s, job, last_scan):
+        """
+        IP scan scan - body
+        :param job:
+        :type job: PeriodicIpScanJob
+        :param last_scan:
+        :type last_scan: DbIpScanRecord
+        :return:
+        """
+        job_scan = job.scan_ip_scan  # type: ScanResults
+        job_spec = self._create_job_spec(job)
+
+        # perform crtsh queries, result management
+        self.wp_scan_ip_body(s, job, last_scan)
+
+        db_sub = None
+        is_same_as_before = False
+
+        # new result - store new subdomain data, invalidate old results
+        if not is_same_as_before:
+
+            # Result
+            db_sub = DbIpScanResult()
+            db_sub.ip_scan_record_id = job.record_id()
+            db_sub.created_at = salch.func.now()
+            db_sub.updated_at = salch.func.now()
+            db_sub.last_scan_at = salch.func.now()
+            db_sub.num_scans = 1
+
+            mm = DbSubdomainResultCache
+            is_same, db_sub_new, last_scan = \
+                ResultModelUpdater.insert_or_update(s, [mm.watch_id, mm.scan_type], [mm.result], db_sub)
+            s.commit()
+
+            # update last scan cache
+            if not is_same:
+                ResultModelUpdater.update_cache(s, db_sub_new)
+
+            # Add new watcher targets automatically - depends on the assoc model, if enabled
+            self.auto_fill_ip_watches(s, job, db_sub)  # returns is_same, obj, last_scan
+
+        s.commit()
+
+        # TODO: store gap if there is one
+        # - compare last scan with the SLA periodicity. multiple IP addressess make it complicated...
+
+        # Eventing
+        if not is_same_as_before:
+            self.on_new_scan(s, old_scan=last_scan, new_scan=db_sub, job=job)
+
+        # finished with success
+        job_scan.ok()
+
+    def wp_scan_ip_body(self, s, job, last_scan):
+        """
+        The scanning body
+        :param s:
+        :param job:
+        :param last_scan:
+        :return:
+        """
 
     #
     # Scan Results
@@ -2494,6 +2554,8 @@ class Server(object):
             return obj.url()
         elif isinstance(obj, PeriodicReconJob):
             return TargetUrl(scheme=None, host=obj.target.scan_host, port=None)
+        elif isinstance(obj, PeriodicIpScanJob):
+            return TargetUrl(scheme='https', host=obj.target.ip_beg)
         elif isinstance(obj, DbWatchTarget):
             return TargetUrl(scheme=obj.scan_scheme, host=obj.scan_host, port=obj.scan_port)
         elif isinstance(obj, ScanJob):
@@ -3205,6 +3267,18 @@ class Server(object):
                 logger.debug('Exception when adding auto sub watch: %s' % e)
                 self.trace_logger.log(e, custom_msg='Auto add sub watch')
                 s.rollback()
+
+    def auto_fill_ip_watches(self, s, job, db_sub):
+        """
+        Auto creates IP scan based watchers
+        :param s:
+        :param job:
+        :type job: PeriodicIpScanJob
+        :param db_sub:
+        :type db_sub: DbIpScanResult
+        :return:
+        """
+        # TODO: implement
 
     #
     # DB tools

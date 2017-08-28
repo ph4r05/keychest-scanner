@@ -293,7 +293,7 @@ class PeriodicIpScanJob(BaseJob):
                self.target.last_scan_at is None, \
                self.target.last_scan_at
 
-    def watch_id(self):
+    def record_id(self):
         """
         Returns watch target id
         :return:
