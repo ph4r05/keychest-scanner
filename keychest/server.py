@@ -471,7 +471,7 @@ class Server(object):
     # Scans
     #
 
-    def scan_handshake(self, s, job_data, query, job_db, store_job=True):
+    def scan_handshake(self, s, job_data, query, job_db, store_job=True, **kwargs):
         """
         Performs direct handshake if applicable
         :param s: 
@@ -482,6 +482,7 @@ class Server(object):
         :param store_job: stores job to the database in the scanning process.
                           Not storing the job immediately has meaning for diff scanning (watcher).
                           Gathered certificates are stored always.
+        :param kwargs
         :return:
         :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
         """
@@ -503,6 +504,9 @@ class Server(object):
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
         scheme = util.defvalkey(job_data, 'scan_scheme', None, take_none=False)
         do_connect_analysis = util.defvalkey(job_data, 'dns_ok', True, take_none=False)
+        if kwargs.has_key('do_connect_analysis'):  # can only disable, if DNS failed, cannot perform
+            do_connect_analysis &= kwargs.get('do_connect_analysis')
+        do_process_certificates = kwargs.get('do_process_certificates', True)
 
         # Simple TLS handshake to the given host.
         # Analyze results, store scan record.
@@ -549,7 +553,13 @@ class Server(object):
                 s.flush()
 
             # Certificates processing + cert path validation
-            self.process_handshake_certs(s, resp, scan_db, do_job_subres=store_job)
+            if do_process_certificates:
+                self.process_handshake_certs(s, resp, scan_db, do_job_subres=store_job)
+
+            # Cert validity
+            self.tls_cert_validity_test(resp=resp, scan_db=scan_db)
+            if store_job:
+                s.flush()
 
             # Try direct connect with requests, follow urls
             if do_connect_analysis:
@@ -2700,6 +2710,19 @@ class Server(object):
                 logger.error('Exception when processing a handshake certificate %s' % (e, ))
                 self.trace_logger.log(e)
 
+        # Scan updates with stored certs
+        scan_db.cert_id_leaf = leaf_cert_id
+        scan_db.new_results = num_new_results
+        scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
+
+    def tls_cert_validity_test(self, resp, scan_db):
+        """
+        Performs TLS certificate validity test
+        :param resp:
+        :type resp: TlsHandshakeResult
+        :param scan_db:
+        :return:
+        """
         # path validation test + hostname test
         try:
             validation_res = self.crt_validator.validate(resp.certificates, is_der=True)  # type: ValidationResult
@@ -2718,12 +2741,6 @@ class Server(object):
 
         except Exception as e:
             logger.debug('Path validation failed: %s' % e)
-
-        # update main scan result entry
-        scan_db.cert_id_leaf = leaf_cert_id
-        scan_db.new_results = num_new_results
-        scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
-        s.flush()
 
     def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
         """
