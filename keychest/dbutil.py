@@ -1828,6 +1828,10 @@ class ResultModelUpdater(object):
             cache.obj_id = new_scan.domain_id
             cache.scan_type = DbScanType.WHOIS
 
+        elif isinstance(new_scan, DbIpScanResult):
+            cache.obj_id = new_scan.ip_scan_record_id
+            cache.scan_type = DbScanType.IP_SCAN
+
         else:
             raise ValueError('Unrecognized scan result, cannot persist')
 

@@ -61,6 +61,7 @@ class DbScanType(object):
     CRTSH_WILD = 5
     SUBS = 6
     DOWNTIME = 7
+    IP_SCAN = 8
 
 
 class BlacklistRuleType(object):
