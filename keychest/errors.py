@@ -107,3 +107,9 @@ class InvalidHostname(Error):
     def __init__(self, message=None, cause=None):
         super(InvalidHostname, self).__init__(message=message, cause=cause)
 
+
+class ServerShuttingDown(Error):
+    """Server is shutting down"""
+    def __init__(self, message=None, cause=None):
+        super(ServerShuttingDown, self).__init__(message=message, cause=cause)
+

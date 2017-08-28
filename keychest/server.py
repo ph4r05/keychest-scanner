@@ -33,7 +33,7 @@ from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsT
 from cert_path_validator import PathValidator, ValidationException, ValidationOsslException, ValidationResult
 from tls_domain_tools import TlsDomainTools, TargetUrl
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
-from errors import Error, InvalidHostname
+from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 import util_cert
@@ -2180,7 +2180,15 @@ class Server(object):
         :param last_scan:
         :return:
         """
-
+        # iterate over IPs, throw exception on deamon termination -> unfinished job gets cleaned without update
+        ip_int_beg = TlsDomainTools.ip_to_int(job.target.ip_beg)
+        ip_int_end = TlsDomainTools.ip_to_int(job.target.ip_end)
+        iter = TlsDomainTools.iter_ips(ip_start_int=ip_int_beg, ip_stop_int=ip_int_end)
+        for ip in iter:
+            if not self.is_running():
+                raise ServerShuttingDown('IP scanning aborted')
+            pass
+        
     #
     # Scan Results
     #
