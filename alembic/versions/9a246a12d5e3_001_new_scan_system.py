@@ -20,7 +20,7 @@ import logging
 
 # revision identifiers, used by Alembic.
 revision = '9a246a12d5e3'
-down_revision = None
+down_revision = '9a246a120000'
 branch_labels = None
 depends_on = None
 
@@ -398,6 +398,12 @@ def downgrade():
     op.drop_constraint('sjob_scan_dns_id', 'scan_jobs', type_='foreignkey')
     op.drop_constraint('sjob_crtsh_query_id', 'scan_jobs', type_='foreignkey')
     op.drop_constraint('sjob_whois_result_id', 'scan_jobs', type_='foreignkey')
+    op.drop_constraint('wa_users_id', 'user_watch_target', type_='foreignkey')
+    op.drop_constraint('wa_watch_target_id', 'user_watch_target', type_='foreignkey')
+    op.drop_constraint('shist_watch_target_id', 'scan_history', type_='foreignkey')
+    op.drop_constraint('sgap_watch_target_id', 'scan_gaps', type_='foreignkey')
+    op.drop_constraint('dns_watch_target_id', 'scan_dns', type_='foreignkey')
+    op.drop_constraint('who_base_domain_id', 'whois_result', type_='foreignkey')
     op.drop_index(op.f('ix_scan_jobs_whois_check_id'), table_name='scan_jobs')
     op.drop_index(op.f('ix_scan_jobs_dns_check_id'), table_name='scan_jobs')
     op.drop_index(op.f('ix_scan_jobs_crtsh_check_id'), table_name='scan_jobs')

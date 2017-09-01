@@ -131,6 +131,11 @@ def downgrade():
     op.drop_column(u'user_watch_target', 'auto_scan_added_at')
     op.drop_constraint('crtsh_watch_sub_target_id', 'crtsh_query', type_='foreignkey')
     op.drop_constraint('crtsh_watch_input_id', 'crtsh_query', type_='foreignkey')
+    op.drop_constraint('wa_sub_users_id', 'user_subdomain_watch_target', type_='foreignkey')
+    op.drop_constraint('wa_sub_watch_target_id', 'user_subdomain_watch_target', type_='foreignkey')
+    op.drop_constraint('wa_sub_res_watch_target_id', 'subdomain_results', type_='foreignkey')
+    op.drop_constraint('sub_wt_base_domain_id', 'subdomain_watch_target', type_='foreignkey')
+    op.drop_constraint('crtsh_input_base_domain_id', 'crtsh_input', type_='foreignkey')
     op.drop_index(op.f('ix_crtsh_query_sub_watch_id'), table_name='crtsh_query')
     op.drop_index(op.f('ix_crtsh_query_input_id'), table_name='crtsh_query')
     op.drop_column(u'crtsh_query', 'sub_watch_id')
@@ -155,5 +160,4 @@ def downgrade():
     op.drop_column('certificates', 'sig_alg')
     op.drop_column('certificates', 'key_type')
     op.drop_column('certificates', 'key_bit_size')
-    op.drop_column('user_subdomain_watch_target', 'auto_fill_watches')
     # ### end Alembic commands ###
