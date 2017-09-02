@@ -42,6 +42,12 @@ class Config(object):
         def_cfg['redis_host'] = '127.0.0.1'
         def_cfg['redis_port'] = 6379
         def_cfg['workers'] = 10
+        def_cfg['periodic_workers'] = 10
+        def_cfg['keychest_max_servers'] = 1000
+        def_cfg['enable_rest_api'] = False
+        def_cfg['agent_mode'] = False
+        def_cfg['master_endpoint'] = None
+        def_cfg['master_apikey'] = None
 
         root = collections.OrderedDict()
         root['config'] = def_cfg
