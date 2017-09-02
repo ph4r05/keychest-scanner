@@ -8,6 +8,8 @@ import os
 import re
 import stat
 import json
+import pwd
+import grp
 import hashlib
 import base64
 import collections
@@ -172,6 +174,210 @@ def unprotect_payload(payload, config):
 
     js = json.loads(plaintext)
     return js
+
+
+def chown(path, user=None, group=None, follow_symlinks=False):
+    """
+    Changes the ownership of the path.
+    https://docs.python.org/2/library/os.html
+
+    :param path:
+    :param user: string user name / numerical user id / None to leave as is
+    :param group: string group name / numerical group id / None to leave as is
+    :return:
+    """
+    if user is None and group is None:
+        return
+
+    # User resolve
+    if user is None:
+        uid = -1
+    elif isinstance(user, types.IntType):
+        uid = user
+    else:
+        uid = pwd.getpwnam(user).pw_uid
+
+    # Group resolve
+    if group is None:
+        gid = -1
+    elif isinstance(group, types.IntType):
+        gid = group
+    else:
+        gid = grp.getgrnam(group).gr_gid
+    os.chown(path, uid, gid)
+
+
+def makedirs(path, mode=0o777):
+    """
+    Make dir if does not exist
+    :param path:
+    :param mode:
+    :return:
+    """
+    if os.path.exists(path):
+        return
+    os.makedirs(path, mode=mode)
+
+
+def file_backup(path, chmod=0o644, backup_dir=None, backup_suffix=None):
+    """
+    Backup the given file by copying it to a new file
+    Copy is preferred to move. Move can keep processes working with the opened file after move operation.
+
+    :param path:
+    :param chmod:
+    :param backup_dir:
+    :param backup_suffix: if defined, suffix is appended to the backup file (e.g., .backup)
+    :return:
+    """
+    backup_path = None
+    if os.path.exists(path):
+        backup_path = path
+        if backup_dir is not None:
+            opath, otail = os.path.split(path)
+            backup_path = os.path.join(backup_dir, otail)
+        if backup_suffix is not None:
+            backup_path += backup_suffix
+
+        if chmod is None:
+            chmod = os.stat(path).st_mode & 0o777
+
+        with open(path, 'r') as src:
+            fhnd, fname = unique_file(backup_path, chmod)
+            with fhnd:
+                shutil.copyfileobj(src, fhnd)
+                backup_path = fname
+    return backup_path
+
+
+def dir_backup(path, chmod=0o644, backup_dir=None):
+    """
+    Backup the given directory
+    :param path:
+    :param chmod:
+    :param backup_dir:
+    :return:
+    """
+    backup_path = None
+    if os.path.exists(path):
+        backup_path = path
+        if backup_dir is not None:
+            opath, otail = os.path.split(path)
+            backup_path = os.path.join(backup_dir, otail)
+
+        if chmod is None:
+            chmod = os.stat(path).st_mode & 0o777
+
+        backup_path = safe_new_dir(backup_path, mode=chmod)
+        os.rmdir(backup_path)
+        shutil.copytree(path, backup_path)
+    return backup_path
+
+
+def delete_file_backup(path, chmod=0o644, backup_dir=None, backup_suffix=None):
+    """
+    Backup the current file by moving it to a new file
+    :param path:
+    :param chmod:
+    :param backup_dir:
+    :param backup_suffix: if defined, suffix is appended to the backup file (e.g., .backup)
+    :return:
+    """
+    backup_path = None
+    if os.path.exists(path):
+        backup_path = file_backup(path, chmod=chmod, backup_dir=backup_dir, backup_suffix=backup_suffix)
+        os.remove(path)
+    return backup_path
+
+
+def safe_create_with_backup(path, mode='w', chmod=0o644, backup_dir=None, backup_suffix=None):
+    """
+    Safely creates a new file, backs up the old one if existed
+    :param path:
+    :param mode:
+    :param chmod:
+    :param backup_dir:
+    :param backup_suffix: if defined, suffix is appended to the backup file (e.g., .backup)
+    :return: file handle, backup path
+    """
+    backup_path = delete_file_backup(path, chmod, backup_dir=backup_dir, backup_suffix=backup_suffix)
+    return safe_open(path, mode, chmod), backup_path
+
+
+def safe_open_append(path, chmod=None, buffering=None, exclusive=False):
+    """Safely open a file for append. If file exists, it is
+
+    :param str path: Path to a file.
+    :param int chmod: Same as `mode` for `os.open`, uses Python defaults
+        if ``None``.
+    :param int buffering: Same as `bufsize` for `os.fdopen`, uses Python
+        defaults if ``None``.
+    :param bool exclusive: if True, the file cannot exist before
+    """
+    # pylint: disable=star-args
+    open_args = () if chmod is None else (chmod,)
+    fdopen_args = () if buffering is None else (buffering,)
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+    if exclusive:
+        flags |= os.O_EXCL
+
+    return os.fdopen(os.open(path, flags, *open_args), 'a', *fdopen_args)
+
+
+def safe_new_dir(path, mode=0o755):
+    """
+    Creates a new unique directory. If the given directory already exists,
+    linear incrementation is used to create a new one.
+
+
+    :param path:
+    :param mode:
+    :return:
+    """
+    path, tail = os.path.split(path)
+    return _unique_dir(
+        path, dirname_pat=(lambda count: "%s_%04d" % (tail, count)),
+        count=0, mode=mode)
+
+
+def _unique_dir(path, dirname_pat, count, mode):
+    while True:
+        current_path = os.path.join(path, dirname_pat(count))
+        try:
+            os.makedirs(current_path, mode)
+            return os.path.abspath(current_path)
+
+        except OSError as exception:
+            # "Dir exists," is okay, try a different name.
+            if exception.errno != errno.EEXIST:
+                raise
+        count += 1
+
+
+def unique_lineage_name(path, filename, mode=0o777):
+    """Safely finds a unique file using lineage convention.
+
+    :param str path: directory path
+    :param str filename: proposed filename
+    :param int mode: file mode
+
+    :returns: tuple of file object and file name (which may be modified
+        from the requested one by appending digits to ensure uniqueness)
+
+    :raises OSError: if writing files fails for an unanticipated reason,
+        such as a full disk or a lack of permission to write to
+        specified location.
+
+    """
+    preferred_path = os.path.join(path, "%s.conf" % (filename))
+    try:
+        return safe_open(preferred_path, chmod=mode), preferred_path
+    except OSError as err:
+        if err.errno != errno.EEXIST:
+            raise
+    return _unique_file(
+        path, filename_pat=(lambda count: "%s-%04d.conf" % (filename, count)),
+        count=1, mode=mode)
 
 
 def make_or_verify_dir(directory, mode=0o755, uid=0, strict=False):
@@ -1100,3 +1306,110 @@ def is_number(x):
     return isinstance(x, (int, long, float))
 
 
+def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
+    """
+    Runs command line task synchronously
+    :return: return code, out_acc, err_acc
+    """
+    from sarge import run, Capture, Feeder
+    import time
+    import sys
+
+    feeder = Feeder()
+    p = run(cmd,
+            input=feeder, async=True,
+            stdout=Capture(buffer_size=1),
+            stderr=Capture(buffer_size=1),
+            cwd=cwd,
+            shell=shell)
+
+    out_acc = []
+    err_acc = []
+    ret_code = 1
+    log = None
+    close_log = False
+
+    # Logging - either filename or logger itself
+    if log_obj is not None:
+        if isinstance(log_obj, types.StringTypes):
+            delete_file_backup(log_obj, chmod=0o600)
+            log = safe_open(log_obj, mode='w', chmod=0o600)
+            close_log = True
+        else:
+            log = log_obj
+
+    try:
+        while len(p.commands) == 0:
+            time.sleep(0.15)
+
+        while p.commands[0].returncode is None:
+            out, err = None, None
+
+            if readlines:
+                out = p.stdout.readline()
+                err = p.stderr.readline()
+            else:
+                out = p.stdout.read(1)
+                err = p.stdout.read(1)
+
+            # If output - react on input challenges
+            if out is not None and len(out) > 0:
+                out_acc.append(out)
+
+                if log is not None:
+                    log.write(out)
+                    log.flush()
+
+                if write_dots:
+                    sys.stderr.write('.')
+
+                if on_out is not None:
+                    on_out(out, feeder, p)
+
+            # Collect error
+            if err is not None and len(err) > 0:
+                err_acc.append(err)
+
+                if log is not None:
+                    log.write(err)
+                    log.flush()
+
+                if write_dots:
+                    sys.stderr.write('.')
+
+                if on_err is not None:
+                    on_err(err, feeder, p)
+
+            p.commands[0].poll()
+            time.sleep(0.01)
+
+        ret_code = p.commands[0].returncode
+
+        # Collect output to accumulator
+        rest_out = p.stdout.readlines()
+        if rest_out is not None and len(rest_out) > 0:
+            for out in rest_out:
+                out_acc.append(out)
+                if log is not None:
+                    log.write(out)
+                    log.flush()
+                if on_out is not None:
+                    on_out(out, feeder, p)
+
+        # Collect error to accumulator
+        rest_err = p.stderr.readlines()
+        if rest_err is not None and len(rest_err) > 0:
+            for err in rest_err:
+                err_acc.append(err)
+                if log is not None:
+                    log.write(err)
+                    log.flush()
+                if on_err is not None:
+                    on_err(err, feeder, p)
+
+        return ret_code, out_acc, err_acc
+
+    finally:
+        feeder.close()
+        if close_log:
+            log.close()
