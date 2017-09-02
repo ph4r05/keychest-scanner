@@ -1984,7 +1984,7 @@ class MySQL(object):
         """
         return self.engine
 
-    def execute_sql(self, sql, engine=None, ignore_fail=False):
+    def execute_sql(self, sql=None, engine=None, user='root', ignore_fail=False):
         """
         Executes SQL query on the engine, logs the query
         :param engine:
@@ -2008,5 +2008,77 @@ class MySQL(object):
             if not ignore_fail:
                 raise
 
+        finally:
+            pass
+
         return None
+
+    def drop_database(self, database_name, engine=None):
+        """
+        Drops the database. Uses sqlalchemy DB engine
+        :param database_name:
+        :return:
+        """
+        if engine is None:
+            engine = self.engine
+        if engine is None:
+            engine = self.build_engine()
+
+        return self.execute_sql(engine=engine,
+                                sql="DROP DATABASE IF EXISTS `%s`" % database_name, ignore_fail=True)
+
+    def create_database(self, database_name, engine=None):
+        """
+        Creates a new database. Uses sqlalchemy DB engine
+        :param database_name:
+        :param engine:
+        :return:
+        """
+        if engine is None:
+            engine = self.engine
+        if engine is None:
+            engine = self.build_engine()
+
+        return self.execute_sql(engine=engine,
+                                sql="CREATE DATABASE `%s` CHARACTER SET utf8 COLLATE utf8_general_ci" % database_name)
+
+    def create_user(self, user, password, database_name, engine=None):
+        """
+        Grant user access to the database
+        :param user:
+        :param password:
+        :param database_name:
+        :param engine:
+        :return:
+        """
+        if engine is None:
+            engine = self.engine
+        if engine is None:
+            engine = self.build_engine()
+
+        self.execute_sql(engine=engine,
+                         sql="GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'localhost' IDENTIFIED BY '%s'"
+                             % (database_name, user, password))
+
+        return self.execute_sql(engine=engine, sql="FLUSH PRIVILEGES")
+
+    def backup_database(self, database_name, backup_dir, root_passwd=None):
+        """
+        Backups given database to the backup dir.
+        Uses mysqldump command to create SQL dump.
+
+        :param database_name:
+        :param backup_dir:
+        :return:
+        """
+        util.make_or_verify_dir(backup_dir)
+
+        db_fpath = os.path.abspath(os.path.join(backup_dir, database_name + '.sql'))
+        fh, backup_file = util.safe_create_with_backup(db_fpath, mode='w', chmod=0o600)
+        fh.close()
+
+        cmd = 'sudo mysqldump --database \'%s\' -u \'%s\' -p\'%s\' > \'%s\'' \
+              % (database_name, 'root', root_passwd, db_fpath)
+
+        return util.cli_cmd_sync(cmd)
 
