@@ -9,7 +9,7 @@ version = '0.1.6'
 install_requires = [
     'pycrypto>=2.6',
     'cryptography>=1.9',
-    'PyOpenSSL',
+    'PyOpenSSL>=17.2.0',
     'requests',
     'setuptools>=1.0',
     'sarge>=0.1.4',
@@ -26,7 +26,7 @@ install_requires = [
     'redis',
     'hiredis',
     'phpserialize',
-    'scapy-ssl-tls',
+    'scapy-ssl_tls',
     'mysql-python',
     'tldextract',
     'ph4-python-whois>=0.6.8',
