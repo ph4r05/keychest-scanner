@@ -15,7 +15,7 @@ import trace_logger
 import errors
 
 import scapy
-from scapy.layers.ssl_tls import *
+from scapy_ssl_tls.ssl_tls import *
 from scapy.packet import NoPayload
 import socket
 
