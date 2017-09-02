@@ -1,7 +1,10 @@
 include README.rst
 include LICENSE
 include keychest/data/*
-
+include alembic.ini.example
+include *.sh
+include *.md
+include alembic/*
 
 
 
