@@ -95,6 +95,7 @@ setup(
     entry_points={
         'console_scripts': [
             'keychest-server = keychest.server:main',
+            'keychest-setup = keychest.cmd_setup:main',
         ],
     }
 )
