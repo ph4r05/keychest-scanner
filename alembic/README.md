@@ -56,3 +56,10 @@ Add default values manually for tables used by PHP
 ```
 op.add_column('users', sa.Column('magiccc', sa.SmallInteger(), nullable=False, server_default='0'))
 ```
+
+### Foreign key conversion
+
+```
+sa.ForeignKeyConstraint\(\['([\w]+)'\],\s*\['([\w]+)\.([\w]+)'\],\s*name='([\w]+)',\s*ondelete='([\w\s]+)'\)(,?)
+op.create_foreign_key('$4', SRC_TABLE, '$2', ['$1'], ['$3'], ondelete='$5' )$6
+```

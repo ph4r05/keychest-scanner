@@ -130,6 +130,7 @@ def remove_cert_fprint_duplicates():
         sess.query(CertificateAltName).filter(CertificateAltName.cert_id.in_(list(to_delete_set)))\
             .delete(synchronize_session='fetch')
         sess.commit()
+    sess.commit()
 
 
 def migrate_watch_assoc():
