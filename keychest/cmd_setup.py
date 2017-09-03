@@ -38,7 +38,7 @@ class CmdSetup(object):
         Init root db connection
         :return:
         """
-        conn_string = 'mysql://%s:%s@%s%s/%s' % ('root', self._root_passwd(), '127.0.0.1', ':3306', DB_NAME)
+        conn_string = 'mysql://%s:%s@%s%s' % ('root', self._root_passwd(), '127.0.0.1', ':3306')
         self.db = dbutil.MySQL()
         self.db.build_engine(connstring=conn_string)
         self.db.session = dbutil.scoped_session(dbutil.sessionmaker(bind=self.db.engine))
