@@ -2158,11 +2158,11 @@ class Server(object):
             s.add(scan_db)
             s.commit()
 
-            ResultModelUpdater.update_cache(s, scan_db)
-            s.commit()
-
             # Add new watcher targets automatically - depends on the assoc model, if enabled
             self.auto_fill_ip_watches(s, job, scan_db)  # returns is_same, obj, last_scan
+
+            ResultModelUpdater.update_cache(s, scan_db)
+            s.commit()
 
         s.commit()
 
