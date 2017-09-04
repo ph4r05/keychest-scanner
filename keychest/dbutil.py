@@ -429,6 +429,7 @@ class DbWatchTarget(Base):
     top_domain = relationship('DbBaseDomain')
     agent = relationship('DbKeychestAgent')
     ip_scan = relationship('DbIpScanRecord')
+    last_dns_scan = relationship('DbDnsResolve')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
