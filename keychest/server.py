@@ -3876,6 +3876,43 @@ class Server(object):
         s.merge(db_svc)
         return db_svc, is_new
 
+    def ip_scan_to_dns(self, scan):
+        """
+        Transforms IP scan result to the synthetic DNS result
+        :param scan:
+        :type scan: DbIpScanResult
+        :return:
+        """
+        ipset = [(IpType.NET_IPv4, ip) for ip in scan.trans_ips_found]
+
+        dns = DbDnsResolve()
+        dns.watch_id = record.id
+        dns.created_at = salch.func.now()
+        dns.updated_at = salch.func.now()
+        dns.last_scan_at = salch.func.now()
+        dns.num_scans = 1
+        dns.status = 1
+        dns.dns_status = 1
+        dns.is_synthetic = True
+
+        dns.dns_res = ipset  # [(2, ipv4), (10, ipv6)]
+        dns.dns = json.dumps(ipset)
+        dns.num_res = len(ipset)
+        dns.num_ipv4 = len([x for x in scan_db.dns_res if x[0] == IpType.NET_IPv4])
+        dns.num_ipv6 = 0
+        dns.entries = []
+
+        for idx, ip in enumerate(scan.trans_ips_found):
+            en = DbDnsEntry()
+            en.scan = dns
+            en.is_ipv6 = False
+            en.is_internal = TlsDomainTools.is_ip_private(ip)
+            en.ip = ip
+            en.res_order = idx
+
+            dns.entries.append(en)
+        return dns
+
     #
     # Workers - Redis interactive jobs
     #
