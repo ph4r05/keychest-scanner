@@ -2155,6 +2155,9 @@ class Server(object):
             last_scan = s.merge(last_scan)
 
         else:
+            logger.info('New IP scan results, scan rec id: %s, svc: %s, ips found: %s'
+                        % (job.target.id, job.target.service_name, util.json_dumps(scan_db.trans_ips_found)))
+
             s.add(scan_db)
             s.commit()
 
