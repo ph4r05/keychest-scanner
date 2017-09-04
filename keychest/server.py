@@ -3846,6 +3846,36 @@ class Server(object):
                             log_message='TLS desc ext fetch/save error: %s %s' % (desc_id, param_id))
         return ret
 
+    def load_watch_service(self, s, svc_name):
+        """
+        Creates a new service record if does not exist or load existing one
+        :param s:
+        :param svc_name:
+        :return:
+        """
+        svc = DbWatchService()
+        svc.service_name = svc_name
+        db_svc, is_new = ModelUpdater.load_or_insert(s, svc, [DbWatchService.service_name])
+        if not is_new:
+            return db_svc
+
+        # Augment with dates, top domain & crtsh input fields
+        db_svc.created_at = salch.func.now()
+        db_svc.updated_at = salch.func.now()
+
+        # top domain
+        top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(svc_name))
+        if top_domain_obj is not None:
+            db_svc.top_domain_id = top_domain_obj.id
+
+        # crtsh input
+        db_input, inp_is_new = self.get_crtsh_input(s, svc_name)
+        if db_input is not None:
+            crtsh_query_db.crtsh_input_id = db_input.id
+
+        s.merge(db_svc)
+        return db_svc, is_new
+
     #
     # Workers - Redis interactive jobs
     #
