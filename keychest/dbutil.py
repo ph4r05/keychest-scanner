@@ -1166,19 +1166,27 @@ class DbIpScanResult(Base):
     num_ips_found = Column(Integer, default=0, nullable=False)
     ips_alive = Column(Text, nullable=True)  # normalized json with dns results
     ips_found = Column(Text, nullable=True)  # normalized json with dns results
+    ips_alive_ids = Column(Text, nullable=True)  # normalized json with dns results
+    ips_found_ids = Column(Text, nullable=True)  # normalized json with dns results
 
     def __init__(self):
         self.trans_ips_alive = []
         self.trans_ips_found = []
+        self.trans_ips_alive_ids = []
+        self.trans_ips_found_ids = []
 
     @orm.reconstructor
     def init_on_load(self):
         self.trans_ips_alive = util.defval(util.try_load_json(self.ips_alive), [])
         self.trans_ips_found = util.defval(util.try_load_json(self.ips_found), [])
+        self.trans_ips_alive_ids = util.defval(util.try_load_json(self.ips_alive_ids), [])
+        self.trans_ips_found_ids = util.defval(util.try_load_json(self.ips_found_ids), [])
 
     def visit_fnc(self, fnc):
         self.trans_ips_alive = fnc(self.trans_ips_alive)
         self.trans_ips_found = fnc(self.trans_ips_found)
+        self.trans_ips_alive_ids = fnc(self.trans_ips_alive_ids)
+        self.trans_ips_found_ids = fnc(self.trans_ips_found_ids)
         return self
 
 
