@@ -2144,6 +2144,12 @@ class Server(object):
         job_spec['scan_sni'] = job.target.service_name
         job_spec['scan_host'] = job.target.service_name
 
+        # service id filled in?
+        if job.target.service_id is None:
+            db_svc, db_svc_new = self.load_watch_service(s, job.target.service_name)
+            if db_svc is not None:
+                job.target.service_id = db_svc.id
+
         # perform crtsh queries, result management
         scan_db = self.wp_scan_ip_body(s, job, job_spec, last_scan)
 
@@ -2187,6 +2193,7 @@ class Server(object):
         :type job: PeriodicIpScanJob
         :param job_spec:
         :param last_scan:
+        :type last_scan: DbIpScanResult
         :return:
         """
         rec = job.target
@@ -3963,12 +3970,13 @@ class Server(object):
         :param s:
         :param svc_name:
         :return:
+        :rtype: (DbWatchService, bool)
         """
         svc = DbWatchService()
         svc.service_name = svc_name
         db_svc, is_new = ModelUpdater.load_or_insert(s, svc, [DbWatchService.service_name])
         if not is_new:
-            return db_svc
+            return db_svc, is_new
 
         # Augment with dates, top domain & crtsh input fields
         db_svc.created_at = salch.func.now()
