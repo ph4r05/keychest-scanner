@@ -1290,6 +1290,8 @@ class Server(object):
             self._periodic_update_last_scan_watch(job)
         elif job.type == JobTypes.SUB:
             self._periodic_update_last_scan_recon(job)
+        elif job.type == JobTypes.IP_SCAN:
+            self._periodic_update_last_ip_scan(job)
         else:
             raise ValueError('Unrecognized job type')
 
@@ -1320,6 +1322,23 @@ class Server(object):
         try:
             stmt = DbSubdomainWatchTarget.__table__.update()\
                 .where(DbSubdomainWatchTarget.id == job.target.id)\
+                .values(last_scan_at=salch.func.now())
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_close(s)
+
+    def _periodic_update_last_ip_scan(self, job):
+        """
+        Updates IP scan job specifically
+        :param job:
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            stmt = DbIpScanRecord.__table__.update()\
+                .where(DbIpScanRecord.id == job.target.id)\
                 .values(last_scan_at=salch.func.now())
             s.execute(stmt)
             s.commit()
