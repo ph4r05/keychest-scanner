@@ -2168,6 +2168,8 @@ class Server(object):
             db_svc, db_svc_new = self.load_watch_service(s, job.target.service_name)
             if db_svc is not None:
                 job.target.service_id = db_svc.id
+                s.merge(job.target)
+                s.flush()
 
         # perform crtsh queries, result management
         scan_db = self.wp_scan_ip_body(s, job, job_spec, last_scan)
@@ -3392,16 +3394,17 @@ class Server(object):
 
         # create watch if does not exist
         if not record_exists:
+            target = s.merge(job.target)
             record = DbWatchTarget()
-            record.ip_scan_id = job.target.id
+            record.ip_scan_id = target.id
             record.created_at = salch.func.now()
             record.updated_at = salch.func.now()
-            record.service_id = job.target.service_id
-            record.top_domain_id = job.target.service.top_domain_id
-            record.ip_scan_id = job.target.id
+            record.service_id = target.service_id
+            record.top_domain_id = target.service.top_domain_id
+            record.ip_scan_id = target.id
 
             record.manual_dns = True
-            record.scan_host = job.target.service_name
+            record.scan_host = target.service_name
             record.scan_port = 443  # configurable port
             record.scan_scheme = 'https'  # configurable scheme
             s.add(record)
