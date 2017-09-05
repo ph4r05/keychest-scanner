@@ -2233,6 +2233,8 @@ class Server(object):
             # TODO: easy parallelization, threads, input = job_spec, output = handshake, db_scan
             # Greater chunks are needed, 1 IP per thread is not efficient, take at least 10 per thread.
             job_spec['scan_ip'] = ip
+            job_spec['sysparams']['timeout'] = 5
+            job_spec['sysparams']['retry'] = 2
             handshake_res, db_scan = \
                 self.scan_handshake(s, job_spec, None, None, store_job=False,
                                     do_connect_analysis=False, do_process_certificates=False)
