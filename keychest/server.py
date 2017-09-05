@@ -3386,6 +3386,7 @@ class Server(object):
         last_dns_exists = last_dns is not None
 
         new_dns = self.ip_scan_to_dns(db_sub)
+        new_dns.watch_id = record.id
         new_dns_differ = not last_dns_exists and not self.diff_scan_dns(last_dns, new_dns)
 
         dns_updated = False
@@ -3981,7 +3982,7 @@ class Server(object):
         # crtsh input
         db_input, inp_is_new = self.get_crtsh_input(s, svc_name)
         if db_input is not None:
-            crtsh_query_db.crtsh_input_id = db_input.id
+            db_svc.crtsh_input_id = db_input.id
 
         s.merge(db_svc)
         return db_svc, is_new
@@ -3996,7 +3997,6 @@ class Server(object):
         ipset = [(IpType.NET_IPv4, ip) for ip in scan.trans_ips_found]
 
         dns = DbDnsResolve()
-        dns.watch_id = record.id
         dns.created_at = salch.func.now()
         dns.updated_at = salch.func.now()
         dns.last_scan_at = salch.func.now()
@@ -4008,7 +4008,7 @@ class Server(object):
         dns.dns_res = ipset  # [(2, ipv4), (10, ipv6)]
         dns.dns = json.dumps(ipset)
         dns.num_res = len(ipset)
-        dns.num_ipv4 = len([x for x in scan_db.dns_res if x[0] == IpType.NET_IPv4])
+        dns.num_ipv4 = len([x for x in dns.dns_res if x[0] == IpType.NET_IPv4])
         dns.num_ipv6 = 0
         dns.entries = []
 
