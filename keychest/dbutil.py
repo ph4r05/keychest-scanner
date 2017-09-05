@@ -429,7 +429,6 @@ class DbWatchTarget(Base):
     top_domain = relationship('DbBaseDomain')
     agent = relationship('DbKeychestAgent')
     ip_scan = relationship('DbIpScanRecord')
-    last_dns_scan = relationship('DbDnsResolve')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -439,6 +438,7 @@ class DbWatchTarget(Base):
     # denormalization - optimized query
     last_dns_scan_id = Column(ForeignKey('scan_dns.id', name='wt_scan_dns_id', ondelete='SET NULL'),
                               nullable=True, index=True)
+    last_dns_scan = relationship('DbDnsResolve', foreign_keys=last_dns_scan_id)
     
     def __init__(self):
         self.trans_service = None
