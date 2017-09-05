@@ -484,7 +484,7 @@ class Server(object):
                           Gathered certificates are stored always.
         :param kwargs
         :return:
-        :rtype Tuple[TlsHandshakeResult, DbHandshakeScanJob]
+        :rtype (TlsHandshakeResult, DbHandshakeScanJob)
         """
         domain = job_data['scan_host']
         domain_sni = util.defvalkey(job_data, 'scan_sni', domain, take_none=False)
