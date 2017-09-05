@@ -630,14 +630,49 @@ class TlsHandshaker(object):
         return ''.join(total_data)
 
 
-if __name__ == '__main__':
+def handshake_main():
+    """
+    Main handshake scan routine when invoked as a separate script
+    :return:
+    """
+    import argparse
     coloredlogs.install(level=logging.DEBUG)
 
-    port = 443
-    target = 'enigmabridge.com'
-    if len(sys.argv) > 1:
-        target = sys.argv[1]
+    parser = argparse.ArgumentParser(description='TLS handshake test')
 
+    parser.add_argument('--sni', dest='sni', default=None,
+                        help='SNI name - use if host is specified by IP')
+
+    parser.add_argument('--tls-ver', dest='tls_ver', default='TLS_1_2',
+                        help='TLS version')
+
+    parser.add_argument('--rsa', dest='rsa', default=False, action='store_const', const=True,
+                        help='RSA certs only')
+
+    parser.add_argument('--ecc', dest='ecc', default=False, action='store_const', const=True,
+                        help='ECC certs only')
+
+    parser.add_argument('hosts', nargs=argparse.ZERO_OR_MORE, default=[],
+                        help='host to connect to')
+
+    args = parser.parse_args()
+    if len(args.hosts) == 0:
+        parser.print_usage()
+        return
+
+    for host in args.hosts:
+        handshake_main_host(host, args)
+
+
+def handshake_main_host(host, args):
+    """
+    One host scan
+    :param host:
+    :param args:
+    :return:
+    """
+    port = 443
+    target = host
     if ':' in target:
         target, port = target.split(':', 1)
         port = int(port)
@@ -645,10 +680,16 @@ if __name__ == '__main__':
     tester = TlsHandshaker()
     tester.timeout = 3
     tester.attempts = 3
-    tester.tls_version = 'TLS_1_2'
+    tester.tls_version = args.tls_ver
+    sni = args.sni if args.sni else target
+    ecc = None
+    if args.ecc:
+        ecc = True
+    elif args.rsa:
+        ecc = False
 
     logger.info('Testing %s:%s' % (target, port))
-    ret = tester.try_handshake(host=target, port=port)
+    ret = tester.try_handshake(host=target, port=port, domain=sni, ecc=ecc)
 
     # print('Client hello: ')
     # print(ret.cl_hello.show())
@@ -680,6 +721,8 @@ if __name__ == '__main__':
         print('. ' * 40)
 
 
+if __name__ == '__main__':
+    handshake_main()
 
 
 
