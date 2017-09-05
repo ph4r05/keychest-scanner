@@ -2223,7 +2223,8 @@ class Server(object):
         iter = TlsDomainTools.iter_ips(ip_start_int=ip_int_beg, ip_stop_int=ip_int_end)
 
         time_start = time.time()
-        live_ips = []
+        live_ips_ids = []
+        valid_ips_ids = []
         valid_ips = []
         for ip in iter:
             # Server termination - abort job, will be performed all over again next time
@@ -2242,12 +2243,16 @@ class Server(object):
             if db_scan.err_code:
                 continue
 
-            live_ips.append(ip)
+            db_ip, db_ip_new = self.load_ip_address(s, ip)
+            live_ips_ids.append(db_ip.id)
+
             if db_scan.valid_hostname:
                 valid_ips.append(ip)
+                valid_ips_ids.append(db_ip.id)
 
-        live_ips.sort()
+        live_ips_ids.sort()
         valid_ips.sort()
+        valid_ips_ids.sort()
 
         res = DbIpScanResult()
         res.ip_scan_record_id = rec.id
@@ -2257,12 +2262,14 @@ class Server(object):
         res.finished_at = salch.func.now()
 
         res.duration = time.time() - time_start
-        res.num_ips_alive = len(live_ips)
+        res.num_ips_alive = len(live_ips_ids)
         res.num_ips_found = len(valid_ips)
-        res.ips_alive = json.dumps(live_ips)
+        res.ips_alive_ids = json.dumps(live_ips_ids)
         res.ips_found = json.dumps(valid_ips)
-        res.trans_ips_alive = live_ips
+        res.ips_found_ids = json.dumps(valid_ips_ids)
+        res.trans_ips_alive_ids = live_ips_ids
         res.trans_ips_found = valid_ips
+        res.trans_ips_found_ids = valid_ips_ids
 
         return res
 
