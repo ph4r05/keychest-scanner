@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import json
 import logging
 import time
@@ -113,6 +114,11 @@ class PathValidator(object):
         """
         roots = util.load_roots()
         roots_loaded = 0
+
+        aux_roots = self._try_open_aux_roots()
+        if aux_roots is not None:
+            roots += aux_roots
+
         logger.debug('Trust Roots loaded')
 
         # 1 - load all CAs, roots from Mozilla.
@@ -134,6 +140,22 @@ class PathValidator(object):
                 self.trace_logger.log(e)
 
         logger.debug('Loaded %s trusted roots' % roots_loaded)
+
+    def _try_open_aux_roots(self):
+        """
+        Tries to open aux trust roots
+        :return:
+        """
+        trust_aux = os.environ.get('KC_TRUST_ROOTS_AUX')
+        if trust_aux is None:
+            return None
+
+        try:
+            with open(trust_aux, 'rb') as fh:
+                return fh.read()
+        except Exception as e:
+            logger.error('Could not open AUX CA trust roots: %s : %s ' % (trust_aux, e))
+        return None
 
     def _new_ossl_store(self):
         """
