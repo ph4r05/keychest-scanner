@@ -1094,6 +1094,7 @@ class DbIpScanRecord(Base):
     service_name = Column(String(255), nullable=False)  # SNI to look for
     service_id = Column(ForeignKey('watch_service.id', name='fk_ip_scan_record_watch_service_id', ondelete='SET NULL'),
                         nullable=True, index=True)  # service record for ref, joins, unification.
+
     service = relationship('DbWatchService')
 
     ip_beg = Column(String(24), nullable=False)
@@ -1107,6 +1108,11 @@ class DbIpScanRecord(Base):
     last_scan_at = Column(DateTime, default=None)  # last watcher processing of this entity (can do more indiv. scans)
     last_scan_state = Column(SmallInteger, default=0)  # watcher scanning running / finished
     num_scans = Column(Integer, default=1)  # number of scans with this result (periodic scanner)
+
+    # denormalization
+    last_result_id = Column(ForeignKey('ip_scan_result.id', name='fk_ip_scan_record_ip_scan_result_id',
+                                       ondelete='SET NULL'), nullable=True, index=True)
+    last_result = relationship('DbIpScanResult', foreign_keys=last_result_id)
 
     def __init__(self):
         self.trans_top_domain = None
