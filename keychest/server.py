@@ -2191,6 +2191,9 @@ class Server(object):
             # Add new watcher targets automatically - depends on the assoc model, if enabled
             self.auto_fill_ip_watches(s, job, scan_db)  # returns is_same, obj, last_scan
 
+            target = s.merge(job.target)
+            target.last_result_id = scan_db.id
+
             ResultModelUpdater.update_cache(s, scan_db)
             s.commit()
 
