@@ -3504,7 +3504,7 @@ class Server(object):
             s.commit()
 
         except Exception as e:
-            logger.debug('Exception when adding auto ip watch: %s' % e)
+            logger.error('Exception when adding auto ip watch: %s' % e)
             self.trace_logger.log(e, custom_msg='Auto add ip watch')
             s.rollback()
 
