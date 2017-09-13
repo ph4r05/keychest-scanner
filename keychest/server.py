@@ -2162,6 +2162,7 @@ class Server(object):
         job_spec['dns_ok'] = True
         job_spec['scan_sni'] = job.target.service_name
         job_spec['scan_host'] = job.target.service_name
+        job_spec['scan_port'] = job.target.service_port
 
         # service id filled in?
         if job.target.service_id is None:
