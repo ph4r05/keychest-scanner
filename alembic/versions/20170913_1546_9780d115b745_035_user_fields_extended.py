@@ -41,11 +41,16 @@ class DbUser(Base):
     id = Column(INTEGER(10, unsigned=True), primary_key=True)
     name = Column(String(191), nullable=False)
     email = Column(String(191), nullable=False, unique=True)
-    accredit = Column(String(100), default=None)
-    accredit_own = Column(String(100), default=None)
+
     email_verify_token = Column(String(40), nullable=True)
     notification_email = Column(String(191), nullable=True)
     weekly_unsubscribe_token = Column(String(40), nullable=True)
+
+    cert_notif_state = Column(SmallInteger, nullable=False, default=0)
+    cert_notif_unsubscribe_token = Column(String(24), nullable=True)
+    cert_notif_last_cert_id = Column(BigInteger, default=None, nullable=True)
+    last_email_cert_notif_sent_at = Column(DateTime, default=None)
+    last_email_cert_notif_enqueued_at = Column(DateTime, default=None)
 
 
 def upgrade():
@@ -56,8 +61,15 @@ def upgrade():
     op.add_column('users', sa.Column('closed_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('deleted_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('email_verify_token', sa.String(length=24), nullable=True))
+    op.add_column('users', sa.Column('email_verified_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('notification_email', sa.String(length=191), nullable=True))
     op.add_column('users', sa.Column('weekly_unsubscribe_token', sa.String(length=24), nullable=True))
+
+    op.add_column('users', sa.Column('cert_notif_state', sa.SmallInteger(), nullable=False, server_default='0'))
+    op.add_column('users', sa.Column('cert_notif_unsubscribe_token', sa.String(length=24), nullable=True))
+    op.add_column('users', sa.Column('cert_notif_last_cert_id', sa.BigInteger(), nullable=True))
+    op.add_column('users', sa.Column('last_email_cert_notif_sent_at', sa.DateTime(), nullable=True))
+    op.add_column('users', sa.Column('last_email_cert_notif_enqueued_at', sa.DateTime(), nullable=True))
 
     if context.is_offline_mode():
         logger.warning('Data migration skipped in the offline mode')
@@ -71,6 +83,7 @@ def upgrade():
         try:
             cur.email_verify_token = util.random_alphanum(24)
             cur.weekly_unsubscribe_token = util.random_alphanum(24)
+            cur.cert_notif_unsubscribe_token = util.random_alphanum(24)
 
         except Exception as ex:
             logger.warning('Exception in User field migration: %s' % ex)
@@ -82,9 +95,15 @@ def downgrade():
     Downgrade
     :return:
     """
+    op.drop_column('users', 'last_email_cert_notif_enqueued_at')
+    op.drop_column('users', 'last_email_cert_notif_sent_at')
+    op.drop_column('users', 'cert_notif_last_cert_id')
+    op.drop_column('users', 'cert_notif_unsubscribe_token')
+    op.drop_column('users', 'cert_notif_state')
     op.drop_column('users', 'weekly_unsubscribe_token')
     op.drop_column('users', 'notification_email')
     op.drop_column('users', 'email_verify_token')
+    op.drop_column('users', 'email_verified_at')
     op.drop_column('users', 'deleted_at')
     op.drop_column('users', 'closed_at')
 

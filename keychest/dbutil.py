@@ -470,6 +470,7 @@ class DbUser(Base):
     is_superadmin = Column(SmallInteger, nullable=False, default=0)
     timezone = Column(String(191), nullable=True)
     utc_offset = Column(Integer, nullable=False, default=0)
+    email_verified_at = Column(DateTime, default=None, nullable=True)
     email_verify_token = Column(String(24), nullable=True)
     notification_email = Column(String(191), nullable=True)
 
@@ -484,6 +485,12 @@ class DbUser(Base):
     last_email_report_sent_at = Column(DateTime, default=None)
     last_email_report_enqueued_at = Column(DateTime, default=None)
     last_email_no_servers_sent_at = Column(DateTime, default=None)
+
+    cert_notif_state = Column(SmallInteger, nullable=False, default=0)
+    cert_notif_unsubscribe_token = Column(String(24), nullable=True)
+    cert_notif_last_cert_id = Column(BigInteger, default=None, nullable=True)
+    last_email_cert_notif_sent_at = Column(DateTime, default=None)
+    last_email_cert_notif_enqueued_at = Column(DateTime, default=None)
 
 
 class DbUserLoginHistory(Base):
