@@ -1092,6 +1092,8 @@ class DbIpScanRecord(Base):
     id = Column(BigInteger, primary_key=True)
 
     service_name = Column(String(255), nullable=False)  # SNI to look for
+    service_port = Column(Integer, nullable=False, default=443)
+
     service_id = Column(ForeignKey('watch_service.id', name='fk_ip_scan_record_watch_service_id', ondelete='SET NULL'),
                         nullable=True, index=True)  # service record for ref, joins, unification.
 
