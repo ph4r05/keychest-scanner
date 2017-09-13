@@ -62,6 +62,7 @@ import coloredlogs
 import traceback
 import collections
 import signal
+import resource
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 from datetime import datetime, timedelta
 
@@ -155,6 +156,9 @@ class Server(object):
         self.cleanup_check_time = 60
         self.cleanup_thread = None
         self.cleanup_thread_lock = RLock()
+
+        self.state_thread = None
+        self.state_last_check = 0
 
         self.randomize_diff_time_fact = 0.15
         self.randomize_feeder_fact = 0.25
@@ -4811,6 +4815,49 @@ class Server(object):
         finally:
             util.silent_close(s)
 
+    def state_main(self):
+        """
+        State main thread
+        :return:
+        """
+        logger.info('State thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    time.sleep(0.5)
+                    cur_time = time.time()
+                    if self.state_last_check + 10 > cur_time:
+                        continue
+
+                    self.state_ram_check()
+                    self.state_last_check = cur_time
+
+                except Exception as e:
+                    logger.error('Exception in state thread: %s' % e)
+                    self.trace_logger.log(e)
+
+        except Exception as e:
+            logger.error('Exception: %s' % e)
+            self.trace_logger.log(e)
+
+        logger.info('State loop terminated')
+
+    def state_ram_check(self):
+        """
+        Checks memory terminating conditions
+        :return:
+        """
+
+        if self.args.max_mem is None:
+            return
+
+        cur_ram = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.
+        if cur_ram <= self.args.max_mem:
+            return
+
+        logger.warning('Maximum memory threshold reached: %s MB, threshold = %s MB' % (cur_ram, self.args.max_mem))
+        self.trigger_stop()
+
     #
     # Migration
     #
@@ -4930,6 +4977,10 @@ class Server(object):
         self.cleanup_thread.setDaemon(True)
         self.cleanup_thread.start()
 
+        self.state_thread = threading.Thread(target=self.state_main, args=())
+        self.state_thread.setDaemon(True)
+        self.state_thread.start()
+
         migrate_thread = threading.Thread(target=self.migrate_main, args=())
         migrate_thread.setDaemon(True)
         migrate_thread.start()
@@ -4994,6 +5045,9 @@ class Server(object):
 
         parser.add_argument('--dump-stats', dest='dump_stats_file', default=None,
                             help='Dumping stats to a file')
+
+        parser.add_argument('--max-mem', dest='max_mem', default=None, type=float,
+                            help='Maximal memory threshold in MB when program terminates itself')
 
         self.args = parser.parse_args()
         if self.args.debug:
