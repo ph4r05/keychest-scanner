@@ -462,12 +462,16 @@ class DbUser(Base):
     remember_token = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=None)
+    deleted_at = Column(DateTime, default=None, nullable=True)
+    closed_at = Column(DateTime, default=None, nullable=True)
     accredit = Column(String(100), default=None)
     accredit_own = Column(String(100), default=None)
 
     is_superadmin = Column(SmallInteger, nullable=False, default=0)
     timezone = Column(String(191), nullable=True)
     utc_offset = Column(Integer, nullable=False, default=0)
+    email_verify_token = Column(String(24), nullable=True)
+    notification_email = Column(String(191), nullable=True)
 
     last_login_id = Column(ForeignKey('user_login_history.id', name='users_user_login_history_id', ondelete='SET NULL'),
                            nullable=True, index=True)
@@ -476,6 +480,7 @@ class DbUser(Base):
     last_action_at = Column(DateTime, default=None, nullable=True)
 
     weekly_emails_disabled = Column(SmallInteger, nullable=False, default=0)
+    weekly_unsubscribe_token = Column(String(24), nullable=True)
     last_email_report_sent_at = Column(DateTime, default=None)
     last_email_report_enqueued_at = Column(DateTime, default=None)
     last_email_no_servers_sent_at = Column(DateTime, default=None)
