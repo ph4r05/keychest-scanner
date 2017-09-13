@@ -1159,7 +1159,7 @@ class DbIpScanResult(Base):
     id = Column(BigInteger, primary_key=True)
     ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_result_ip_scan_record_id',
                                           ondelete='CASCADE'), nullable=False, index=True)
-    ip_scan_record = relationship('DbIpScanRecord')
+    ip_scan_record = relationship('DbIpScanRecord', foreign_keys=ip_scan_record_id)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
