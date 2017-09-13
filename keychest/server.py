@@ -2165,12 +2165,21 @@ class Server(object):
         job_spec['scan_port'] = job.target.service_port
 
         # service id filled in?
+        refresh_target = False
         if job.target.service_id is None:
             db_svc, db_svc_new = self.load_watch_service(s, job.target.service_name)
             if db_svc is not None:
                 job.target.service_id = db_svc.id
-                s.merge(job.target)
-                s.flush()
+                refresh_target = True
+
+        if job.target.ip_beg_int is None:
+            job.target.ip_beg_int = TlsDomainTools.ip_to_int(job.target.ip_beg)
+            job.target.ip_end_int = TlsDomainTools.ip_to_int(job.target.ip_end)
+            refresh_target = True
+            
+        if refresh_target:
+            s.merge(job.target)
+            s.flush()
 
         # perform crtsh queries, result management
         scan_db = self.wp_scan_ip_body(s, job, job_spec, last_scan)
