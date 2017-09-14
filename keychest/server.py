@@ -2984,7 +2984,7 @@ class Server(object):
             cert_db.crt_sh_id = crt_sh_id
             cert_db.crt_sh_ca_id = index_result.ca_id
             cert_db.created_at = salch.func.now()
-            cert_db.pem = response.result
+            cert_db.pem = util.strip_pem(response.result)
             cert_db.source = 'crt.sh'
             alt_names = []
 
