@@ -22,6 +22,7 @@ from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery
     DbIpScanRecord, DbIpScanRecordUser, DbIpScanResult, \
     ResultModelUpdater, ModelUpdater
 import dbutil
+from db_migrations import DbMigrationManager
 from stat_sem import StatSemaphore
 from agent import AgentResultPush
 
@@ -4875,6 +4876,28 @@ class Server(object):
         Live data migration to minimize downtime
         :return:
         """
+        logger.info('Migration thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+        s = None
+        try:
+            def should_terminate():
+                """
+                Migration should terminate lambda
+                :return:
+                """
+                return self.stop_event.is_set() or self.terminate
+
+            s = self.db.get_session()
+            mig_mgr = DbMigrationManager(s=s, should_terminate=should_terminate)
+            mig_mgr.migrate()
+
+        except Exception as e:
+            logger.error('Exception in DB migration: %s' % e)
+            self.trace_logger.log(e)
+
+        finally:
+            util.silent_close(s)
+
+        logger.info('Migration thread terminated')
 
     #
     # Server
