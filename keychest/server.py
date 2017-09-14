@@ -2702,7 +2702,7 @@ class Server(object):
         """
         cert = None  # type: cryptography.x509.Certificate
         if pem is not None:
-            cert = util.load_x509(str(cert_db.pem))
+            cert = util.load_x509_der(util.pem_to_der(str(cert_db.pem)))
         elif der is not None:
             cert = util.load_x509_der(der)
         else:
@@ -2785,7 +2785,7 @@ class Server(object):
 
             try:
                 cert_db.created_at = salch.func.now()
-                cert_db.pem = '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----' % (base64.b64encode(der),)
+                cert_db.pem = base64.b64encode(der)
                 cert_db.source = 'handshake'
                 if cert_db.parent_id is None:
                     cert_db.parent_id = prev_id
