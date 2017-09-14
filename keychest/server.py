@@ -1723,6 +1723,10 @@ class Server(object):
             job_scan.skip()
             return
 
+        if job.target.manual_dns:
+            job_scan.skip()
+            return
+
         if not TlsDomainTools.can_whois(url.host):
             logger.debug('Domain %s not eligible to DNS scan' % url.host)
             job_scan.skip()
