@@ -862,6 +862,74 @@ def try_get_san(cert):
     return []
 
 
+def try_get_extension(cert, oid, quiet=True):
+    """
+    Extracts extension from the certificate
+    :param cert:
+    :param oid:
+    :param quiet:
+    :return:
+    """
+    try:
+        return cert.extensions.get_extension_for_oid(oid)
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting Extension rest. %s : %s' % (oid, e))
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_get_subject_key_identifier(cert, quiet=True):
+    """
+    Extracts X509v3 Subject Key Identifier
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_KEY_IDENTIFIER)  # type: cryptography.x509.SubjectKeyIdentifier
+        return ext.value.digest
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting Subject Key Identifier rest. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_get_authority_key_identifier(cert, quiet=True):
+    """
+    Extracts X509v3 Authority Key Identifier
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        ext = cert.extensions.get_extension_for_oid(
+            ExtensionOID.AUTHORITY_KEY_IDENTIFIER)  # type: cryptography.x509.AuthorityKeyIdentifier
+        return ext.value.key_identifier
+
+    except ExtensionNotFound:
+        return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting Authority Key Identifier rest. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
 def try_is_ca(cert, quiet=True):
     """
     Tries to load SAN from the certificate
@@ -931,11 +999,24 @@ def try_is_precert_ca(cert, quiet=True):
 def try_is_self_signed(cert, quiet=True):
     """
     Tries to determine if the certificate is self signed
-    Currently implemented by comparing subject & issuer
+    First tries to extract auth key ID and subject key ID from the cert and compare them.
+    If this check fails it falls back to comparing subject & issuer
     :param cert: 
     :param quiet: 
     :return: 
     """
+    try:
+        subj_key = try_get_subject_key_identifier(cert, quiet=quiet)
+        auth_key = try_get_authority_key_identifier(cert, quiet=quiet)
+        if subj_key is not False and auth_key is not False and len(subj_key) > 0 and len(auth_key) > 0:
+            return subj_key == auth_key
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in self-signed check. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    # Fallback check
     try:
         return cert.subject == cert.issuer
 
