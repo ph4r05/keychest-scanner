@@ -695,6 +695,23 @@ def lower(x):
         return x.lower()
 
 
+def b16encode(x):
+    """
+    Tries to encode x in hexa-coding
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+    if not x:
+        return None
+
+    try:
+        return base64.b16encode(x)
+    except:
+        return None
+
+
 def defval(val, default=None):
     """
     Returns val if is not None, default instead
