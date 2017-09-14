@@ -2727,6 +2727,11 @@ class Server(object):
         cert_db.key_type = util_cert.try_get_key_type(cert.public_key())
         cert_db.key_bit_size = util_cert.try_get_pubkey_size(cert.public_key())
 
+        cert_db.subject_key_info = util.take(util.lower(base64.b16encode(
+            util.try_get_subject_key_identifier(cert))), 64)
+        cert_db.authority_key_info = util.take(util.lower(base64.b16encode(
+            util.try_get_authority_key_identifier(cert))), 64)
+
         alt_name_test = list(alt_names)
         if not util.is_empty(cert_db.cname):
             alt_name_test.append(cert_db.cname)
