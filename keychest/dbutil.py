@@ -106,8 +106,11 @@ class Certificate(Base):
     is_precert = Column(SmallInteger, nullable=False, default=0)
     is_precert_ca = Column(SmallInteger, nullable=False, default=0)
     parent_id = Column(BigInteger, nullable=True)  # when found in cert chain
+    root_parent_id = Column(BigInteger, nullable=True)  # root of the chain (if has more, only one, arbitrary)
     is_le = Column(SmallInteger, nullable=False, default=0)
     is_cloudflare = Column(SmallInteger, nullable=False, default=0)
+    subject_key_info = Column(String(64), index=True, nullable=True)
+    authority_key_info = Column(String(64), index=True, nullable=True)
 
     key_type = Column(SmallInteger, nullable=True)  # 1=rsa, 2=dsa, 3=ecc, 4=unknown
     key_bit_size = Column(Integer, nullable=True)  # bitsize of the public part, depends on the type, mainly for RSA & ECC
