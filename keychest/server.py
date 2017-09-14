@@ -1019,6 +1019,9 @@ class Server(object):
         Main thread feeding periodic scan job queue from database - according to the records.
         :return:
         """
+        if self.args.no_jobs:
+            return
+
         while self.is_running():
             ctime = time.time()
 
@@ -5053,6 +5056,9 @@ class Server(object):
 
         parser.add_argument('--max-mem', dest='max_mem', default=None, type=float,
                             help='Maximal memory threshold in MB when program terminates itself')
+
+        parser.add_argument('--no-jobs', dest='no_jobs', default=False, action='store_const', const=True,
+                            help='Disables watch jobs processing, for debugging')
 
         self.args = parser.parse_args()
         if self.args.debug:
