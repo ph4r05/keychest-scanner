@@ -59,6 +59,14 @@ class CertUtilTest(unittest.TestCase):
         for cert in self.certs:
             self.assertIsNotNone(util.load_x509(cert))
 
+    def test_parse_cert_der(self):
+        """
+        Test certificate parsing
+        :return:
+        """
+        for cert in self.certs:
+            self.assertIsNotNone(util.load_x509_der(util.pem_to_der(cert)))
+
     def test_is_ca(self):
         """
         Is CA flag testing

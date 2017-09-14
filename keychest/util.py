@@ -712,6 +712,37 @@ def b16encode(x):
         return None
 
 
+def strip_pem(x):
+    """
+    Strips PEM to bare base64 encoded form
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+
+    pem = x.replace('-----BEGIN CERTIFICATE-----', '')
+    pem = pem.replace('-----END CERTIFICATE-----', '')
+    pem = pem.replace(' ', '')
+    pem = pem.replace('\t', '')
+    pem = pem.replace('\r', '')
+    pem = pem.replace('\n', '')
+    return pem.strip()
+
+
+def pem_to_der(x):
+    """
+    Converts PEM to DER
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+
+    pem = strip_pem(x)
+    return base64.b64decode(pem)
+
+
 def defval(val, default=None):
     """
     Returns val if is not None, default instead
