@@ -29,7 +29,7 @@ import errno
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509 import ExtensionNotFound
+from cryptography.x509 import ExtensionNotFound, SubjectKeyIdentifier
 from cryptography.x509.base import load_pem_x509_certificate, load_der_x509_certificate
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
 from cryptography.hazmat.primitives import hashes
@@ -884,24 +884,54 @@ def try_get_extension(cert, oid, quiet=True):
     return False
 
 
-def try_get_subject_key_identifier(cert, quiet=True):
+def try_get_subject_key_identifier(cert, compute_if_not_present=True, quiet=True):
     """
     Extracts X509v3 Subject Key Identifier
     :param cert:
+    :param compute_if_not_present: if true value is computed if extension is not present
     :param quiet:
     :return:
     """
     try:
         ext = cert.extensions.get_extension_for_oid(
-            ExtensionOID.SUBJECT_KEY_IDENTIFIER)  # type: cryptography.x509.SubjectKeyIdentifier
+            ExtensionOID.SUBJECT_KEY_IDENTIFIER)  # type: SubjectKeyIdentifier
         return ext.value.digest
+
+    except ExtensionNotFound:
+        if not compute_if_not_present:
+            return False
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting Subject Key Identifier rest. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    if compute_if_not_present:
+        return try_compute_subject_key_identifier(cert, quiet=quiet)
+
+    return False
+
+
+def try_compute_subject_key_identifier(cert, quiet=True):
+    """
+    Tries to compute X509v3 Subject Key Identifier from the certificate public key.
+    Useful for certificates without SKID extension present.
+    Computed according to RFC 5280 section 4.2.1.2.
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        pub_key = cert.public_key()
+        ext = SubjectKeyIdentifier.from_public_key(pub_key)
+        return ext.digest
 
     except ExtensionNotFound:
         return False
 
     except Exception as e:
         if not quiet:
-            logger.error('Exception in getting Subject Key Identifier rest. %s' % e)
+            logger.error('Exception in computing Subject Key Identifier rest. %s' % e)
             logger.debug(traceback.format_exc())
 
     return False

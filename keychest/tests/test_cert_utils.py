@@ -85,7 +85,8 @@ class CertUtilTest(unittest.TestCase):
         :return:
         """
         certs = [util.load_x509(cert) for cert in self.certs]
-        subj_ids = [util.try_get_subject_key_identifier(x) for x in certs]
+        subj_ids = [util.try_get_subject_key_identifier(x, compute_if_not_present=False) for x in certs]
+        computed_subj_ids = [util.try_compute_subject_key_identifier(x, False) for x in certs]
 
         self.assertEqual(base64.b16encode(subj_ids[0]),
                          self._ossl('A8:4A:6A:63:04:7D:DD:BA:E6:D1:39:B7:A6:45:65:EF:F3:A8:EC:A1'))
@@ -93,6 +94,8 @@ class CertUtilTest(unittest.TestCase):
                          self._ossl('FF:FB:9D:B7:99:6C:1E:F6:47:0A:6F:CA:46:DB:91:6C:60:02:BE:94'))
         self.assertEqual(base64.b16encode(subj_ids[2]),
                          self._ossl('7B:52:06:B4:C2:C2:D1:28:CB:71:A4:AC:3A:C1:80:94:57:7C:35:AD'))
+
+        self.assertEqual(subj_ids, computed_subj_ids)
 
     def test_auth_key_id(self):
         """
