@@ -1253,6 +1253,56 @@ class DbEmailNewsUserAssoc(Base):
 
 
 #
+# API
+#
+
+
+class DbApiKey(Base):
+    """
+    API keys for API access.
+    For Laravel API / public API.
+    """
+    __tablename__ = 'api_keys'
+    id = Column(BigInteger, primary_key=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    name = Column(String(191), nullable=True)  # user entered access key name, easy identification
+    api_key = Column(String(191), nullable=True, index=True)  # API key / challenge
+    email_claim = Column(String(191), nullable=True, index=True)  # claimed email association
+    ip_registration = Column(String(191), nullable=True, index=True)  # first IP used for registration
+    user_id = Column(ForeignKey('users.id', name='fk_api_keys_user_users_id', ondelete='CASCADE'),
+                     nullable=True, index=True)
+
+    last_seen_active_at = Column(DateTime, default=None)
+    last_seen_ip = Column(String(191), nullable=True)
+    verified_at = Column(DateTime, default=None, nullable=True)
+    revoked_at = Column(DateTime, default=None, nullable=True)
+
+
+class DbApiKeyLog(Base):
+    """
+    API key usage audit log
+    """
+    __tablename__ = 'api_keys_log'
+    id = Column(BigInteger, primary_key=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+    api_key_id = Column(ForeignKey('api_keys.id', name='fk_api_keys_log_api_key_id', ondelete='CASCADE'),
+                        nullable=True, index=True)
+
+    req_ip = Column(String(191), nullable=True)
+    req_email = Column(String(191), nullable=True)
+    req_challenge = Column(String(191), nullable=True)
+
+    action_type = Column(String(191), nullable=True, index=True)
+    action_data = Column(Text, nullable=True)
+
+
+#
 # DB helper objects
 #  - query building, model comparison, projections
 #
