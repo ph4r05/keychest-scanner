@@ -495,6 +495,9 @@ class DbUser(Base):
     last_email_cert_notif_sent_at = Column(DateTime, default=None)
     last_email_cert_notif_enqueued_at = Column(DateTime, default=None)
 
+    auto_created_at = Column(DateTime, default=None, nullable=True)  # auto creation timestamp, info logged elsewhere
+    verified_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account verification (auto-created)
+
 
 class DbUserLoginHistory(Base):
     """
