@@ -214,6 +214,26 @@ class EvtScanJobProgress(EvtBase):
         return obj
 
 
+class EvtTestJobProgress(EvtBase):
+    """
+    TesterJobProgress event
+    """
+    def __init__(self, json_data=None):
+        self.json_data = json_data
+
+    def to_php(self):
+        """
+        PHP representation
+        :return:
+        """
+        js = collections.OrderedDict()
+        js['socket'] = None
+        obj = phpserialize.phpobject('App\\Events\\TesterJobProgress', js)
+        util.php_set_protected(obj, 'json_data', json.dumps(self.json_data))
+
+        return obj
+
+
 def default_envelope(display_name='App\\Listeners\\ScanJobListener',
                      command_name='App\\Keychest\\Events\\Ph4CallQueuedListener'):
     """
@@ -236,6 +256,20 @@ def scan_job_progress(data=None):
     """
     envelope = default_envelope()
     evt = EvtScanJobProgress(data)
+    envelope.set_event(evt)
+
+    return envelope
+
+
+def tester_job_progress(data=None):
+    """
+    Returns event wrapped in the master event envelope
+
+    :param data:
+    :return:
+    """
+    envelope = default_envelope(display_name='App\\Listeners\\TesterJobListener')
+    evt = EvtTestJobProgress(data)
     envelope.set_event(evt)
 
     return envelope
