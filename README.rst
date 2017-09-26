@@ -30,7 +30,7 @@ Ubuntu:
 
 ::
 
-    sudo apt-get install python-pip python-dev libmysqlclient-dev libxml2-dev libxslt1-dev supervisor
+    sudo apt-get install python-pip python-dev build-essential libssl-dev libffi-dev libmysqlclient-dev libxml2-dev libxslt1-dev supervisor
 
 
 CentOS:
