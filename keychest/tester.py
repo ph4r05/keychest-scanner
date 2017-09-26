@@ -81,6 +81,10 @@ class KeyTester(object):
         scan_thread.setDaemon(True)
         scan_thread.start()
 
+        email_thread = threading.Thread(target=self.main_scan_emails, args=())
+        email_thread.setDaemon(True)
+        email_thread.start()
+
         # Worker start
         for worker_idx in range(0, self.config.workers):
             t = threading.Thread(target=self.worker_main, args=(worker_idx,))
@@ -210,13 +214,55 @@ class KeyTester(object):
         logger.info('Queue scanner terminated')
 
     #
+    # Email scanning
+    #
+
+    def process_email_job(self, job):
+        """
+        Processes email job by the worker
+        :param job:
+        :return:
+        """
+        # TODO: analyze email contents
+        # TODO: send email with the results
+        # TODO: move email to the DONE folder
+
+    def main_scan_emails(self):
+        """
+        Main thread for scanning email inbox for jobs.
+        On job is processed, move email to PROGRESS folder.
+        If job is in the progress folder for too long, expire it.
+        :return:
+        """
+        while self.is_running():
+            job = None
+            try:
+                # TODO: load new emails, create job from it
+                pass
+
+            except QEmpty:
+                time.sleep(0.01)
+                continue
+
+            try:
+                self.job_queue.put(('email', job))
+
+            except Exception as e:
+                logger.error('Exception in processing job %s' % (e,))
+                self.trace_logger.log(e)
+
+            finally:
+                pass
+        logger.info('Email scanner terminated')
+
+    #
     # Running
     #
 
     def worker_main(self, idx):
         """
         Worker main entry method - worker thread executes this.
-        Processes job_queue jobs, redis enqueued.
+        Processes job_queue jobs, redis enqueued / email queue.
 
         :param idx:
         :return:
@@ -238,6 +284,8 @@ class KeyTester(object):
                 jtype, jobj = job
                 if jtype == 'redis':
                     self.process_redis_job(jobj)
+                elif jtype == 'email':
+                    self.process_email_job(jobj)
                 else:
                     pass
 
@@ -257,13 +305,17 @@ class KeyTester(object):
         """
         self.augment_redis_scan_job(job)
 
+        # TODO: extract info to test
         job_data = job.decoded['data']['json']
         assoc_id = job_data['id']
 
         s = None
         try:
-            s = self.db.get_session()
-
+            # TODO: do the test
+            # TODO: pass the result of the test in the event
+            pass
+            # s = self.db.get_session()
+            #
             # assoc = s.query(DbSubdomainWatchAssoc).filter(DbSubdomainWatchAssoc.id == assoc_id).first()
             # if assoc is None:
             #     return
