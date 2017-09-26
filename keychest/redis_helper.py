@@ -100,7 +100,8 @@ class CallQueuedListener(object):
     """
     Command for the main event wrapper.
     """
-    def __init__(self, cls='App\\Listeners\\ScanJobListener', method='handle', data=None, tries=None, timeout=None,
+    def __init__(self,
+                 cls='App\\Listeners\\ScanJobListener', method='handle', data=None, tries=None, timeout=None,
                  invoker='App\\Keychest\\Events\\Ph4CallQueuedListener'):
         self.invoker = invoker
         self.cls = cls
@@ -138,7 +139,7 @@ class CallQueuedListener(object):
         js['tries'] = self.tries
         js['timeout'] = self.timeout
 
-        obj = phpserialize.phpobject('App\\Keychest\\Events\\Ph4CallQueuedListener', js)
+        obj = phpserialize.phpobject(self.invoker, js)
         util.php_set_protected(obj, 'job', None)
 
         return obj
@@ -176,15 +177,16 @@ class EvtScanJobProgress(EvtBase):
         return obj
 
 
-def default_envelope():
+def default_envelope(display_name='App\\Listeners\\ScanJobListener',
+                     command_name='App\\Keychest\\Events\\Ph4CallQueuedListener'):
     """
     Returns default event envelope
     :return: 
     """
-    evt = MainEventWrapper(display_name='App\\Listeners\\ScanJobListener',
+    evt = MainEventWrapper(display_name=display_name,
                            id=util.random_alphanum(32),
                            job='Illuminate\\Queue\\CallQueuedHandler@call',
-                           command_name='App\\Keychest\\Events\\Ph4CallQueuedListener')
+                           command_name=command_name)
     evt.command = CallQueuedListener()
     return evt
 
