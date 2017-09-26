@@ -303,7 +303,7 @@ class Server(object):
         try:
             # Process job in try-catch so it does not break worker
             logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
-            self.scan_mark_failed_if_exceeds(job)
+            rh.mark_failed_if_exceeds(job)
 
             # Here we will fire off the job and let it process. We will catch any exceptions so
             # they can be reported to the developers logs, etc. Once the job is finished the
@@ -318,7 +318,7 @@ class Server(object):
             logger.error('Exception in processing job %s' % (e,))
             self.trace_logger.log(e)
 
-            self.scan_mark_failed_exceeds_attempts(job, 5, e)
+            rh.mark_failed_exceeds_attempts(job, 5, e)
             if not job.is_deleted_or_released() and not job.failed:
                 job.release()
 
@@ -4140,41 +4140,6 @@ class Server(object):
             raise QEmpty()
 
         return job
-
-    def scan_mark_failed_if_exceeds(self, job, max_tries=5):
-        """
-        Mark the given job as failed if it has exceeded the maximum allowed attempts.
-        
-        This will likely be because the job previously exceeded a timeout.
-        :param job: 
-        :param max_tries: 
-        :return: 
-        """
-        mt = job.max_tries()
-        if mt is None:
-            mt = max_tries
-
-        if mt is None or mt == 0 or job.attempts() <= mt:
-            return
-
-        rh.failjob(job)
-
-    def scan_mark_failed_exceeds_attempts(self, job, max_tries=None, e=None):
-        """
-        Mark the given job as failed if it has exceeded the maximum allowed attempts.
-        :param job: 
-        :param max_tries: 
-        :param e: 
-        :return: 
-        """
-        mt = job.max_tries()
-        if mt is None:
-            mt = max_tries
-
-        if mt is None or mt == 0 or job.attempts() <= mt:
-            return
-
-        rh.failjob(job, e)
 
     def scan_redis_jobs(self):
         """

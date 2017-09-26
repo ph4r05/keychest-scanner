@@ -22,6 +22,43 @@ def failjob(job, e=None):
     job.fail(e)
 
 
+def mark_failed_if_exceeds(job, max_tries=5):
+    """
+    Mark the given job as failed if it has exceeded the maximum allowed attempts.
+
+    This will likely be because the job previously exceeded a timeout.
+    :param job:
+    :param max_tries:
+    :return:
+    """
+    mt = job.max_tries()
+    if mt is None:
+        mt = max_tries
+
+    if mt is None or mt == 0 or job.attempts() <= mt:
+        return
+
+    failjob(job)
+
+
+def mark_failed_exceeds_attempts(job, max_tries=None, e=None):
+    """
+    Mark the given job as failed if it has exceeded the maximum allowed attempts.
+    :param job:
+    :param max_tries:
+    :param e:
+    :return:
+    """
+    mt = job.max_tries()
+    if mt is None:
+        mt = max_tries
+
+    if mt is None or mt == 0 or job.attempts() <= mt:
+        return
+
+    failjob(job, e)
+
+
 class MainEventWrapper(object):
     """
     Base event object to submit to the redis queue.
