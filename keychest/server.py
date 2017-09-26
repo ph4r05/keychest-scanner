@@ -4098,7 +4098,9 @@ class Server(object):
 
     def worker_main(self, idx):
         """
-        Worker main entry method
+        Worker main entry method - worker thread executes this.
+        Processes job_queue jobs, mainly redis enqueued.
+
         :param idx: 
         :return: 
         """
