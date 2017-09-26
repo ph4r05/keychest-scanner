@@ -324,7 +324,8 @@ class Server(object):
 
     def on_redis_job(self, job):
         """
-        Main redis job router. Determines which command should be executed. 
+        Main redis job router. Determines which command should be executed.
+        Run by the worker.
         :param job: 
         :return: 
         """
@@ -347,7 +348,8 @@ class Server(object):
 
     def on_redis_scan_job(self, job):
         """
-        redis scan job
+        Redis spot check (scan) job
+        Run by the worker.
         :param job: 
         :return: 
         """
@@ -418,7 +420,8 @@ class Server(object):
 
     def on_redis_auto_sub_job(self, job):
         """
-        Redis job for auto-add subs
+        Redis job for auto-add sub domains.
+        Run by the worker.
         :param job:
         :return:
         """
