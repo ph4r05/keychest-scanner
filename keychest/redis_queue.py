@@ -18,12 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class RedisQueue(object):
-    def __init__(self, redis_client):
+    """
+    Redis queue manager compatible with Laravel jobs using Redis
+    """
+    
+    def __init__(self, redis_client, default_queue='queues:scanner', event_queue='queues:default'):
         self.redis = redis_client
 
         self.pop_retry_after = 60 * 10
-        self.default_queue = 'queues:scanner'
-        self.event_queue = 'queues:default'
+        self.default_queue = default_queue
+        self.event_queue = event_queue
 
     #
     # Queue
