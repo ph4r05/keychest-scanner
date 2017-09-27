@@ -473,6 +473,7 @@ class DbUser(Base):
     is_superadmin = Column(SmallInteger, nullable=False, default=0)
     timezone = Column(String(191), nullable=True)
     utc_offset = Column(Integer, nullable=False, default=0)
+
     email_verified_at = Column(DateTime, default=None, nullable=True)
     email_verify_token = Column(String(24), nullable=True)
     notification_email = Column(String(191), nullable=True)
@@ -497,6 +498,8 @@ class DbUser(Base):
 
     auto_created_at = Column(DateTime, default=None, nullable=True)  # auto creation timestamp, info logged elsewhere
     verified_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account verification (auto-created)
+    blocked_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account blocking (user refuses)
+    new_api_keys_state = Column(SmallInteger, nullable=False, default=0)  # can new api key be created? 1=disabled
 
 
 class DbUserLoginHistory(Base):
