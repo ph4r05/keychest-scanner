@@ -1276,6 +1276,7 @@ class DbApiKey(Base):
 
     name = Column(String(191), nullable=True)  # user entered access key name, easy identification
     api_key = Column(String(191), nullable=True, index=True)  # API key / challenge
+    api_verify_token = Column(String(24), nullable=True)  # for email verification of the API key
     email_claim = Column(String(191), nullable=True, index=True)  # claimed email association
     ip_registration = Column(String(191), nullable=True, index=True)  # first IP used for registration
     user_id = Column(ForeignKey('users.id', name='fk_api_keys_user_users_id', ondelete='CASCADE'),

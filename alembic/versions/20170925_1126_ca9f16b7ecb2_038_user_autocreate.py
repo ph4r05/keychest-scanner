@@ -22,6 +22,7 @@ def upgrade():
     op.add_column('users', sa.Column('verified_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('blocked_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('new_api_keys_state', sa.SmallInteger(), nullable=False, server_default='0'))
+    op.add_column('api_keys', sa.Column('api_verify_token', sa.String(length=24), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -31,4 +32,5 @@ def downgrade():
     op.drop_column('users', 'auto_created_at')
     op.drop_column('users', 'blocked_at')
     op.drop_column('users', 'new_api_keys_state')
+    op.drop_column('api_keys', 'api_verify_token')
     # ### end Alembic commands ###
