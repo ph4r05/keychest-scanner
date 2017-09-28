@@ -1276,7 +1276,6 @@ class DbApiKey(Base):
 
     name = Column(String(191), nullable=True)  # user entered access key name, easy identification
     api_key = Column(String(191), nullable=True, index=True)  # API key / challenge
-    api_verify_token = Column(String(24), nullable=True)  # for email verification of the API key
     email_claim = Column(String(191), nullable=True, index=True)  # claimed email association
     ip_registration = Column(String(191), nullable=True, index=True)  # first IP used for registration
     user_id = Column(ForeignKey('users.id', name='fk_api_keys_user_users_id', ondelete='CASCADE'),
@@ -1307,6 +1306,30 @@ class DbApiKeyLog(Base):
 
     action_type = Column(String(191), nullable=True, index=True)
     action_data = Column(Text, nullable=True)
+
+
+class DbAccessTokens(Base):
+    """
+    Access tokens with expiration
+    """
+    __tablename__ = 'access_tokens'
+    id = Column(BigInteger, primary_key=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=None)
+    expires_at = Column(DateTime, default=None)
+    sent_at = Column(DateTime, default=None)
+    last_sent_at = Column(DateTime, default=None)
+    num_sent = Column(Integer, default=0)
+
+    api_key_id = Column(ForeignKey('api_keys.id', name='fk_access_tokens_api_key_id', ondelete='CASCADE'),
+                        nullable=True, index=True)
+    user_id = Column(ForeignKey('users.id', name='fk_access_tokens_user_id', ondelete='CASCADE'),
+                     nullable=True, index=True)
+
+    token_id = Column(String(40), nullable=False, index=True)
+    token = Column(String(191), nullable=False)
+    action_type = Column(String(191), nullable=True, index=True)
 
 
 #

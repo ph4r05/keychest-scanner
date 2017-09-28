@@ -7,6 +7,7 @@ Create Date: 2017-09-25 11:26:25.951824+00:00
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
 
 
 # revision identifiers, used by Alembic.
@@ -22,7 +23,31 @@ def upgrade():
     op.add_column('users', sa.Column('verified_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('blocked_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('new_api_keys_state', sa.SmallInteger(), nullable=False, server_default='0'))
-    op.add_column('api_keys', sa.Column('api_verify_token', sa.String(length=24), nullable=True))
+
+    op.create_table('access_tokens',
+                    sa.Column('id', sa.BigInteger(), nullable=False),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    sa.Column('updated_at', sa.DateTime(), nullable=True),
+                    sa.Column('expires_at', sa.DateTime(), nullable=True),
+                    sa.Column('sent_at', sa.DateTime(), nullable=True),
+                    sa.Column('last_sent_at', sa.DateTime(), nullable=True),
+                    sa.Column('num_sent', sa.Integer(), nullable=False, server_default='0'),
+                    sa.Column('api_key_id', sa.BigInteger(), nullable=True),
+                    sa.Column('user_id', mysql.INTEGER(display_width=10, unsigned=True), nullable=True),
+                    sa.Column('token_id', sa.String(length=40), nullable=False),
+                    sa.Column('token', sa.String(length=191), nullable=False),
+                    sa.Column('action_type', sa.String(length=191), nullable=True),
+                    sa.ForeignKeyConstraint(['api_key_id'], ['api_keys.id'], name='fk_access_tokens_api_key_id',
+                                            ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='fk_access_tokens_user_id',
+                                            ondelete='CASCADE'),
+                    sa.PrimaryKeyConstraint('id')
+                    )
+
+    op.create_index(op.f('ix_access_tokens_action_type'), 'access_tokens', ['action_type'], unique=False)
+    op.create_index(op.f('ix_access_tokens_api_key_id'), 'access_tokens', ['api_key_id'], unique=False)
+    op.create_index(op.f('ix_access_tokens_user_id'), 'access_tokens', ['user_id'], unique=False)
+    op.create_index(op.f('ix_access_tokens_token_id'), 'access_tokens', ['token_id'], unique=False)
     # ### end Alembic commands ###
 
 
@@ -32,5 +57,5 @@ def downgrade():
     op.drop_column('users', 'auto_created_at')
     op.drop_column('users', 'blocked_at')
     op.drop_column('users', 'new_api_keys_state')
-    op.drop_column('api_keys', 'api_verify_token')
+    op.drop_table('access_tokens')
     # ### end Alembic commands ###
