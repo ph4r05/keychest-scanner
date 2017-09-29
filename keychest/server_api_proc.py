@@ -140,8 +140,87 @@ class ServerApiProc(ServerModule):
         if not isinstance(job, PeriodicApiProcessJob):
             return False
 
-        # TODO: process the job in the worker
+        logger.debug('Processing API job: %s, qsize: %s, sems: %s'
+                     % (job, self.server.watcher_job_queue.qsize(), self.server.periodic_semaphores()))
+        s = None
+        url = None
+
+        try:
+            s = self.db.get_session()
+
+            self.process_job_body(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.scan_ip_scan.is_failed():
+                logger.info('Job failed, wildcard: %s' % (job.scan_ip_scan.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidHostname as ih:
+            logger.debug('Invalid host: %s' % url)
+            job.success_scan = True  # TODO: back-off / disable, fatal error
+
+        except Exception as e:
+            logger.debug('Exception when processing the IP scan job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_close(s)
+
         return True
+
+    def process_job_body(self, s, job):
+        """
+        Process the job - body. With session initialized, try-catch protected.
+        :param s:
+        :param job:
+        :type job: PeriodicApiProcessJob
+        :return:
+        """
+        target = job.target
+
+        # CT test is performed only for cert tests
+        if not target.object_type == 'cert':
+            job.scan_ct_results.skip()
+
+        # Job type multiplexing
+        if target.object_type == 'cert':
+            self.process_job_certificate(s, job)
+
+        elif target.object_type == 'domain':
+            self.process_job_domain(s, job)
+
+        else:
+            target.last_scan_status = 1
+            target.finished_at = salch.func.now()
+            target.approval_status = 2
+            s.merge(target)
+
+            raise ValueError('Unknown job type: %s' % target.object_type)
+
+    def process_job_certificate(self, s, job):
+        """
+        Process certificate job
+        :param s:
+        :param job:
+        :return:
+        """
+        # TODO: process certificate
+
+    def process_job_domain(self, s, job):
+        """
+        Process domain job
+        :param s:
+        :param job:
+        :return:
+        """
+        # TODO: process domain
+
 
 
 
