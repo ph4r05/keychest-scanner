@@ -961,14 +961,14 @@ class Server(object):
         return q.group_by(DbIpScanRecord.id) \
             .order_by(DbIpScanRecord.last_scan_at)  # select the oldest scanned first
 
-    def _min_scan_margin(self):
+    def min_scan_margin(self):
         """
         Computes minimal scan margin from the scan timeouts
         :return:
         """
         return min(self.delta_dns, self.delta_tls, self.delta_crtsh, self.delta_whois).total_seconds()
 
-    def _periodic_queue_is_full(self, for_who=None):
+    def periodic_queue_is_full(self, for_who=None):
         """
         Returns true if the main watcher queue is full.
         The queue is not strictly bounded to avoid exceptions on re-adding failed
@@ -986,7 +986,7 @@ class Server(object):
 
         return size >= limit
 
-    def _periodic_queue_should_add_new(self):
+    def periodic_queue_should_add_new(self):
         """
         Returns true if new jobs can be added to the queue.
         :return:
@@ -1034,7 +1034,7 @@ class Server(object):
             if self.watch_last_db_scan + self.watch_db_scan_period <= ctime:
                 scan_now = True
 
-            if not scan_now and self.watch_last_db_scan + 2 <= ctime and self._periodic_queue_should_add_new():
+            if not scan_now and self.watch_last_db_scan + 2 <= ctime and self.periodic_queue_should_add_new():
                 scan_now = True
 
             if not scan_now:
@@ -1059,7 +1059,7 @@ class Server(object):
         Feeder loop body
         :return:
         """
-        if self._periodic_queue_is_full():
+        if self.periodic_queue_is_full():
             return
 
         s = self.db.get_session()
@@ -1078,21 +1078,21 @@ class Server(object):
         :param s:
         :return:
         """
-        if self._periodic_queue_is_full():
+        if self.periodic_queue_is_full():
             return
 
         try:
-            min_scan_margin = self._min_scan_margin()
+            min_scan_margin = self.min_scan_margin()
             query = self.load_active_watch_targets(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
                 watch_target, min_periodicity, watch_service = x
 
-                if self._periodic_queue_is_full():
+                if self.periodic_queue_is_full():
                     return
 
                 job = PeriodicJob(target=watch_target, periodicity=min_periodicity, watch_service=watch_service)
-                self._periodic_add_job(job)
+                self.periodic_add_job(job)
 
         except QFull:
             logger.debug('Queue full')
@@ -1110,7 +1110,7 @@ class Server(object):
         :param s:
         :return:
         """
-        if self._periodic_queue_is_full(JobTypes.SUB):
+        if self.periodic_queue_is_full(JobTypes.SUB):
             return
 
         try:
@@ -1120,12 +1120,12 @@ class Server(object):
             for x in iterator:
                 watch_target, min_periodicity = x
 
-                if self._periodic_queue_is_full(JobTypes.SUB):
+                if self.periodic_queue_is_full(JobTypes.SUB):
                     return
 
                 # TODO: analyze if this job should be processed or results are recent, no refresh is needed
                 job = PeriodicReconJob(target=watch_target, periodicity=min_periodicity)
-                self._periodic_add_job(job)
+                self.periodic_add_job(job)
 
         except QFull:
             logger.debug('Queue full')
@@ -1143,7 +1143,7 @@ class Server(object):
         :param s:
         :return:
         """
-        if self._periodic_queue_is_full(JobTypes.IP_SCAN):
+        if self.periodic_queue_is_full(JobTypes.IP_SCAN):
             return
 
         try:
@@ -1153,12 +1153,12 @@ class Server(object):
             for x in iterator:
                 watch_target, min_periodicity = x
 
-                if self._periodic_queue_is_full(JobTypes.IP_SCAN):
+                if self.periodic_queue_is_full(JobTypes.IP_SCAN):
                     return
 
                 # TODO: analyze if this job should be processed or results are recent, no refresh is needed
                 job = PeriodicIpScanJob(target=watch_target, periodicity=min_periodicity)
-                self._periodic_add_job(job)
+                self.periodic_add_job(job)
 
         except QFull:
             logger.debug('Queue full')
@@ -1170,7 +1170,7 @@ class Server(object):
             self.trace_logger.log(e)
             raise
 
-    def _periodic_add_job(self, job):
+    def periodic_add_job(self, job):
         """
         Adds job to the queue
         :param job:
