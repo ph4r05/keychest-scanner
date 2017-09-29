@@ -1311,6 +1311,7 @@ class DbApiKeyLog(Base):
 class DbAccessTokens(Base):
     """
     Access tokens with expiration
+    E.g., for email verification, API key revocation, ...
     """
     __tablename__ = 'access_tokens'
     id = Column(BigInteger, primary_key=True)
@@ -1330,6 +1331,39 @@ class DbAccessTokens(Base):
     token_id = Column(String(40), nullable=False, index=True)
     token = Column(String(191), nullable=False)
     action_type = Column(String(191), nullable=True, index=True)
+
+
+class DbApiWaitingObjects(Base):
+    """
+    Waiting objects to be added to the system after condition is met
+    """
+    __tablename__ = 'api_waiting'
+    id = Column(BigInteger, primary_key=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=None)
+
+    api_key_id = Column(ForeignKey('api_keys.id', name='fk_api_waiting_api_key_id', ondelete='CASCADE'),
+                        nullable=True, index=True)  # API key causing the action
+
+    object_operation = Column(String(42), nullable=True, index=True)  # ADD / REMOVE / UPDATE
+    object_type = Column(String(42), nullable=True, index=True)  # domain, certificate, active domains
+
+    object_key = Column(String(191), nullable=True, index=True)  # e.g. domain name or another identifier
+    object_value = Column(Text, nullable=True)  # serialized value / PEM certificate / JSON values
+
+    # object related stuff / processing / augmenting / results
+    certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_certificate_id', ondelete='CASCADE'),
+                            nullable=True, index=True)
+
+    computed_data = Column(Text, nullable=True)  # json with precomputed data (e.g., alt names)
+
+    ct_scanned_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
+    ct_found_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
+
+    is_processed = Column(SmallInteger, nullable=False, default=0)  # scanner seen the entry already
+    is_finished = Column(SmallInteger, nullable=False, default=0)  # scanner finished the entry already
+    approval_status = Column(SmallInteger, nullable=False, default=0)  # nan / approved / revoked / review
 
 
 #
