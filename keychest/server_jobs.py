@@ -337,8 +337,8 @@ class PeriodicApiProcessJob(BaseJob):
                self.later, \
                self.target.processed_at is None, \
                self.target.processed_at, \
-               self.target.ct_scanned_at is None, \
-               self.target.ct_scanned_at
+               self.target.last_scan_at is None, \
+               self.target.last_scan_at
 
     def record_id(self):
         """
@@ -349,6 +349,6 @@ class PeriodicApiProcessJob(BaseJob):
 
     def __repr__(self):
         return '<PeriodicApiProcessJob(target=<DbApiWaitingObjects(id=%r, self=%r)>, attempts=%r, later=%r,' \
-               'processed_at=%r, ctstan=%r)>' \
+               'processed_at=%r, last_scan_at=%r)>' \
                % (self.target.id, self.target, self.attempts, self.later,
-                  self.target.processed_at, self.target.ct_scanned_at)
+                  self.target.processed_at, self.target.last_scan_at)
