@@ -31,9 +31,9 @@ def upgrade():
     sa.Column('computed_data', sa.Text(), nullable=True),
     sa.Column('ct_scanned_at', sa.DateTime(), nullable=True),
     sa.Column('ct_found_at', sa.DateTime(), nullable=True),
-    sa.Column('is_processed', sa.SmallInteger(), nullable=False),
-    sa.Column('is_finished', sa.SmallInteger(), nullable=False),
-    sa.Column('approval_status', sa.SmallInteger(), nullable=False),
+    sa.Column('processed_at', sa.DateTime(), nullable=True),
+    sa.Column('finished_at', sa.DateTime(), nullable=True),
+    sa.Column('approval_status', sa.SmallInteger(), nullable=False, server_default='0'),
     sa.ForeignKeyConstraint(['api_key_id'], ['api_keys.id'], name='fk_api_waiting_api_key_id', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['certificate_id'], ['certificates.id'], name='fk_api_waiting_certificate_id', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

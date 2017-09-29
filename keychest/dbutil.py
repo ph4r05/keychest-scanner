@@ -1361,8 +1361,8 @@ class DbApiWaitingObjects(Base):
     ct_scanned_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
     ct_found_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
 
-    is_processed = Column(SmallInteger, nullable=False, default=0)  # scanner seen the entry already
-    is_finished = Column(SmallInteger, nullable=False, default=0)  # scanner finished the entry already
+    processed_at = Column(SmallInteger, nullable=True, default=None)  # scanner seen the entry already
+    finished_at = Column(SmallInteger, nullable=True, default=None)  # scanner finished the entry already
     approval_status = Column(SmallInteger, nullable=False, default=0)  # nan / approved / revoked / review
 
 
