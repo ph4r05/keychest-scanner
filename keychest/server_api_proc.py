@@ -51,12 +51,8 @@ class ServerApiProc(ServerModule):
     def __init__(self, *args, **kwargs):
         super(ServerApiProc, self).__init__(*args, **kwargs)
 
-        self.redis_queue = None
         self.trace_logger = Tracelogger(logger)
-
         self.local_data = threading.local()
-        self.job_queue = Queue(300)
-        self.workers = []
 
     def init(self, server):
         """
@@ -65,9 +61,6 @@ class ServerApiProc(ServerModule):
         :return:
         """
         super(ServerApiProc, self).init(server=server)
-        self.redis_queue = RedisQueue(redis_client=server.redis,
-                                      default_queue='queues:tester',
-                                      event_queue='queues:tester-evt')
 
     def run(self):
         """
