@@ -3419,19 +3419,39 @@ class Server(object):
         if num_hosts >= max_hosts:
             return
 
+        # Generic insertion method
+        return self.auto_fill_new_watches_body(user_id=assoc.user_id,
+                                               domain_names=domain_names,
+                                               default_new_watches=default_new_watches,
+                                               num_hosts=num_hosts,
+                                               max_hosts=max_hosts)
+
+    def auto_fill_new_watches_body(self, s, user_id, domain_names, default_new_watches=None,
+                                   num_hosts=0, max_hosts=None):
+        """
+        Helper for adding all domains to the user_id
+        :param s:
+        :param user_id:
+        :param domain_names:
+        :param default_new_watches:
+        :param num_hosts:
+        :param max_hosts:
+        :return:
+        """
         # select all hosts anyhow associated with the host, also deleted.
         # Wont add already present hosts (deleted/disabled doesnt matter)
         res = s.query(DbWatchAssoc, DbWatchTarget) \
             .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id) \
-            .filter(DbWatchAssoc.user_id == assoc.user_id) \
+            .filter(DbWatchAssoc.user_id == user_id) \
             .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
 
         # remove duplicates, extract existing association
         domain_names = util.stable_uniq(domain_names)
         existing_host_names = set([x[1].scan_host for x in res])
+        default_new_watches = dict() if default_new_watches is None else default_new_watches
 
         for new_host in domain_names:
-            if num_hosts >= max_hosts:
+            if max_hosts is not None and num_hosts >= max_hosts:
                 break
 
             if new_host in existing_host_names:
@@ -3469,9 +3489,9 @@ class Server(object):
                 existing_host_names.add(new_host)
 
             except Exception as e:
-                logger.debug('Exception when adding auto sub watch: %s' % e)
-                self.trace_logger.log(e, custom_msg='Auto add sub watch')
-                s.rollback()
+                logger.debug('Exception when adding auto watch: %s' % e)
+                self.trace_logger.log(e, custom_msg='Auto add watch')
+                util.silent_rollback(s)
 
     def auto_fill_ip_watches(self, s, job, db_sub):
         """
