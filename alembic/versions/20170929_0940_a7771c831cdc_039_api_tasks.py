@@ -31,6 +31,8 @@ def upgrade():
     sa.Column('certificate_id', sa.BigInteger(), nullable=True),
     sa.Column('computed_data', sa.Text(), nullable=True),
     sa.Column('last_scan_at', sa.DateTime(), nullable=True),
+    sa.Column('last_scan_status', sa.SmallInteger(), nullable=True),
+    sa.Column('last_scan_data', sa.Text(), nullable=True),
     sa.Column('ct_found_at', sa.DateTime(), nullable=True),
     sa.Column('processed_at', sa.DateTime(), nullable=True),
     sa.Column('finished_at', sa.DateTime(), nullable=True),
