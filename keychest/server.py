@@ -1208,9 +1208,9 @@ class Server(object):
             self.watcher_db_cur_jobs[job.key()] = job
             self.watcher_job_queue.put(job)
             logger.debug('Job generated: %s, qsize: %s, sems: %s'
-                         % (str(job), self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+                         % (str(job), self.watcher_job_queue.qsize(), self.periodic_semaphores()))
 
-    def _periodic_semaphores(self):
+    def periodic_semaphores(self):
         """
         Simple state dump on busy threads, returns string
         :return:
@@ -1404,7 +1404,7 @@ class Server(object):
         :return:
         """
         logger.debug('Processing watcher job: %s, qsize: %s, sems: %s'
-                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+                     % (job, self.watcher_job_queue.qsize(), self.periodic_semaphores()))
 
         s = None
         url = None
@@ -1456,7 +1456,7 @@ class Server(object):
         :return:
         """
         logger.debug('Processing watcher recon job: %s, qsize: %s, sems: %s'
-                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+                     % (job, self.watcher_job_queue.qsize(), self.periodic_semaphores()))
         s = None
         url = None
 
@@ -1655,7 +1655,7 @@ class Server(object):
         :return:
         """
         logger.debug('Processing IP scan recon job: %s, qsize: %s, sems: %s'
-                     % (job, self.watcher_job_queue.qsize(), self._periodic_semaphores()))
+                     % (job, self.watcher_job_queue.qsize(), self.periodic_semaphores()))
         s = None
         url = None
 
