@@ -212,6 +212,7 @@ class KeyTester(ServerModule):
         :return:
         """
         # TODO: analyze email contents
+        # TODO: fingerprint SMIME / PGP
         # TODO: send email with the results
         # TODO: move email to the DONE folder
 
