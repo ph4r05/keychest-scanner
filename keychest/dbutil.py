@@ -1299,6 +1299,7 @@ class DbApiKeyLog(Base):
 
     api_key_id = Column(ForeignKey('api_keys.id', name='fk_api_keys_log_api_key_id', ondelete='CASCADE'),
                         nullable=True, index=True)
+    api_key = relationship('DbApiKey', foreign_keys=api_key_id)
 
     req_ip = Column(String(191), nullable=True)
     req_email = Column(String(191), nullable=True)
@@ -1328,6 +1329,9 @@ class DbAccessTokens(Base):
     user_id = Column(ForeignKey('users.id', name='fk_access_tokens_user_id', ondelete='CASCADE'),
                      nullable=True, index=True)
 
+    api_key = relationship('DbApiKey', foreign_keys=api_key_id)
+    user = relationship('DbUser', foreign_keys=user_id)
+
     token_id = Column(String(40), nullable=False, index=True)
     token = Column(String(191), nullable=False)
     action_type = Column(String(191), nullable=True, index=True)
@@ -1346,6 +1350,7 @@ class DbApiWaitingObjects(Base):
 
     api_key_id = Column(ForeignKey('api_keys.id', name='fk_api_waiting_api_key_id', ondelete='CASCADE'),
                         nullable=True, index=True)  # API key causing the action
+    api_key = relationship('DbApiKey', foreign_keys=api_key_id)
 
     waiting_id = Column(String(36), nullable=False)  # UUID for back reference (no ID leak)
     object_operation = Column(String(42), nullable=True, index=True)  # ADD / REMOVE / UPDATE
@@ -1357,6 +1362,7 @@ class DbApiWaitingObjects(Base):
     # object related stuff / processing / augmenting / results
     certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_certificate_id', ondelete='CASCADE'),
                             nullable=True, index=True)
+    certificate = relationship('Certificate', foreign_keys=certificate_id)
 
     computed_data = Column(Text, nullable=True)  # json with precomputed data (e.g., alt names)
 
