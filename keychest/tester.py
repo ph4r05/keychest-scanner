@@ -15,6 +15,7 @@ from trace_logger import Tracelogger
 from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
+from server_module import ServerModule
 
 import time
 import json
@@ -27,16 +28,13 @@ from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 logger = logging.getLogger(__name__)
 
 
-class KeyTester(object):
+class KeyTester(ServerModule):
     """
     Key tester server plugin
     """
 
-    def __init__(self):
-        self.server = None
-        self.db = None
-        self.config = None
-
+    def __init__(self, *args, **kwargs):
+        super(KeyTester, self).__init__(*args, **kwargs)
         self.redis_queue = None
         self.trace_logger = Tracelogger(logger)
 
@@ -50,10 +48,7 @@ class KeyTester(object):
         :param server:
         :return:
         """
-        self.server = server
-        self.db = server.db
-        self.config = server.config
-
+        super(KeyTester, self).init(server=server)
         self.redis_queue = RedisQueue(redis_client=server.redis,
                                       default_queue='queues:tester',
                                       event_queue='queues:tester-evt')
@@ -64,13 +59,6 @@ class KeyTester(object):
         :return:
         """
         pass
-
-    def is_running(self):
-        """
-        Returns true if server is still running
-        :return:
-        """
-        return self.server.is_running()
 
     def run(self):
         """
