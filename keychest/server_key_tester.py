@@ -232,7 +232,7 @@ class KeyTester(ServerModule):
                 cl = imaplib.IMAP4_SSL(email_host)
                 cl.login(email_name, email_pass)
                 # logger.info(cl.list())
-                logger.info(cl.select())
+                select_res = cl.select()
 
                 result, data = cl.uid('search', None, "ALL")  # search and return uids instead
                 email_uids = data[0].split()
@@ -245,7 +245,7 @@ class KeyTester(ServerModule):
 
                     email_message = email.message_from_string(raw_email)
                     key_parts = util.flatten(self.look_for_keys(email_message))
-                    logger.debug(key_parts)
+                    # logger.debug(key_parts)
 
                     tos = email_message.get_all('from', [])
                     reply_tos = email_message.get_all('reply-to', [])
@@ -253,22 +253,20 @@ class KeyTester(ServerModule):
                     logger.debug(senders)
 
                 pass
-                continue
-                
+
             except Exception:
                 time.sleep(0.01)
                 continue
 
             try:
-                time.sleep(10)
-                # self.job_queue.put(('email', job))
+                pass
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e,))
                 self.trace_logger.log(e)
 
             finally:
-                self.server.interruptible_sleep(20)
+                self.server.interruptible_sleep(60)
 
         logger.info('Email scanner terminated')
 
