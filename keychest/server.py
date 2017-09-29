@@ -999,8 +999,8 @@ class Server(object):
         Initializes data structures required for data processing
         :return:
         """
-        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)) # 15 %
-        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)) # 15 %
+        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1))  # 15 %
+        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1))  # 15 %
         num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads available
         logger.info('Max watch: %s, Max recon: %s' % (num_max_watch, num_max_recon))
 

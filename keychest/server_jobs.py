@@ -48,10 +48,13 @@ class ScanResults(object):
 
 
 class JobTypes(object):
-    TARGET = 1
-    SUB = 2
-    UI = 3
-    IP_SCAN = 4
+    """
+    Job types used to process by Keychest workers
+    """
+    TARGET = 1  # periodic spotcheck
+    SUB = 2  # sub-domain scanning (CT)
+    UI = 3  # UI initiated scan
+    IP_SCAN = 4  # IPv4 scanning to detect running hosts
 
     def __init__(self):
         pass
