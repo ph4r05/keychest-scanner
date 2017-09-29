@@ -14,15 +14,15 @@ from future.utils import iteritems
 
 import util
 from config import Config
-from keychest.errors import InvalidInputData
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown
+from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from server_jobs import JobTypes, BaseJob, PeriodicJob, ScanResults, PeriodicApiProcessJob
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from dbutil import DbApiWaitingObjects, DbApiKey, Certificate, CertificateAltName, DbHelper
+from crt_sh_processor import CrtShTimeoutException, CrtShException
 
 import time
 import json
@@ -242,7 +242,7 @@ class ServerApiProc(ServerModule):
             self.process_job_domain(s, job)
 
         else:
-            target.last_scan_status = 1
+            target.last_scan_status = -4
             target.finished_at = salch.func.now()
             target.approval_status = 2
             s.merge(target)
@@ -293,7 +293,44 @@ class ServerApiProc(ServerModule):
         else:
             cert_db = self.server.cert_load_by_id(s, target.certificate_id)
 
-        # TODO: CT scan
+        # CT scan
+        scan_kwargs = dict()
+        scan_kwargs['timeout'] = 10
+        scan_kwargs['sha256'] = cert_db.fprint_sha256
+        try:
+            crt_sh = self.server.crt_sh_proc.query(None, **scan_kwargs)
+
+        except CrtShTimeoutException as tex:
+            logger.warning('CRTSH timeout for: %s' % cert_db.fprint_sha256)
+            raise
+
+        if crt_sh is None:
+            raise CrtShException('CRTSH returned empty result for %s' % cert_db.fprint_sha256)
+
+        target.last_scan_at = salch.func.now()
+        target.last_scan_status = 1
+        target.ct_found_at = salch.func.now()
+
+        # Check if certificate is in the CT
+        if crt_sh.result is not None and util.lower(crt_sh.result.sha256) == util.lower(cert_db.fprint_sha256):
+            self.add_to_monitoring(s, job, cert_db)
+            self.finish_waiting_object(s, target)
+        s.commit()
+
+    def add_to_monitoring(self, s, job, cert_db):
+        """
+        Adds all hosts to the monitoring.
+        :param s:
+        :param job:
+        :param cert_db:
+        :return:
+        """
+        domains = cert_db.all_names
+        api_key = s.query(DbApiKey).filter(DbApiKey.id == job.target.api_key_id).first()
+
+        self.server.auto_fill_new_watches_body(user_id=api_key.user_id,
+                                               domain_names=domains,
+                                               default_new_watches=dict())
 
     def process_certificate(self, s, job):
         """
@@ -303,6 +340,7 @@ class ServerApiProc(ServerModule):
         :param job:
         :type job: PeriodicApiProcessJob
         :return:
+        :rtype: Certificate
         """
         pem = job.target.certificate
         cert_db = Certificate()
