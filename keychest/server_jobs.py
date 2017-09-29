@@ -288,7 +288,7 @@ class PeriodicIpScanJob(BaseJob):
         self.scan_ip_scan = ScanResults()
 
     def key(self):
-        return 'r%s' % self.target.id
+        return 'ip_%s' % self.target.id
 
     def cmpval(self):
         return self.attempts, \
