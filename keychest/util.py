@@ -1474,6 +1474,21 @@ def is_number(x):
     return isinstance(x, (int, long, float))
 
 
+def flatten(inp):
+    """
+    Flatten input array
+    :param inp:
+    :return:
+    """
+    if isinstance(inp, list):
+        if len(inp) == 0:
+            return []
+        first, rest = inp[0], inp[1:]
+        return flatten(first) + flatten(rest)
+    else:
+        return [inp]
+
+
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
     """
     Runs command line task synchronously

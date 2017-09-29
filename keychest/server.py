@@ -278,7 +278,7 @@ class Server(object):
 
         self.mod_key_tester = KeyTester()
         self.mod_key_tester.init(self)
-        self.modules.append(self.mod_api_proc)
+        self.modules.append(self.mod_key_tester)
 
     def signal_handler(self, signal, frame):
         """
@@ -2719,6 +2719,26 @@ class Server(object):
     #
     # Helpers
     #
+
+    def interruptible_sleep(self, sleep_time):
+        """
+        Sleeps the current thread for given amount of seconds, stop event terminates the sleep - to exit the thread.
+        :param sleep_time:
+        :return:
+        """
+        if sleep_time is None:
+            return
+
+        sleep_time = float(sleep_time)
+
+        if sleep_time == 0:
+            return
+
+        sleep_start = time.time()
+        while self.is_running():
+            time.sleep(0.1)
+            if time.time() - sleep_start >= sleep_time:
+                return
 
     def diff_time(self, delta=None, days=None, seconds=None, hours=None, rnd=True):
         """
