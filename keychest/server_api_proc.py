@@ -84,7 +84,7 @@ class ServerApiProc(ServerModule):
         :param randomize:
         :return:
         """
-        q = s.query(DbApiWaitingObjects) \
+        q = s.query(DbApiWaitingObjects, DbApiKey) \
             .join(DbApiKey, DbApiKey.id == DbApiWaitingObjects.api_key_id)\
             .filter(DbApiWaitingObjects.finished_at == None)\
             .filter(DbApiWaitingObjects.approval_status == 0)
@@ -117,12 +117,12 @@ class ServerApiProc(ServerModule):
             query = self.load_active_requests(s, last_scan_margin=min_scan_margin)
             iterator = query.yield_per(100)
             for x in iterator:
-                watch_target, min_periodicity, watch_service = x
+                waiting_obj, api_key = x
 
                 if self.server.periodic_queue_is_full():
                     return
 
-                job = PeriodicApiProcessJob(target=watch_target, periodicity=min_periodicity)
+                job = PeriodicApiProcessJob(target=waiting_obj, periodicity=None)
                 self.server.periodic_add_job(job)
 
         except QFull:
@@ -192,8 +192,8 @@ class ServerApiProc(ServerModule):
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
-            if job.scan_ip_scan.is_failed():
-                logger.info('Job failed, wildcard: %s' % (job.scan_ip_scan.is_failed()))
+            if job.scan_ct_results.is_failed():
+                logger.info('Job failed, wildcard: %s' % (job.scan_ct_results.is_failed()))
                 job.attempts += 1
                 job.success_scan = False
 
@@ -260,7 +260,8 @@ class ServerApiProc(ServerModule):
         target = job.target
 
         # Is CT scan applicable?
-        if target.last_scan_at and target.last_scan_at > self.server.diff_time(self.delta_ct_scan, rnd=True):
+        if target.last_scan_at is not None \
+                and target.last_scan_at > self.server.diff_time(self.delta_ct_scan, rnd=True):
             job.scan_ct_results.skip()
             return  # scan is relevant enough
 
@@ -313,8 +314,12 @@ class ServerApiProc(ServerModule):
 
         # Check if certificate is in the CT
         if crt_sh.result is not None and util.lower(crt_sh.result.sha256) == util.lower(cert_db.fprint_sha256):
+            logger.debug('Certificate SHA256=%s found in the CT, adding to monitoring' % cert_db.fprint_sha256)
             self.add_to_monitoring(s, job, cert_db)
             self.finish_waiting_object(s, target)
+
+        else:
+            logger.debug('Certificate SHA256=%s was not found in the CT' % cert_db.fprint_sha256)
         s.commit()
 
     def add_to_monitoring(self, s, job, cert_db):
@@ -343,7 +348,7 @@ class ServerApiProc(ServerModule):
         :return:
         :rtype: Certificate
         """
-        pem = job.target.certificate
+        pem = job.target.object_value
         cert_db = Certificate()
         cert_db.created_at = salch.func.now()
         cert_db.pem = util.strip_pem(pem)
