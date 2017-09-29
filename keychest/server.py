@@ -3453,6 +3453,7 @@ class Server(object):
 
         for new_host in domain_names:
             if max_hosts is not None and num_hosts >= max_hosts:
+                logger.debug('User %s reached max hosts %s, not adding more' % (user_id, max_hosts))
                 break
 
             if new_host in existing_host_names:
@@ -3463,6 +3464,7 @@ class Server(object):
                 continue
 
             if not TlsDomainTools.can_connect(new_host):
+                logger.debug('Not going to add host %s to user %s, invalid host name' % (new_host, user_id))
                 continue
 
             wtarget = None
@@ -3472,6 +3474,8 @@ class Server(object):
                 wtarget, wis_new = self.load_default_watch_target(s, new_host)
                 default_new_watches[new_host] = wtarget
                 s.commit()  # if add fails the rollback removes the watch
+                if wis_new:
+                    logger.debug('New watch_target added for association: %s id %s' % (new_host, wtarget.id))
 
             # new association
             nassoc = DbWatchAssoc()
@@ -3488,6 +3492,8 @@ class Server(object):
 
                 num_hosts += 1
                 existing_host_names.add(new_host)
+                logger.debug('New host %s ID %s associated to the user %s assoc ID %s, hosts: %s'
+                             % (new_host, wtarget.id, user_id, nassoc.id, num_hosts))
 
             except Exception as e:
                 logger.debug('Exception when adding auto watch: %s' % e)
