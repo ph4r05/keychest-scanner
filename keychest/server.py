@@ -3420,7 +3420,8 @@ class Server(object):
             return
 
         # Generic insertion method
-        return self.auto_fill_new_watches_body(user_id=assoc.user_id,
+        return self.auto_fill_new_watches_body(s=s,
+                                               user_id=assoc.user_id,
                                                domain_names=domain_names,
                                                default_new_watches=default_new_watches,
                                                num_hosts=num_hosts,
@@ -3474,7 +3475,7 @@ class Server(object):
 
             # new association
             nassoc = DbWatchAssoc()
-            nassoc.user_id = assoc.user_id
+            nassoc.user_id = user_id
             nassoc.watch_id = wtarget.id
             nassoc.updated_at = salch.func.now()
             nassoc.created_at = salch.func.now()

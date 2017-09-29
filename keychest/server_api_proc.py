@@ -328,7 +328,8 @@ class ServerApiProc(ServerModule):
         domains = cert_db.all_names
         api_key = s.query(DbApiKey).filter(DbApiKey.id == job.target.api_key_id).first()
 
-        self.server.auto_fill_new_watches_body(user_id=api_key.user_id,
+        self.server.auto_fill_new_watches_body(s=s,
+                                               user_id=api_key.user_id,
                                                domain_names=domains,
                                                default_new_watches=dict())
 
