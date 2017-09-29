@@ -1354,7 +1354,7 @@ class Server(object):
         """
         consumed = False
         for server_mod in self.modules:
-            consumed |= server_mod.process_periodic_job(job)
+            consumed |= server_mod.periodic_job_update_last_scan(job)
             if consumed:
                 break
         return consumed
