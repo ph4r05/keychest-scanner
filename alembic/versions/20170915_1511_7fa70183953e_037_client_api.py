@@ -34,7 +34,7 @@ def upgrade():
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='fk_api_keys_user_users_id', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_api_keys_api_key'), 'api_keys', ['api_key'], unique=False)
+    op.create_index(op.f('ix_api_keys_api_key'), 'api_keys', ['api_key'], unique=True)
     op.create_index(op.f('ix_api_keys_email_claim'), 'api_keys', ['email_claim'], unique=False)
     op.create_index(op.f('ix_api_keys_ip_registration'), 'api_keys', ['ip_registration'], unique=False)
     op.create_index(op.f('ix_api_keys_user_id'), 'api_keys', ['user_id'], unique=False)
