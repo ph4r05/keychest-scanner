@@ -8,7 +8,7 @@ Server job classes
 from past.builtins import cmp
 import collections
 from tls_domain_tools import TargetUrl
-from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord
+from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects
 
 
 class ScanResults(object):
@@ -55,6 +55,7 @@ class JobTypes(object):
     SUB = 2  # sub-domain scanning (CT)
     UI = 3  # UI initiated scan
     IP_SCAN = 4  # IPv4 scanning to detect running hosts
+    API_PROC = 5  # API requests processing
 
     def __init__(self):
         pass
@@ -308,3 +309,46 @@ class PeriodicIpScanJob(BaseJob):
                'last_scan_at=%r)>' \
                % (self.target.id, self.target.ip_beg, self.target.ip_end, self.target, self.attempts, self.later,
                   self.target.last_scan_at)
+
+
+class PeriodicApiProcessJob(BaseJob):
+    """
+    Represents periodic job loaded from the db - enqueued by API client
+    """
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbApiWaitingObjects
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicApiProcessJob, self).__init__(type=JobTypes.API_PROC)
+
+        self.target = target
+        self.periodicity = periodicity
+        self.scan_ct_results = ScanResults()
+
+    def key(self):
+        return 'api_%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.processed_at is None, \
+               self.target.processed_at, \
+               self.target.ct_scanned_at is None, \
+               self.target.ct_scanned_at
+
+    def record_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<PeriodicApiProcessJob(target=<DbApiWaitingObjects(id=%r, self=%r)>, attempts=%r, later=%r,' \
+               'processed_at=%r, ctstan=%r)>' \
+               % (self.target.id, self.target, self.attempts, self.later,
+                  self.target.processed_at, self.target.ct_scanned_at)
