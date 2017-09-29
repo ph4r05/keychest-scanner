@@ -101,8 +101,9 @@ class CrtShDetailResponse(object):
     """
     Certificate detail response
     """
-    def __init__(self, crtid=None):
+    def __init__(self, crtid=None, sha256=None):
         self.crtid = crtid
+        self.sha256 = sha256
         self.time_start = time.time()
         self.time_end = 0
         self.attempts = 0
@@ -215,16 +216,32 @@ class CrtProcessor(object):
 
         return None
 
-    def query(self, query, **kwargs):
+    def query(self, query=None, **kwargs):
         """
         Query domain on crt.sh
         :param query:
         :param kwargs:
         :return:
         """
-        ret = CrtShIndexResponse(query=query)
         attempts = kwargs.get('attempts', self.attempts)
         timeout = kwargs.get('timeout', self.timeout)
+        expect_detail = kwargs.get('expect_detail', False)
+        sha256 = kwargs.get('sha256', None)
+        sha1 = kwargs.get('sha1', None)
+        ret = None
+
+        if sha256:
+            query = sha256
+            expect_detail = True
+            ret = CrtShDetailResponse(sha256=query)
+
+        elif sha1:
+            query = sha1
+            expect_detail = True
+            ret = CrtShDetailResponse()
+
+        else:
+            ret = CrtShIndexResponse(query=query)
 
         svc_query = re.sub(r'\\*_', '\\_', query)
         for attempt in range(attempts):
@@ -235,7 +252,10 @@ class CrtProcessor(object):
 
                 ret.attempts = attempt
                 ret.time_end = time.time()
-                self.parse_index_page(ret, data)
+                if expect_detail:
+                    self.parse_detail(ret, data)
+                else:
+                    self.parse_index_page(ret, data)
 
                 ret.success = True
                 return ret
