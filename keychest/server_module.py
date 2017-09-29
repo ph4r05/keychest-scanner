@@ -86,4 +86,12 @@ class ServerModule(object):
         # Return non-consumed (False) by default so the module doesn't eat jobs
         return False
 
+    def periodic_job_update_last_scan(self, job):
+        """
+        Update last stan of the job
+        :param job:
+        :return: True if job was consumed
+        """
+        # Return non-consumed (False) by default so the module doesn't eat jobs
+        return False
 

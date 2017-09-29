@@ -1342,8 +1342,22 @@ class Server(object):
             self._periodic_update_last_scan_recon(job)
         elif job.type == JobTypes.IP_SCAN:
             self._periodic_update_last_ip_scan(job)
-        else:
+        elif not self.periodic_update_last_scan_module(job):
             raise ValueError('Unrecognized job type')
+
+    def periodic_update_last_scan_module(self, job):
+        """
+        Scan jobs for last scan update for the job.
+        Feeds job to the module. Returns False if job was not consumed by any module.
+        :param job:
+        :return:
+        """
+        consumed = False
+        for server_mod in self.modules:
+            consumed |= server_mod.process_periodic_job(job)
+            if consumed:
+                break
+        return consumed
 
     def _periodic_update_last_scan_watch(self, job):
         """
