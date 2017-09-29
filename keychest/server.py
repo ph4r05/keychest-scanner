@@ -39,6 +39,8 @@ from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, Period
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 import util_cert
 from api import RestAPI
+from server_api_proc import ServerApiProc
+from server_key_tester import KeyTester
 
 import threading
 import pid
@@ -153,6 +155,10 @@ class Server(object):
         self.agent_publish_event = threading.Event()  # if set to true publish now
         self.agent_queue = PriorityQueue()  # queue of results to publish
 
+        self.modules = []
+        self.mod_api_proc = None
+        self.mod_key_tester = None
+
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
         self.cleanup_thread = None
@@ -260,6 +266,19 @@ class Server(object):
         """
         self.crt_validator.init()
         signal.signal(signal.SIGINT, self.signal_handler)
+
+    def init_modules(self):
+        """
+        Initializes modules for the server
+        :return:
+        """
+        self.mod_api_proc = ServerApiProc()
+        self.mod_api_proc.init(self)
+        self.modules.append(self.mod_api_proc)
+
+        self.mod_key_tester = KeyTester()
+        self.mod_key_tester.init(self)
+        self.modules.append(self.mod_api_proc)
 
     def signal_handler(self, signal, frame):
         """
@@ -4902,6 +4921,17 @@ class Server(object):
         self.running = False
         self.stop_event.set()
 
+        for server_mod in self.modules:
+            server_mod.shutdown()
+
+    def run_modules(self):
+        """
+        Run all modules
+        :return:
+        """
+        for server_mod in self.modules:
+            server_mod.run()
+
     def init_api(self):
         """
         Initializes rest endpoint
@@ -4976,6 +5006,7 @@ class Server(object):
         self.init_log()
         self.init_db()
         self.init_misc()
+        self.init_modules()
         util.monkey_patch_asn1_time()
 
         self.cleanup_thread = threading.Thread(target=self.cleanup_main, args=())
@@ -5002,6 +5033,9 @@ class Server(object):
         self.watcher_thread = threading.Thread(target=self.periodic_feeder_main, args=())
         self.watcher_thread.setDaemon(True)
         self.watcher_thread.start()
+
+        # executes all modules kick off
+        self.run_modules()
 
         # REST server needed only for master mode for now (may be changed in future).
         # Init agent mode if needed.
