@@ -1019,7 +1019,8 @@ class Server(object):
         :return:
         """
         num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1))  # 15 %
-        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1))  # 15 %
+        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1))  # 10 %
+        num_max_api = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1))  # 10 %
         num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads available
         logger.info('Max watch: %s, Max recon: %s' % (num_max_watch, num_max_recon))
 
@@ -1027,7 +1028,8 @@ class Server(object):
         self.watcher_job_semaphores = {
             JobTypes.TARGET: StatSemaphore(num_max_watch),
             JobTypes.SUB: StatSemaphore(num_max_recon),
-            JobTypes.IP_SCAN: StatSemaphore(num_max_ips)
+            JobTypes.IP_SCAN: StatSemaphore(num_max_ips),
+            JobTypes.API_PROC: StatSemaphore(num_max_api),
         }
 
         # periodic worker start
@@ -1087,6 +1089,9 @@ class Server(object):
             self._periodic_feeder_watch(s)
             self._periodic_feeder_recon(s)
             self._periodic_feeder_ips(s)
+
+            for server_mod in self.modules:
+                server_mod.periodic_feeder(s)
 
         finally:
             util.silent_close(s)
@@ -1267,7 +1272,9 @@ class Server(object):
                 elif job.type == JobTypes.IP_SCAN:
                     self.periodic_process_ips_job_body(job)
                 else:
-                    raise ValueError('Unrecognized job type: %s' % job.type)
+                    consumed = self.periodic_feed_job_module(job)
+                    if not consumed:
+                        raise ValueError('Unrecognized job type: %s' % job.type)
 
         except Exception as e:
             logger.error('Exception in processing watcher job %s' % (e,))
@@ -1308,6 +1315,19 @@ class Server(object):
 
             if readd_job:
                 self.watcher_job_queue.put(job)
+
+    def periodic_feed_job_module(self, job):
+        """
+        Feeds job to the modules
+        :param job:
+        :return: True if job was consumed
+        """
+        consumed = False
+        for server_mod in self.modules:
+            consumed |= server_mod.process_periodic_job(job)
+            if consumed:
+                break
+        return consumed
 
     def periodic_update_last_scan(self, job):
         """

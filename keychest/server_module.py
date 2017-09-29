@@ -68,3 +68,22 @@ class ServerModule(object):
         :return:
         """
 
+    def periodic_feeder(self, s):
+        """
+        Server module can feed periodic tasks to the periodic worker.
+        :param s: session
+        :return:
+        """
+
+    def process_periodic_job(self, job):
+        """
+        Processes periodic job.
+        When True is returned, job is consumed and should not be propagated further.
+
+        :param job:
+        :return:
+        """
+        # Return non-consumed (False) by default so the module doesn't eat jobs
+        return False
+
+
