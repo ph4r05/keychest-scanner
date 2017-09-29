@@ -731,7 +731,7 @@ class Server(object):
             last_scan = self.load_last_whois_scan(s, top_domain_db) if not domain_new else None
             if last_scan is not None \
                     and last_scan.last_scan_at \
-                    and last_scan.last_scan_at > self._diff_time(self.delta_whois, rnd=True):
+                    and last_scan.last_scan_at > self.diff_time(self.delta_whois, rnd=True):
                 if job_db is not None:
                     job_db.whois_check_id = last_scan.id
                     job_db = s.merge(job_db)
@@ -1502,7 +1502,7 @@ class Server(object):
         last_scan = self.load_last_dns_scan_optim(s, job.watch_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_dns, rnd=True):
+                and last_scan.last_scan_at > self.diff_time(self.delta_dns, rnd=True):
             job_scan.skip(last_scan)
             self.wp_process_dns(s, job, job_scan.aux)
             return  # scan is relevant enough
@@ -1542,7 +1542,7 @@ class Server(object):
         scans_to_repeat = list(ips_set - set([x.ip_scanned for x in prev_scans]))  # not scanned yet
         scans_to_repeat += [x.ip_scanned for x in prev_scans
                             if x.ip_scanned != '-' and x.ip_scanned in ips_set
-                            and (not x.last_scan_at or x.last_scan_at <= self._diff_time(self.delta_tls, rnd=True))]
+                            and (not x.last_scan_at or x.last_scan_at <= self.diff_time(self.delta_tls, rnd=True))]
 
         logger.debug('ips: %s, repeat: %s, url: %s, scan map: %s, '
                      % (job.ips, scans_to_repeat, self.urlize(job), prev_scans_map))
@@ -1574,7 +1574,7 @@ class Server(object):
         last_scan = self.load_last_crtsh_scan(s, job.watch_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_crtsh, rnd=True):
+                and last_scan.last_scan_at > self.diff_time(self.delta_crtsh, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1606,7 +1606,7 @@ class Server(object):
         last_scan = self.load_last_whois_scan(s, top_domain) if not is_new else None
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_whois, rnd=True):
+                and last_scan.last_scan_at > self.diff_time(self.delta_whois, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1634,7 +1634,7 @@ class Server(object):
         last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_wildcard, rnd=True):
+                and last_scan.last_scan_at > self.diff_time(self.delta_wildcard, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -1706,7 +1706,7 @@ class Server(object):
         last_scan = self.load_last_ip_scan_result_cached(s, record_id=job.record_id())
         if last_scan is not None \
                 and last_scan.last_scan_at \
-                and last_scan.last_scan_at > self._diff_time(self.delta_ip_scan, rnd=True):
+                and last_scan.last_scan_at > self.diff_time(self.delta_ip_scan, rnd=True):
             job_scan.skip(last_scan)
             return  # scan is relevant enough
 
@@ -2706,7 +2706,7 @@ class Server(object):
     # Helpers
     #
 
-    def _diff_time(self, delta=None, days=None, seconds=None, hours=None, rnd=True):
+    def diff_time(self, delta=None, days=None, seconds=None, hours=None, rnd=True):
         """
         Returns now - diff time
         :param delta:
@@ -2843,7 +2843,7 @@ class Server(object):
                 # new certificate - add
                 # lockfree - add, if exception on add, try fetch, then again add,
                 if fprint not in cert_existing:
-                    cert_db, is_new_cert = self._add_cert_or_fetch(s, cert_db, add_alts=True)
+                    cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
                     if is_new_cert:
                         num_new_results += 1
                 else:
@@ -3044,7 +3044,7 @@ class Server(object):
                 self.trace_logger.log(e)
 
             new_cert = cert_db
-            cert_db, is_new = self._add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
+            cert_db, is_new = self.add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
             if not is_new:   # cert exists, fill in missing fields if empty
                 mm = Certificate
                 changes = DbHelper.update_model_null_values(cert_db, new_cert, [
@@ -3652,7 +3652,7 @@ class Server(object):
 
         return ret if was_array else None
 
-    def _add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
+    def add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
         """
         Tries to insert new certificate to the DB.
         If fails due to constraint violation (somebody preempted), it tries to load
@@ -4735,7 +4735,7 @@ class Server(object):
             db_crt.id = None
             db_crt.parent_id = None
 
-            db_crt_new, is_new = self._add_cert_or_fetch(s, db_crt)
+            db_crt_new, is_new = self.add_cert_or_fetch(s, db_crt)
             loaded_fprints[db_crt_new.fprint_sha1] = db_crt_new
             logger.debug('Added agent certificate: %s - %s' % (db_crt.id, db_crt.fprint_sha1))
 
