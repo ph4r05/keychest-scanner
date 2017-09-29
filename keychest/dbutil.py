@@ -1360,7 +1360,7 @@ class DbApiWaitingObjects(Base):
 
     computed_data = Column(Text, nullable=True)  # json with precomputed data (e.g., alt names)
 
-    ct_scanned_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
+    last_scan_at = Column(DateTime, default=None)  # last scan for this entry (e.g., cert)
     ct_found_at = Column(DateTime, default=None)  # last CT scan for this entry (cert)
 
     processed_at = Column(SmallInteger, nullable=True, default=None)  # scanner seen the entry already
