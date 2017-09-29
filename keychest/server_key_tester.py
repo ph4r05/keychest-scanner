@@ -16,12 +16,16 @@ from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 from server_module import ServerModule
+from server_data import EmailArtifact, EmailArtifactTypes
 
 import time
 import json
 import logging
 import threading
 import collections
+import imaplib
+import email
+import email.message as emsg
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 
@@ -144,20 +148,10 @@ class KeyTester(ServerModule):
         if job is not None:
             data = job.decoded['data']['json']
 
-        scan_type = None
-        if 'scan_type' in data:
-            scan_type = data['scan_type']
-
         sys_params = collections.OrderedDict()
-        sys_params['retry'] = 1
-        sys_params['timeout'] = 4
+        sys_params['retry'] = 2
+        sys_params['timeout'] = 20
         sys_params['mode'] = JobType.UI
-
-        if scan_type == 'planner':
-            sys_params['retry'] = 2
-            sys_params['timeout'] = 15  # tls & connect scan
-            sys_params['mode'] = JobType.BACKGROUND
-
         data['sysparams'] = sys_params
         return data
 
@@ -223,13 +217,45 @@ class KeyTester(ServerModule):
         If job is in the progress folder for too long, expire it.
         :return:
         """
+        logger.info('Email scanner thread started')
         while self.is_running():
             job = None
+            self.server.interruptible_sleep(4)
             try:
-                # TODO: load new emails, create job from it
-                pass
+                # Load new emails, create job from it
+                email_host = self.config.get_config('test_email_host')
+                email_name = self.config.get_config('test_email_name')
+                email_pass = self.config.get_config('test_email_pass')
+                if email_host is None or email_name is None or email_pass is None:
+                    continue
 
-            except QEmpty:
+                cl = imaplib.IMAP4_SSL(email_host)
+                cl.login(email_name, email_pass)
+                # logger.info(cl.list())
+                logger.info(cl.select())
+
+                result, data = cl.uid('search', None, "ALL")  # search and return uids instead
+                email_uids = data[0].split()
+                logger.debug(email_uids)
+
+                for email_uid in email_uids:
+                    logger.debug('Fetching: %s' % email_uid)
+                    result, data = cl.uid('fetch', email_uid, '(RFC822)')
+                    raw_email = data[0][1]
+
+                    email_message = email.message_from_string(raw_email)
+                    key_parts = util.flatten(self.look_for_keys(email_message))
+                    logger.debug(key_parts)
+
+                    tos = email_message.get_all('from', [])
+                    reply_tos = email_message.get_all('reply-to', [])
+                    senders = email.utils.getaddresses(reply_tos + tos)
+                    logger.debug(senders)
+
+                pass
+                continue
+                
+            except Exception:
                 time.sleep(0.01)
                 continue
 
@@ -242,8 +268,52 @@ class KeyTester(ServerModule):
                 self.trace_logger.log(e)
 
             finally:
-                pass
+                self.server.interruptible_sleep(20)
+
         logger.info('Email scanner terminated')
+
+    def look_for_keys(self, msg):
+        """
+        Extract interesting portions from the email (pgp keys, pgp signature, pkcs7 signature)
+        :param msg:
+        :type msg: emsg.Message
+        :return:
+        """
+        ret = []
+        if msg.is_multipart():
+            for part in msg.get_payload():
+                ret.append(self.look_for_keys(part))
+
+        else:
+            main_type = msg.get_content_maintype()
+            sub_type = msg.get_content_subtype()
+            filename = msg.get_filename(None)
+
+            is_pgp_key = main_type == 'application' and sub_type == 'pgp-keys'
+            is_pgp_file = filename is not None and (
+                filename.endswith('.asc') or filename.endswith('.gpg') or filename.endswith('.pgp')
+            )
+
+            is_pgp_sig = main_type == 'application' and sub_type == 'pgp-signature'
+            is_pkcs7_sig = main_type == 'application' and sub_type == 'pkcs7-signature'
+            is_pkcs7_file = filename is not None and (
+                filename.endswith('.p7s')
+            )
+
+            logger.debug('%s/%s : %s ; pgp key: %s, pgp file: %s, pgp sig: %s, p7sig: %s, p7file: %s'
+                         % (main_type, sub_type, filename, is_pgp_key,
+                            is_pgp_file, is_pgp_sig, is_pkcs7_sig, is_pkcs7_file))
+
+            art_type = 0
+            art_type |= EmailArtifactTypes.PGP_KEY if is_pgp_key else 0
+            art_type |= EmailArtifactTypes.PGP_FILE if is_pgp_file else 0
+            art_type |= EmailArtifactTypes.PGP_SIG if is_pgp_sig else 0
+            art_type |= EmailArtifactTypes.PKCS7_SIG if is_pkcs7_sig else 0
+            art_type |= EmailArtifactTypes.PKCS7_FILE if is_pkcs7_file else 0
+            if art_type > 0:
+                ret.append(EmailArtifact(filename=filename, ftype=art_type, payload=msg.get_payload(decode=True)))
+
+        return ret
 
     #
     # Running
