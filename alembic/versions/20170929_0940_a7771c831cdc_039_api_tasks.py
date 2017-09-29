@@ -23,6 +23,7 @@ def upgrade():
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('api_key_id', sa.BigInteger(), nullable=True),
+    sa.Column('waiting_id', sa.String(length=36), nullable=False),
     sa.Column('object_operation', sa.String(length=42), nullable=True),
     sa.Column('object_type', sa.String(length=42), nullable=True),
     sa.Column('object_key', sa.String(length=191), nullable=True),
@@ -43,6 +44,7 @@ def upgrade():
     op.create_index(op.f('ix_api_waiting_object_key'), 'api_waiting', ['object_key'], unique=False)
     op.create_index(op.f('ix_api_waiting_object_operation'), 'api_waiting', ['object_operation'], unique=False)
     op.create_index(op.f('ix_api_waiting_object_type'), 'api_waiting', ['object_type'], unique=False)
+    op.create_unique_constraint('uk_api_waiting_waiting_id', 'api_waiting', ['waiting_id'])
     op.alter_column('access_tokens', 'num_sent',
                existing_type=mysql.INTEGER(display_width=11),
                nullable=True,
@@ -56,6 +58,8 @@ def downgrade():
                existing_type=mysql.INTEGER(display_width=11),
                nullable=False,
                existing_server_default=sa.text(u"'0'"))
+
+    # op.drop_constraint('uk_api_waiting_waiting_id', 'api_waiting', type_='unique')
     op.drop_index(op.f('ix_api_waiting_object_type'), table_name='api_waiting')
     op.drop_index(op.f('ix_api_waiting_object_operation'), table_name='api_waiting')
     op.drop_index(op.f('ix_api_waiting_object_key'), table_name='api_waiting')

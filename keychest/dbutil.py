@@ -1338,6 +1338,7 @@ class DbApiWaitingObjects(Base):
     Waiting objects to be added to the system after condition is met
     """
     __tablename__ = 'api_waiting'
+    __table_args__ = (UniqueConstraint('waiting_id', name='uk_api_waiting_waiting_id'),)
     id = Column(BigInteger, primary_key=True)
 
     created_at = Column(DateTime, default=None)
@@ -1346,6 +1347,7 @@ class DbApiWaitingObjects(Base):
     api_key_id = Column(ForeignKey('api_keys.id', name='fk_api_waiting_api_key_id', ondelete='CASCADE'),
                         nullable=True, index=True)  # API key causing the action
 
+    waiting_id = Column(String(36), nullable=False)  # UUID for back reference (no ID leak)
     object_operation = Column(String(42), nullable=True, index=True)  # ADD / REMOVE / UPDATE
     object_type = Column(String(42), nullable=True, index=True)  # domain, certificate, active domains
 
