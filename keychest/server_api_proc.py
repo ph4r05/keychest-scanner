@@ -193,7 +193,7 @@ class ServerApiProc(ServerModule):
 
             # each scan can fail independently. Successful scans remain valid.
             if job.scan_ct_results.is_failed():
-                logger.info('Job failed, wildcard: %s' % (job.scan_ct_results.is_failed()))
+                logger.info('CT scan job failed: %s' % (job.scan_ct_results.is_failed()))
                 job.attempts += 1
                 job.success_scan = False
 
@@ -211,7 +211,7 @@ class ServerApiProc(ServerModule):
             self.finish_waiting_object(s, job.target, last_scan_status=-2)
 
         except Exception as e:
-            logger.debug('Exception when processing the IP scan job: %s' % e)
+            logger.debug('Exception when processing the API process job: %s' % e)
             self.trace_logger.log(e)
             job.attempts += 1
 
@@ -260,6 +260,8 @@ class ServerApiProc(ServerModule):
         target = job.target
 
         # Is CT scan applicable?
+        logger.info(target)
+        logger.info(target.last_scan_at)
         if target.last_scan_at is not None \
                 and target.last_scan_at > self.server.diff_time(self.delta_ct_scan, rnd=True):
             job.scan_ct_results.skip()
@@ -320,7 +322,10 @@ class ServerApiProc(ServerModule):
 
         else:
             logger.debug('Certificate SHA256=%s was not found in the CT' % cert_db.fprint_sha256)
+
         s.commit()
+        job.scan_ct_results.ok()
+        logger.debug('API Cert SHA256=%s processed' % cert_db.fprint_sha256)
 
     def add_to_monitoring(self, s, job, cert_db):
         """
