@@ -231,35 +231,41 @@ class KeyTester(ServerModule):
 
                 cl = imaplib.IMAP4_SSL(email_host)
                 cl.login(email_name, email_pass)
-                # logger.info(cl.list())
+
+                self.ensure_imap_dirs(cl)
                 select_res = cl.select()
 
-                result, data = cl.uid('search', None, "ALL")  # search and return uids instead
+                result, data = cl.uid('search', None, 'ALL')  # search and return uids instead
                 email_uids = data[0].split()
                 logger.debug(email_uids)
 
                 for email_uid in email_uids:
-                    logger.debug('Fetching: %s' % email_uid)
-                    result, data = cl.uid('fetch', email_uid, '(RFC822)')
-                    raw_email = data[0][1]
+                    try:
+                        logger.debug('Fetching: %s' % email_uid)
+                        result, data = cl.uid('fetch', email_uid, '(RFC822)')
+                        raw_email = data[0][1]
 
-                    email_message = email.message_from_string(raw_email)
-                    key_parts = util.flatten(self.look_for_keys(email_message))
-                    # logger.debug(key_parts)
+                        email_message = email.message_from_string(raw_email)
+                        key_parts = util.flatten(self.look_for_keys(email_message))
+                        if len(key_parts) == 0:
+                            self.move_mail_to(cl, email_uid, empty=True)
+                            continue
 
-                    tos = email_message.get_all('from', [])
-                    reply_tos = email_message.get_all('reply-to', [])
-                    senders = email.utils.getaddresses(reply_tos + tos)
-                    logger.debug(senders)
+                        tos = email_message.get_all('from', [])
+                        reply_tos = email_message.get_all('reply-to', [])
+                        senders = email.utils.getaddresses(reply_tos + tos)
+                        if len(senders) == 0:
+                            self.move_mail_to(cl, email_uid, fail=True)
+                            continue
 
-                pass
+                        logger.debug(senders)
+                        job = (email_message, senders, key_parts)
+                        self.move_mail_to(cl, email_uid, progress=True)
 
-            except Exception:
-                time.sleep(0.01)
-                continue
-
-            try:
-                pass
+                        # self.job_queue.put(('email', job))
+                    except Exception as e:
+                        logger.error('Exception in processing email %s' % (e,))
+                        self.trace_logger.log(e)
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e,))
@@ -269,6 +275,52 @@ class KeyTester(ServerModule):
                 self.server.interruptible_sleep(60)
 
         logger.info('Email scanner terminated')
+
+    def move_mail_to(self, cl, id, done=False, fail=False, empty=False, progress=False):
+        """
+        Moves email message to.
+        :param cl:
+        :param id:
+        :param to:
+        :return:
+        """
+        to = None
+        if done:
+            to = 'INBOX.DONE'
+        elif fail:
+            to = 'INBOX.FAIL'
+        elif empty:
+            to = 'INBOX.EMPTY'
+        elif progress:
+            to = 'INBOX.PROGRESS'
+        else:
+            raise ValueError('Unknown destination folder, have to set at least one flag')
+
+        apply_lbl_msg = cl.uid('COPY', id, to)
+        if apply_lbl_msg[0] == 'OK':
+            mov, data = cl.uid('STORE', id, '+FLAGS', '(\Deleted)')
+            cl.expunge()
+
+    def ensure_imap_dirs(self, cl):
+        """
+        Ensures all imap dirs are created as they should be.
+        :param cl:
+        :return:
+        """
+        status, folders = cl.list()
+        has_done = sum([1 for x in folders if '"INBOX.DONE"' in x]) > 0
+        has_fail = sum([1 for x in folders if '"INBOX.FAIL"' in x]) > 0
+        has_empty = sum([1 for x in folders if '"INBOX.EMPTY"' in x]) > 0
+        has_progress = sum([1 for x in folders if '"INBOX.PROGRESS"' in x]) > 0
+
+        if not has_done:
+            cl.create('INBOX.DONE')
+        if not has_fail:
+            cl.create('INBOX.FAIL')
+        if not has_empty:
+            cl.create('INBOX.EMPTY')
+        if not has_progress:
+            cl.create('INBOX.PROGRESS')
 
     def look_for_keys(self, msg):
         """
