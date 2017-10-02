@@ -205,6 +205,11 @@ class KeyTester(ServerModule):
         :param job:
         :return:
         """
+        # TODO: parse smime pkcs7 signature - there is a cert in it.
+
+        # TODO: parse PGP key and signature - already done by the tester.
+        # TODO:     here may be useful to extract the identity, for the report.
+
         # TODO: analyze email contents
         # TODO: fingerprint SMIME / PGP
         # TODO: send email with the results
@@ -262,7 +267,7 @@ class KeyTester(ServerModule):
                         job = (email_message, senders, key_parts)
                         self.move_mail_to(cl, email_uid, progress=True)
 
-                        # self.job_queue.put(('email', job))
+                        self.job_queue.put(('email', job))
                     except Exception as e:
                         logger.error('Exception in processing email %s' % (e,))
                         self.trace_logger.log(e)
