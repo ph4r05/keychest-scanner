@@ -1352,7 +1352,8 @@ class DbApiWaitingObjects(Base):
                         nullable=True, index=True)  # API key causing the action
     api_key = relationship('DbApiKey', foreign_keys=api_key_id)
 
-    waiting_id = Column(String(36), nullable=False)  # UUID for back reference (no ID leak)
+    waiting_id = Column(String(36), nullable=False, index=True)  # UUID for back reference (no ID leak)
+    client_req_id = Column(String(128), nullable=True)  # client request ID - client provided opaque value
     object_operation = Column(String(42), nullable=True, index=True)  # ADD / REMOVE / UPDATE
     object_type = Column(String(42), nullable=True, index=True)  # domain, certificate, active domains
 
