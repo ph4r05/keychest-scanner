@@ -17,6 +17,7 @@ from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, Period
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
+import keys_tools
 
 import time
 import json
@@ -28,6 +29,8 @@ import email
 import email.message as emsg
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
+
+from M2Crypto import SMIME, X509, BIO
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +208,25 @@ class KeyTester(ServerModule):
         :param job:
         :return:
         """
+        logger.debug('Processing email job')
+        logger.debug(job)
+
+        email_message, senders, key_parts = job
+        for part in key_parts:
+            res = None
+            if part.ftype & (EmailArtifactTypes.PKCS7_SIG | EmailArtifactTypes.PKCS7_FILE) != 0:
+                res = self.email_pkcs7(part)
+
+            elif part.ftype & (EmailArtifactTypes.PGP_KEY | EmailArtifactTypes.PGP_SIG | EmailArtifactTypes.PGP_FILE) != 0:
+                pass
+
+            else:
+                pass
+
+            logger.info(res)
+
+            # TODO: notify back via redis, send the mail.
+
         # TODO: parse smime pkcs7 signature - there is a cert in it.
 
         # TODO: parse PGP key and signature - already done by the tester.
@@ -214,6 +236,41 @@ class KeyTester(ServerModule):
         # TODO: fingerprint SMIME / PGP
         # TODO: send email with the results
         # TODO: move email to the DONE folder
+
+    def email_pkcs7(self, key_part):
+        """
+
+        :param key_part:
+        :return:
+        """
+        try:
+            data = key_part.payload
+            pkcs7_pem = keys_tools.reformat_pkcs7_pem(data)
+
+            sk = X509.X509_Stack()
+            buf = BIO.MemoryBuffer(pkcs7_pem)
+            p7 = SMIME.load_pkcs7_bio(buf)
+
+            signers = p7.get0_signers(sk)
+            certificate = signers[0]
+            cert_der = certificate.as_der()
+
+            cert = util.load_x509_der(cert_der)
+            res = collections.OrderedDict()
+            res['fprint_sha256'] = util.lower(util.try_get_fprint_sha256(cert))
+            res['cname'] = util.utf8ize(util.try_get_cname(cert))
+            res['subject'] = util.utf8ize(util.get_dn_string(cert.subject))
+
+            test_result = self.local_data.fprinter.process_der(cert_der, key_part.filename)
+            if test_result is None:
+                res['test'] = None  # processing failed
+
+            res['test'] = test_result.to_json()
+            return res
+
+        except Exception as e:
+            logger.error('Error processing pkcs7: %s' % e)
+            self.trace_logger.log(e)
 
     def main_scan_emails(self):
         """
@@ -258,7 +315,7 @@ class KeyTester(ServerModule):
 
                         tos = email_message.get_all('from', [])
                         reply_tos = email_message.get_all('reply-to', [])
-                        senders = email.utils.getaddresses(reply_tos + tos)
+                        senders = email.utils.getaddresses(tos + reply_tos)
                         if len(senders) == 0:
                             self.move_mail_to(cl, email_uid, fail=True)
                             continue
@@ -277,7 +334,7 @@ class KeyTester(ServerModule):
                 self.trace_logger.log(e)
 
             finally:
-                self.server.interruptible_sleep(60)
+                self.server.interruptible_sleep(10)
 
         logger.info('Email scanner terminated')
 
@@ -383,6 +440,7 @@ class KeyTester(ServerModule):
         :return:
         """
         self.local_data.idx = idx
+        self.local_data.fprinter = keys_tools.IontFingerprinter()
         logger.info('Worker %02d started' % idx)
 
         while self.is_running():
