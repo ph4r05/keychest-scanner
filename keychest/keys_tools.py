@@ -19,6 +19,8 @@ import re
 import binascii
 import collections
 import traceback
+from pgpdump.data import AsciiData
+from pgpdump.packet import SignaturePacket, PublicKeyPacket, PublicSubkeyPacket, UserIDPacket
 
 
 #            '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
@@ -185,6 +187,36 @@ def flatten(inp):
         return [inp]
 
 
+def try_get_dn_string(subject):
+    """
+    Returns DN as a string
+    :param subject:
+    :return:
+    """
+    ret = []
+    try:
+        for attribute in subject:
+            oid = attribute.oid
+            dot = oid.dotted_string
+            oid_name = oid._name
+            val = attribute.value
+            ret.append('%s: %s' % (oid_name, val))
+    except:
+        pass
+    return ', '.join(ret)
+
+
+def utf8ize(x):
+    """
+    Converts to utf8 if non-empty
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+    return x.encode('utf-8')
+
+
 class Tracelogger(object):
     """
     Prints traceback to the debugging logger if not shown before
@@ -305,9 +337,47 @@ class IontFingerprinter(object):
         self.num_pkcs7_cert = 0
         self.found = 0
 
+        self.primes = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101,
+                       103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167]
+
+        self.prints = [6, 30, 126, 1026, 5658, 107286, 199410, 8388606, 536870910, 2147483646, 67109890, 2199023255550,
+                       8796093022206, 140737488355326, 5310023542746834, 576460752303423486, 1455791217086302986,
+                       147573952589676412926, 20052041432995567486, 6041388139249378920330, 207530445072488465666,
+                       9671406556917033397649406,
+                       618970019642690137449562110,
+                       79228162521181866724264247298,
+                       2535301200456458802993406410750,
+                       1760368345969468176824550810518,
+                       50079290986288516948354744811034,
+                       473022961816146413042658758988474,
+                       10384593717069655257060992658440190,
+                       144390480366845522447407333004847678774,
+                       2722258935367507707706996859454145691646,
+                       174224571863520493293247799005065324265470,
+                       696898287454081973172991196020261297061886,
+                       713623846352979940529142984724747568191373310,
+                       1800793591454480341970779146165214289059119882,
+                       126304807362733370595828809000324029340048915994,
+                       11692013098647223345629478661730264157247460343806,
+                       187072209578355573530071658587684226515959365500926]
+
         # args init
         parser = self.init_parser()
         self.args = parser.parse_args(args=[])
+
+    def has_fingerprint_real(self, modulus):
+        """
+        Returns true if the fingerprint was detected in the key
+        :param modulus:
+        :return:
+        """
+        self.tested += 1
+        for i in range(0, len(self.primes)):
+            if (1 << (modulus % self.primes[i])) & self.prints[i] == 0:
+                return False
+
+        self.found += 1
+        return True
 
     def has_fingerprint_test(self, modulus):
         """
@@ -317,7 +387,7 @@ class IontFingerprinter(object):
         """
         return False
 
-    has_fingerprint = has_fingerprint_test
+    has_fingerprint = has_fingerprint_real
 
     def file_matches_extensions(self, fname, extensions):
         """
@@ -340,6 +410,9 @@ class IontFingerprinter(object):
         """
         ret = []
         files = self.args.files
+        if files is None:
+            return ret
+
         for fname in files:
             if fname == '-':
                 fh = sys.stdin
@@ -673,6 +746,7 @@ class IontFingerprinter(object):
         js['fname'] = name
         js['idx'] = idx
         js['fprint'] = binascii.hexlify(x509.fingerprint(hashes.SHA256()))
+        js['subject'] = utf8ize(try_get_dn_string(x509.subject))
         js['pem'] = data if pem else None
         js['aux'] = aux
         js['e'] = '0x%x' % pubnum.e
@@ -1269,7 +1343,7 @@ class IontFingerprinter(object):
                 der = base64.b64decode(data)
 
             pem_part = base64.b64encode(der)
-            pem_part = '\n'.join(pem_part[pos:pos + 76] for pos in xrange(0, len(pem_part), 76))
+            pem_part = '\n'.join(pem_part[pos:pos + 76] for pos in range(0, len(pem_part), 76))
             pem = '-----BEGIN PKCS7-----\n%s\n-----END PKCS7-----' % pem_part.strip()
 
             sk = X509.X509_Stack()
@@ -1428,4 +1502,12 @@ class IontFingerprinter(object):
 
         self.work()
 
+
+def main():
+    app = IontFingerprinter()
+    app.main()
+
+
+if __name__ == '__main__':
+    main()
 
