@@ -822,6 +822,7 @@ class IontFingerprinter(object):
         master_key_id = None
         identities = []
         pubkeys = []
+        sign_key_ids = []
         sig_cnt = 0
         for idx, packet in enumerate(packets):
             if isinstance(packet, PublicKeyPacket):
@@ -833,6 +834,7 @@ class IontFingerprinter(object):
             elif isinstance(packet, UserIDPacket):
                 identities.append(packet)
             elif isinstance(packet, SignaturePacket):
+                sign_key_ids.append(packet.key_id)
                 sig_cnt += 1
 
         # Names / identities
@@ -850,10 +852,13 @@ class IontFingerprinter(object):
         js_base['type'] = 'pgp'
         js_base['fname'] = name
         js_base['fname_idx'] = file_idx
+        js_base['master_key_id'] = master_key_id
+        js_base['master_fprint'] = master_fprint
         js_base['identities'] = ids_arr
         js_base['signatures_count'] = sig_cnt
         js_base['packets_count'] = len(packets)
         js_base['keys_count'] = len(pubkeys)
+        js_base['signature_keys'] = sign_key_ids
 
         # Public keys processing
         for packet in pubkeys:
