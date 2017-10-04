@@ -38,7 +38,7 @@ from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 import util_cert
-from api import RestAPI
+from server_api import RestAPI
 from server_api_proc import ServerApiProc
 from server_key_tester import KeyTester
 from server_agent import ServerAgent
