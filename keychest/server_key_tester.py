@@ -228,15 +228,7 @@ class KeyTester(ServerModule):
 
             logger.info(json.dumps(res, indent=2, cls=util.AutoJSONEncoder))
 
-            # TODO: notify back via redis, send the mail.
-
-        # TODO: parse smime pkcs7 signature - there is a cert in it.
-
-        # TODO: parse PGP key and signature - already done by the tester.
-        # TODO:     here may be useful to extract the identity, for the report.
-
-        # TODO: analyze email contents
-        # TODO: fingerprint SMIME / PGP
+        # TODO: notify back via redis, send the mail.
         # TODO: send email with the results
         # TODO: move email to the DONE folder
 
