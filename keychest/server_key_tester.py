@@ -217,13 +217,16 @@ class KeyTester(ServerModule):
             if part.ftype & (EmailArtifactTypes.PKCS7_SIG | EmailArtifactTypes.PKCS7_FILE) != 0:
                 res = self.email_pkcs7(part)
 
-            elif part.ftype & (EmailArtifactTypes.PGP_KEY | EmailArtifactTypes.PGP_SIG | EmailArtifactTypes.PGP_FILE) != 0:
-                pass
+            elif part.ftype & (EmailArtifactTypes.PGP_KEY) != 0:
+                res = self.email_pgp_key(part)
+
+            elif part.ftype & (EmailArtifactTypes.PGP_SIG) != 0:
+                res = self.email_pgp_sign(part)
 
             else:
                 pass
 
-            logger.info(res)
+            logger.info(json.dumps(res, indent=2, cls=util.AutoJSONEncoder))
 
             # TODO: notify back via redis, send the mail.
 
@@ -239,6 +242,7 @@ class KeyTester(ServerModule):
 
     def email_pkcs7(self, key_part):
         """
+        Parse PKCS7, get user certificate, parse cert, get user info.
 
         :param key_part:
         :return:
@@ -257,19 +261,92 @@ class KeyTester(ServerModule):
 
             cert = util.load_x509_der(cert_der)
             res = collections.OrderedDict()
+            res['type'] = 'pkcs7'
             res['fprint_sha256'] = util.lower(util.try_get_fprint_sha256(cert))
             res['cname'] = util.utf8ize(util.try_get_cname(cert))
             res['subject'] = util.utf8ize(util.get_dn_string(cert.subject))
 
             test_result = self.local_data.fprinter.process_der(cert_der, key_part.filename)
             if test_result is None:
-                res['test'] = None  # processing failed
+                res['tests'] = None  # processing failed
 
-            res['test'] = test_result.to_json()
+            res['tests'] = [x.to_json() for x in keys_tools.flatdrop(test_result)]
             return res
 
         except Exception as e:
             logger.error('Error processing pkcs7: %s' % e)
+            self.trace_logger.log(e)
+
+    def email_pgp_key(self, key_part):
+        """
+        Process PGP public file
+        :param key_part:
+        :return:
+        """
+        try:
+            data = key_part.payload
+
+            res = collections.OrderedDict()
+            res['type'] = 'pgp-key'
+
+            test_result = self.local_data.fprinter.process_pgp(data, key_part.filename)
+            if test_result is None:
+                res['tests'] = None  # processing failed
+
+            res['tests'] = [x.to_json() for x in keys_tools.flatdrop(test_result)]
+            return res
+
+        except Exception as e:
+            logger.error('Error processing PGP key: %s' % e)
+            self.trace_logger.log(e)
+
+    def email_pgp_sign(self, key_part):
+        """
+        Simple PGP fetch
+        :param key_part:
+        :return:
+        """
+        try:
+            data = key_part.payload
+
+            res = collections.OrderedDict()
+            res['type'] = 'pgp-sign'
+            res['results'] = []
+
+            js = keys_tools.process_pgp(data)
+
+            idset = set()
+            for x in keys_tools.drop_none([js['master_key_id']] + js['signature_keys']):
+                idset.add(x)
+
+            for key in list(idset)[:4]:
+                sub = collections.OrderedDict()
+                key_data = None
+
+                key_id = keys_tools.strip_hex_prefix(str(key))
+                key_id = keys_tools.format_pgp_key(int(key_id, 16))
+                sub['key_id'] = key_id
+
+                try:
+                    key_data = keys_tools.get_pgp_key(key_id)
+                    if key_data is None or len(key_data) == 0:
+                        raise ValueError('Could not download key')
+
+                except Exception as e:
+                    sub['error'] = 'key-fetch-error'
+
+                try:
+                    test_result = self.local_data.fprinter.process_pgp(key_data, key_id)
+                    sub['tests'] = [x.to_json() for x in list(keys_tools.flatdrop(test_result))]
+
+                except Exception as e:
+                    sub['error'] = 'key-process-error'
+
+                res['results'].append(sub)
+            return res
+
+        except Exception as e:
+            logger.error('Error processing PGP key: %s' % e)
             self.trace_logger.log(e)
 
     def main_scan_emails(self):
