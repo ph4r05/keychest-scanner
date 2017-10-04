@@ -93,7 +93,7 @@ class ServerAgent(ServerModule):
         Also inserts new
         :return:
         """
-        if not self.agent_mode:
+        if not self.agent_mode():
             return  # just safety check not to do mess in the database
 
         logger.debug('Master endpoint: %s' % self.config.master_endpoint)
