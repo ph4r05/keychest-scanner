@@ -153,6 +153,7 @@ class ServerApiProc(ServerModule):
             s.commit()
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
         return True
@@ -216,6 +217,7 @@ class ServerApiProc(ServerModule):
             job.attempts += 1
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
         return True

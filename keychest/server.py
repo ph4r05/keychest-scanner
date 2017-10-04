@@ -432,6 +432,7 @@ class Server(object):
             self.trace_logger.log(e)
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
         self.update_scan_job_state(job_data, 'finished')
@@ -465,6 +466,7 @@ class Server(object):
             self.trace_logger.log(e)
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def augment_redis_scan_job(self, job=None, data=None):
@@ -1094,6 +1096,7 @@ class Server(object):
                 server_mod.periodic_feeder(s)
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def _periodic_feeder_watch(self, s):
@@ -1374,6 +1377,7 @@ class Server(object):
             s.commit()
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def _periodic_update_last_scan_recon(self, job):
@@ -1391,6 +1395,7 @@ class Server(object):
             s.commit()
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def _periodic_update_last_ip_scan(self, job):
@@ -1408,6 +1413,7 @@ class Server(object):
             s.commit()
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def periodic_process_job_body(self, job):
@@ -1460,6 +1466,7 @@ class Server(object):
             job.attempts += 1
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def periodic_process_recon_job_body(self, job):
@@ -1503,6 +1510,7 @@ class Server(object):
             job.attempts += 1
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def periodic_scan_dns(self, s, job):
@@ -1705,6 +1713,7 @@ class Server(object):
             job.attempts += 1
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def periodic_scan_ip_range(self, s, job):
@@ -4333,6 +4342,7 @@ class Server(object):
             host_sync_thread.start()
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
     def _agent_init_sentinels(self, s):
@@ -4969,6 +4979,7 @@ class Server(object):
             self.trace_logger.log(e)
 
         finally:
+            util.silent_expunge_all(s)
             util.silent_close(s)
 
         logger.info('Migration thread terminated')
