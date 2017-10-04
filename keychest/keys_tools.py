@@ -19,6 +19,9 @@ import re
 import binascii
 import collections
 import traceback
+import requests
+import math
+from lxml import html
 from pgpdump.data import AsciiData
 from pgpdump.packet import SignaturePacket, PublicKeyPacket, PublicSubkeyPacket, UserIDPacket
 
@@ -51,6 +54,91 @@ def reformat_pkcs7_pem(data):
     pem_part = '\n'.join(pem_part[pos:pos + 76] for pos in range(0, len(pem_part), 76))
     pem = '-----BEGIN PKCS7-----\n%s\n-----END PKCS7-----' % pem_part.strip()
     return pem
+
+
+def process_pgp(data):
+    """
+    Processes / parses ASCII armored PGP key
+    :param data:
+    :return:
+    """
+    ret = []
+    js_base = collections.OrderedDict()
+
+    pgp_key_data = AsciiData(data)
+    packets = list(pgp_key_data.packets())
+
+    master_fprint = None
+    master_key_id = None
+    identities = []
+    pubkeys = []
+    sign_key_ids = []
+    sig_cnt = 0
+    for idx, packet in enumerate(packets):
+        if isinstance(packet, PublicKeyPacket):
+            master_fprint = packet.fingerprint
+            master_key_id = format_pgp_key(packet.key_id)
+            pubkeys.append(packet)
+        elif isinstance(packet, PublicSubkeyPacket):
+            pubkeys.append(packet)
+        elif isinstance(packet, UserIDPacket):
+            identities.append(packet)
+        elif isinstance(packet, SignaturePacket):
+            sign_key_ids.append(packet.key_id)
+            sig_cnt += 1
+
+    # Names / identities
+    ids_arr = []
+    identity = None
+    for packet in identities:
+        idjs = collections.OrderedDict()
+        idjs['name'] = packet.user_name
+        idjs['email'] = packet.user_email
+        ids_arr.append(idjs)
+
+        if identity is None:
+            identity = '%s <%s>' % (packet.user_name, packet.user_email)
+
+    js_base['type'] = 'pgp'
+    js_base['master_fprint'] = master_fprint
+    js_base['master_key_id'] = master_key_id
+    js_base['identities'] = ids_arr
+    js_base['signatures_count'] = sig_cnt
+    js_base['packets_count'] = len(packets)
+    js_base['keys_count'] = len(pubkeys)
+    js_base['signature_keys'] = sign_key_ids
+    return js_base
+
+
+def get_pgp_key(key_id, attempts=3, timeout=20, logger=None):
+    """
+    Simple PGP key getter - tries to fetch given key from the key server
+    :param id:
+    :return:
+    """
+    res = requests.get('https://pgp.mit.edu/pks/lookup?op=get&search=0x%s' % format_pgp_key(key_id), timeout=20)
+    if math.floor(res.status_code / 100) != 2.0:
+        res.raise_for_status()
+
+    data = res.content
+    if data is None:
+        raise Exception('Empty response')
+
+    tree = html.fromstring(data)
+    txt = tree.xpath('//pre/text()')
+    if len(txt) > 0:
+        return txt[0].strip()
+
+    return None
+
+
+def flatdrop(test_result):
+    """
+    drop_none - drop_empty - flatten
+    :param test_result:
+    :return:
+    """
+    return drop_none(drop_empty(flatten(test_result)))
 
 
 #
