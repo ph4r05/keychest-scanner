@@ -560,6 +560,15 @@ def silent_rollback(c):
         pass
 
 
+def silent_expunge_all(c):
+    # noinspection PyBroadException
+    try:
+        if c is not None:
+            c.expunge_all()()
+    except:
+        pass
+
+
 def unix_time(dt):
     if dt is None:
         return None
