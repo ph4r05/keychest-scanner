@@ -38,9 +38,7 @@ CentOS:
 ::
 
     sudo yum install -y python python-pip python-devel mysql-devel redhat-rpm-config gcc libxml2 \
-    libxml2-devel libxslt libxslt-devel openssl-devel sqlite-devel
-
-    sudo yum install -y gcc git vim htop
+    libxml2-devel libxslt libxslt-devel openssl-devel sqlite-devel gcc gcc-c++ make automake autoreconf libtool dialog
 
 
 PIP update appdirs error
