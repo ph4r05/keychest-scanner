@@ -31,7 +31,7 @@ from functools import wraps
 
 from flask import Flask, jsonify, request, abort
 from flask_sse import sse
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, send as ws_send, emit as ws_emit
 
 import sqlalchemy as salch
 
@@ -78,9 +78,10 @@ class RestAPI(object):
         self.db = None
 
         self.flask = Flask(__name__)
-        self.flask.config['REDIS_URL'] = 'redis://localhost'
-        self.flask.register_blueprint(sse, url_prefix='/stream')
+        self.flask.config['REDIS_URL'] = 'redis://localhost:6379'
+        self.flask.config['SECRET_KEY'] = util.random_alphanum(16)
 
+        # self.flask.register_blueprint(sse, url_prefix='/stream')
         self.socket_io = None
 
     #
@@ -113,6 +114,7 @@ class RestAPI(object):
         logger.info('REST thread started %s %s %s dbg: %s'
                     % (os.getpid(), os.getppid(), threading.current_thread(), self.debug))
         try:
+            self.init_ws()
             self.init_rest()
 
             if self.use_websockets:
@@ -148,14 +150,21 @@ class RestAPI(object):
         logger.info('Starting Eventlet listener %s for Flask %s' % (listener, self.flask))
         wsgi.server(listener, self.flask)
 
+    def init_ws(self):
+        """
+        Initialize websocket library (socket.io)
+        :return:
+        """
+        if self.use_websockets:
+            self.socket_io = SocketIO(self.flask, async_mode='eventlet', policy_server=False, allow_upgrades=True)
+            logger.info('SocketIO wrapper %s for Flask: %s' % (self.socket_io, self.flask))
+
     def serve_websockets(self):
         """
         Classical Flask application + websocket support, using eventlet
         :return:
         """
-        self.socket_io = SocketIO(self.flask, async_mode='eventlet')
-        logger.info('SocketIO wrapper %s for Flask: %s' % (self.socket_io, self.flask))
-
+        logger.info('Starting socket_io')
         self.socket_io.run(app=self.flask, host='0.0.0.0', port=self.HTTP_PORT)
 
     def start(self):
@@ -198,10 +207,26 @@ class RestAPI(object):
         def rest_new_result():
             return self.on_new_results(request=request)
 
-        @self.flask.route('/send')
+        @self.flask.route('/api/v1.0/test_sse')
         def send_message():
             sse.publish({'message': 'Hello!'}, type='greeting')
             return 'Message sent!'
+
+        @self.flask.route('/stream')
+        def send_messagex():
+            logger.info('Connected to the stream')
+            sse.publish({'message': 'Hello!'}, type='greeting')
+            return 'Message sent!'
+
+        @self.socket_io.on('message', namespace='/ws')
+        def handle_message(message):
+            print('received message: ' + message)
+            ws_send(reversed(str(message)))
+            ws_emit('my response', {'data': 'got it!'})
+
+        @self.socket_io.on('connect', namespace='/ws')
+        def test_connect():
+            logger.info('WS connected')
 
     def wrap_requests(*args0, **kwargs0):
         """

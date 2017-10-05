@@ -37,7 +37,9 @@ install_requires = [
     'gevent',
     'flask-socketio',
     'flask-sse',
-    'websocket-client'
+    'websocket-client',
+    'sseclient-py',
+    'socketIO-client'
 ]
 
 # env markers in extras_require cause problems with older pip: #517
