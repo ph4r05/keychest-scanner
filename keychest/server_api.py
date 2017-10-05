@@ -26,9 +26,13 @@ import logging
 import coloredlogs
 import traceback
 import collections
-from functools import wraps
-from flask import Flask, jsonify, request, abort
 from datetime import datetime, timedelta
+from functools import wraps
+
+from flask import Flask, jsonify, request, abort
+from flask_sse import sse
+from flask_socketio import SocketIO
+
 import sqlalchemy as salch
 
 import eventlet
@@ -67,12 +71,17 @@ class RestAPI(object):
         self.local_data = threading.local()
         self.trace_logger = Tracelogger(logger)
 
+        self.use_websockets = True
         self.debug = False
         self.server = None
         self.config = None
         self.db = None
 
         self.flask = Flask(__name__)
+        self.flask.config['REDIS_URL'] = 'redis://localhost'
+        self.flask.register_blueprint(sse, url_prefix='/stream')
+
+        self.socket_io = None
 
     #
     # Management
@@ -105,8 +114,10 @@ class RestAPI(object):
                     % (os.getpid(), os.getppid(), threading.current_thread(), self.debug))
         try:
             self.init_rest()
-            
-            if self.debug:
+
+            if self.use_websockets:
+                self.serve_websockets()
+            elif self.debug:
                 self.serve_werkzeug()
             else:
                 self.serve_eventlet()
@@ -126,7 +137,7 @@ class RestAPI(object):
         :return:
         """
         r = self.flask.run(debug=self.debug, port=self.HTTP_PORT, threaded=True)
-        logger.info('Starting werkzeug server: %s' % r)
+        logger.info('Started werkzeug server: %s' % r)
 
     def serve_eventlet(self):
         """
@@ -134,8 +145,18 @@ class RestAPI(object):
         :return:
         """
         listener = eventlet.listen(('0.0.0.0', self.HTTP_PORT))
-        logger.info('Eventlet server instance: %s' % listener)
+        logger.info('Starting Eventlet listener %s for Flask %s' % (listener, self.flask))
         wsgi.server(listener, self.flask)
+
+    def serve_websockets(self):
+        """
+        Classical Flask application + websocket support, using eventlet
+        :return:
+        """
+        self.socket_io = SocketIO(self.flask, async_mode='eventlet')
+        logger.info('SocketIO wrapper %s for Flask: %s' % (self.socket_io, self.flask))
+
+        self.socket_io.run(app=self.flask, host='0.0.0.0', port=self.HTTP_PORT)
 
     def start(self):
         """
@@ -176,6 +197,11 @@ class RestAPI(object):
         @self.flask.route('/api/v1.0/new_results', methods=['GET', 'POST'])
         def rest_new_result():
             return self.on_new_results(request=request)
+
+        @self.flask.route('/send')
+        def send_message():
+            sse.publish({'message': 'Hello!'}, type='greeting')
+            return 'Message sent!'
 
     def wrap_requests(*args0, **kwargs0):
         """
