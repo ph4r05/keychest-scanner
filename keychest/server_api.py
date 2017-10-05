@@ -5,43 +5,42 @@
 REST API
 """
 
-from trace_logger import Tracelogger
-from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbWatchService, DbBaseDomain, DbHelper
-import util
-import dbutil
-from consts import DbLastScanCacheType, DbScanType
-
-import threading
-import pid
-import time
-import os
-import sys
-import util
-import json
-import itertools
-import argparse
-import calendar
-from threading import RLock as RLock
 import logging
-import coloredlogs
+import os
+import threading
+import time
 import traceback
-import collections
-from datetime import datetime, timedelta
 from functools import wraps
 
 import sqlalchemy as salch
-
 import eventlet
 from eventlet import wsgi
-eventlet.monkey_patch()
-
 from flask import Flask, jsonify, request, abort
 from flask_socketio import SocketIO, send as ws_send, emit as ws_emit
+
+import dbutil
+import util
+from consts import DbLastScanCacheType, DbScanType
+from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbWatchService, DbBaseDomain, DbHelper
+from trace_logger import Tracelogger
+
+eventlet.monkey_patch(socket=True)
+redis = eventlet.import_patched('redis')
 flask_sse = eventlet.import_patched('flask_sse')
 
 
 __author__ = 'dusanklinec'
+LOCAL_REDIS = 'redis://localhost:6379'
 logger = logging.getLogger(__name__)
+
+
+class ServerSentEventsBlueprint(flask_sse.ServerSentEventsBlueprint):
+    """
+    HTTP/2 SSE
+    """
+    @property
+    def redis(self):
+        return redis.StrictRedis.from_url(LOCAL_REDIS)
 
 
 class AugmentedRequest(object):
@@ -120,11 +119,14 @@ class RestAPI(object):
         Initialize server
         :return:
         """
-        self.flask.config['REDIS_URL'] = 'redis://localhost:6379'
+        self.flask.config['REDIS_URL'] = LOCAL_REDIS
         self.flask.config['SECRET_KEY'] = util.random_alphanum(16)
 
         if self.use_sse:
-            self.flask.register_blueprint(flask_sse.sse, url_prefix='/stream')
+            sse = ServerSentEventsBlueprint('sse', __name__)
+            sse.add_url_rule(rule="", endpoint="stream", view_func=sse.stream)
+            flask_sse.sse = sse
+            self.flask.register_blueprint(sse, url_prefix='/stream')
 
         if self.use_websockets:
             self.socket_io = SocketIO(self.flask, async_mode='eventlet', policy_server=False,
