@@ -31,6 +31,10 @@ from flask import Flask, jsonify, request, abort
 from datetime import datetime, timedelta
 import sqlalchemy as salch
 
+import eventlet
+from eventlet import wsgi
+
+
 __author__ = 'dusanklinec'
 logger = logging.getLogger(__name__)
 
@@ -97,11 +101,17 @@ class RestAPI(object):
         Main work method for the server - accepting incoming connections.
         :return:
         """
-        logger.info('REST thread started %s %s %s' % (os.getpid(), os.getppid(), threading.current_thread()))
+        logger.info('REST thread started %s %s %s dbg: %s'
+                    % (os.getpid(), os.getppid(), threading.current_thread(), self.debug))
         try:
             self.init_rest()
-            r = self.flask.run(debug=self.debug, port=self.HTTP_PORT, threaded=True)
-            logger.info('Terminating flask: %s' % r)
+            
+            if self.debug:
+                self.serve_werkzeug()
+            else:
+                self.serve_eventlet()
+
+            logger.info('Terminating flask: %s' % self.flask)
 
         except Exception as e:
             logger.error('Exception: %s' % e)
@@ -109,6 +119,23 @@ class RestAPI(object):
 
         self.terminating()
         logger.info('Work loop terminated')
+
+    def serve_werkzeug(self):
+        """
+        Developer local server, not for production use
+        :return:
+        """
+        r = self.flask.run(debug=self.debug, port=self.HTTP_PORT, threaded=True)
+        logger.info('Starting werkzeug server: %s' % r)
+
+    def serve_eventlet(self):
+        """
+        Eventlet server, fast async, for production use
+        :return:
+        """
+        listener = eventlet.listen(('0.0.0.0', self.HTTP_PORT))
+        logger.info('Eventlet server instance: %s' % listener)
+        wsgi.server(listener, self.flask)
 
     def start(self):
         """

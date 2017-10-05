@@ -34,7 +34,10 @@ install_requires = [
     'python-dateutil',
     'idna<2.6,>=2.5',  # TODO: resolve this
     'eventlet',
-    'gevent'
+    'gevent',
+    'flask-socketio',
+    'flask-sse',
+    'websocket-client'
 ]
 
 # env markers in extras_require cause problems with older pip: #517
