@@ -29,14 +29,15 @@ import collections
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Flask, jsonify, request, abort
-from flask_sse import sse
-from flask_socketio import SocketIO, send as ws_send, emit as ws_emit
-
 import sqlalchemy as salch
 
 import eventlet
 from eventlet import wsgi
+eventlet.monkey_patch()
+
+from flask import Flask, jsonify, request, abort
+from flask_socketio import SocketIO, send as ws_send, emit as ws_emit
+flask_sse = eventlet.import_patched('flask_sse')
 
 
 __author__ = 'dusanklinec'
@@ -72,16 +73,14 @@ class RestAPI(object):
         self.trace_logger = Tracelogger(logger)
 
         self.use_websockets = True
+        self.use_sse = True
+
         self.debug = False
         self.server = None
         self.config = None
         self.db = None
 
         self.flask = Flask(__name__)
-        self.flask.config['REDIS_URL'] = 'redis://localhost:6379'
-        self.flask.config['SECRET_KEY'] = util.random_alphanum(16)
-
-        # self.flask.register_blueprint(sse, url_prefix='/stream')
         self.socket_io = None
 
     #
@@ -106,6 +105,33 @@ class RestAPI(object):
         self.running = False
         self.stop_event.set()
 
+    def wsgi_options(self):
+        """
+        Returns kwargs for wsgi server
+        :return:
+        """
+        kwargs = dict()
+        if self.use_sse:
+            kwargs['minimum_chunk_size'] = 1
+        return kwargs
+
+    def init_server(self):
+        """
+        Initialize server
+        :return:
+        """
+        self.flask.config['REDIS_URL'] = 'redis://localhost:6379'
+        self.flask.config['SECRET_KEY'] = util.random_alphanum(16)
+
+        if self.use_sse:
+            self.flask.register_blueprint(flask_sse.sse, url_prefix='/stream')
+
+        if self.use_websockets:
+            self.socket_io = SocketIO(self.flask, async_mode='eventlet', policy_server=False,
+                                      allow_upgrades=True, **self.wsgi_options())
+
+            logger.info('SocketIO wrapper %s for Flask: %s' % (self.socket_io, self.flask))
+
     def work(self):
         """
         Main work method for the server - accepting incoming connections.
@@ -114,7 +140,7 @@ class RestAPI(object):
         logger.info('REST thread started %s %s %s dbg: %s'
                     % (os.getpid(), os.getppid(), threading.current_thread(), self.debug))
         try:
-            self.init_ws()
+            self.init_server()
             self.init_rest()
 
             if self.use_websockets:
@@ -148,16 +174,7 @@ class RestAPI(object):
         """
         listener = eventlet.listen(('0.0.0.0', self.HTTP_PORT))
         logger.info('Starting Eventlet listener %s for Flask %s' % (listener, self.flask))
-        wsgi.server(listener, self.flask)
-
-    def init_ws(self):
-        """
-        Initialize websocket library (socket.io)
-        :return:
-        """
-        if self.use_websockets:
-            self.socket_io = SocketIO(self.flask, async_mode='eventlet', policy_server=False, allow_upgrades=True)
-            logger.info('SocketIO wrapper %s for Flask: %s' % (self.socket_io, self.flask))
+        wsgi.server(listener, self.flask, **self.wsgi_options())
 
     def serve_websockets(self):
         """
@@ -165,7 +182,7 @@ class RestAPI(object):
         :return:
         """
         logger.info('Starting socket_io')
-        self.socket_io.run(app=self.flask, host='0.0.0.0', port=self.HTTP_PORT)
+        self.socket_io.run(app=self.flask, host='0.0.0.0', port=self.HTTP_PORT, **self.wsgi_options())
 
     def start(self):
         """
@@ -209,13 +226,7 @@ class RestAPI(object):
 
         @self.flask.route('/api/v1.0/test_sse')
         def send_message():
-            sse.publish({'message': 'Hello!'}, type='greeting')
-            return 'Message sent!'
-
-        @self.flask.route('/stream')
-        def send_messagex():
-            logger.info('Connected to the stream')
-            sse.publish({'message': 'Hello!'}, type='greeting')
+            flask_sse.sse.publish({'message': 'Hello!'}, type='greeting')
             return 'Message sent!'
 
         @self.socket_io.on('message', namespace='/ws')
