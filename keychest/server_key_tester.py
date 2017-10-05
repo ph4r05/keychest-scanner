@@ -234,7 +234,8 @@ class KeyTester(ServerModule):
                 continue
 
             try:
-                self.job_queue.put(('email', job))
+                time.sleep(10)
+                # self.job_queue.put(('email', job))
 
             except Exception as e:
                 logger.error('Exception in processing job %s' % (e,))
