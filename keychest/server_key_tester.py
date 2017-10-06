@@ -226,7 +226,9 @@ class KeyTester(ServerModule):
             else:
                 pass
 
-            logger.info(json.dumps(res, indent=2, cls=util.AutoJSONEncoder))
+            out = json.dumps(res, indent=2, cls=util.AutoJSONEncoder)
+            if len(out) > 10:
+                logger.info(out)
 
         # TODO: notify back via redis, send the mail.
         # TODO: send email with the results
@@ -368,7 +370,8 @@ class KeyTester(ServerModule):
 
                 result, data = cl.uid('search', None, 'ALL')  # search and return uids instead
                 email_uids = data[0].split()
-                logger.debug(email_uids)
+                if len(email_uids) > 0:
+                    logger.debug(email_uids)
 
                 for email_uid in email_uids:
                     try:
