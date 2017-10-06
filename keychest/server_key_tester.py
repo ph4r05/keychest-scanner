@@ -212,6 +212,7 @@ class KeyTester(ServerModule):
         logger.debug(job)
 
         email_message, senders, key_parts = job
+        results = []
         for part in key_parts:
             res = None
             if part.ftype & (EmailArtifactTypes.PKCS7_SIG | EmailArtifactTypes.PKCS7_FILE) != 0:
@@ -226,12 +227,24 @@ class KeyTester(ServerModule):
             else:
                 pass
 
+            if res is None or len(res) == 0:
+                continue
+
+            results.append(res)
             out = json.dumps(res, indent=2, cls=util.AutoJSONEncoder)
             if len(out) > 10:
                 logger.info(out)
 
-        # TODO: notify back via redis, send the mail.
-        # TODO: send email with the results
+        job = collections.OrderedDict()
+        job['jobType'] = 'email'
+        job['time'] = time.time()
+        job['senders'] = senders
+        job['subject'] = email_message.get_all('subject', [])
+        job['results'] = results
+
+        evt = rh.tester_job_progress(job)
+        self.redis_queue.event(evt)
+
         # TODO: move email to the DONE folder
 
     def email_pkcs7(self, key_part):
