@@ -910,7 +910,7 @@ class Server(object):
 
         if last_scan_margin:
             if randomize:
-                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                fact = randomize if isinstance(randomize, float) else self.randomize_feeder_fact
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1*fact, fact))
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
             q = q.filter(salch.or_(
@@ -942,7 +942,7 @@ class Server(object):
 
         if last_scan_margin:
             if randomize:
-                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                fact = randomize if isinstance(randomize, float) else self.randomize_feeder_fact
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1*fact, fact))
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
             q = q.filter(salch.or_(
@@ -974,7 +974,7 @@ class Server(object):
 
         if last_scan_margin:
             if randomize:
-                fact = randomize if isinstance(randomize, types.FloatType) else self.randomize_feeder_fact
+                fact = randomize if isinstance(randomize, float) else self.randomize_feeder_fact
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
             cur_margin = datetime.now() - timedelta(seconds=last_scan_margin)
             q = q.filter(salch.or_(
@@ -2765,7 +2765,7 @@ class Server(object):
         now = datetime.now()
         ndelta = delta if delta else timedelta(days=days, hours=hours, seconds=seconds)
         if rnd:
-            fact = rnd if isinstance(rnd, types.FloatType) else self.randomize_diff_time_fact
+            fact = rnd if isinstance(rnd, float) else self.randomize_diff_time_fact
             ndelta += timedelta(seconds=(ndelta.total_seconds() * random.uniform(-1*fact, fact)))
         return now - ndelta
 
