@@ -3218,7 +3218,7 @@ class Server(object):
         if isinstance(query, DbCrtShQueryInput):
             query_type = query.itype
 
-        elif isinstance(query, types.TupleType):
+        elif isinstance(query, tuple):
             query_type = query[1]
 
         return query_type if query_type is not None else default_type
@@ -3236,7 +3236,7 @@ class Server(object):
             if query_type is None:
                 query_type = query.itype
 
-        elif isinstance(query, types.TupleType):
+        elif isinstance(query, tuple):
             query_input, query_type = query[0], query[1]
 
         else:
@@ -3265,7 +3265,7 @@ class Server(object):
             return query, 0
 
         query_input = None
-        if isinstance(query, types.TupleType):
+        if isinstance(query, tuple):
             query_input, query_type = query[0], query[1]
 
         else:

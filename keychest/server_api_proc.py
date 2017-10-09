@@ -91,7 +91,7 @@ class ServerApiProc(ServerModule):
 
         if last_scan_margin:
             if randomize:
-                fact = randomize if isinstance(randomize, types.FloatType) else self.server.randomize_feeder_fact
+                fact = randomize if isinstance(randomize, float) else self.server.randomize_feeder_fact
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
             cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
 

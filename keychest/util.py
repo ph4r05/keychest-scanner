@@ -192,7 +192,7 @@ def chown(path, user=None, group=None, follow_symlinks=False):
     # User resolve
     if user is None:
         uid = -1
-    elif isinstance(user, types.IntType):
+    elif isinstance(user, int):
         uid = user
     else:
         uid = pwd.getpwnam(user).pw_uid
@@ -200,7 +200,7 @@ def chown(path, user=None, group=None, follow_symlinks=False):
     # Group resolve
     if group is None:
         gid = -1
-    elif isinstance(group, types.IntType):
+    elif isinstance(group, int):
         gid = group
     else:
         gid = grp.getgrnam(group).gr_gid
@@ -1523,7 +1523,7 @@ def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, 
 
     # Logging - either filename or logger itself
     if log_obj is not None:
-        if isinstance(log_obj, types.StringTypes):
+        if isinstance(log_obj, basestring):
             delete_file_backup(log_obj, chmod=0o600)
             log = safe_open(log_obj, mode='w', chmod=0o600)
             close_log = True
