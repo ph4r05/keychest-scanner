@@ -30,15 +30,17 @@ Ubuntu:
 
 ::
 
-    sudo apt-get install python-pip python-dev build-essential libssl-dev libffi-dev libmysqlclient-dev libxml2-dev libxslt1-dev supervisor
+    sudo apt-get install python-pip python-dev build-essential libssl-dev libffi-dev libmysqlclient-dev libxml2-dev \
+    libxslt1-dev supervisor
 
 
 CentOS:
 
 ::
 
-    sudo yum install -y python python-pip python-devel mysql-devel redhat-rpm-config gcc libxml2 \
-    libxml2-devel libxslt libxslt-devel openssl-devel sqlite-devel gcc gcc-c++ make automake autoreconf libtool dialog
+    sudo yum install -y python python-pip python-devel mysql-devel redhat-rpm-config gcc libxml2 libffi-devel  \
+    libxml2-devel libxslt libxslt-devel openssl-devel sqlite-devel gcc gcc-c++ make automake autoreconf libtool dialog \
+    readline-devel libzip-devel bzip2-devel
 
 
 PIP update appdirs error
