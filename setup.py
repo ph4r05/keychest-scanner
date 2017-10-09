@@ -27,7 +27,7 @@ install_requires = [
     'hiredis',
     'phpserialize',
     'scapy-ssl_tls',
-    'mysql-python',
+    'pymysql',
     'tldextract',
     'ph4-python-whois>=0.6.8',
     'IPy',
@@ -39,7 +39,7 @@ install_requires = [
     'flask-sse',
     'websocket-client',
     'sseclient-py',
-    'socketIO-client'
+    'socketIO-client',
 ]
 
 # env markers in extras_require cause problems with older pip: #517

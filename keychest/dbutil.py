@@ -11,6 +11,10 @@ import errors
 import time
 import types
 
+import pymysql
+from pymysql.err import Warning as MySQLWarning
+pymysql.install_as_MySQLdb()
+
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import case, literal_column, orm
@@ -2094,7 +2098,7 @@ class MySQL(object):
         :return:
         """
         try:
-            filterwarnings('ignore', category=MySQLDatabase.Warning)
+            filterwarnings('ignore', category=MySQLWarning)
             filterwarnings('ignore', category=sa_exc.SAWarning)
 
             con_str = connstring
