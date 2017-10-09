@@ -32,7 +32,7 @@ install_requires = [
     'ph4-python-whois>=0.6.8',
     'IPy',
     'python-dateutil',
-    'idna>=2.5',  # TODO: resolve this
+    'idna>=2.5',
     'eventlet',
     'gevent',
     'flask-socketio',
