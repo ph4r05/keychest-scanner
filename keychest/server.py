@@ -2519,7 +2519,7 @@ class Server(object):
         :param ips:
         :return:
         """
-        if not isinstance(ips, types.ListType):
+        if not isinstance(ips, list):
             ips = [ips]
         else:
             ips = list(ips)
@@ -3681,7 +3681,7 @@ class Server(object):
         :return:
         """
         was_array = True
-        if not isinstance(certs_id, types.ListType):
+        if not isinstance(certs_id, list):
             certs_id = [certs_id]
             was_array = False
 
@@ -3707,7 +3707,7 @@ class Server(object):
         :return: 
         """
         was_array = True
-        if not isinstance(fprints, types.ListType):
+        if not isinstance(fprints, list):
             fprints = [fprints]
             was_array = False
 
@@ -3932,7 +3932,7 @@ class Server(object):
         :return:
         """
         was_array = True
-        if subs is not None and not isinstance(subs, types.ListType):
+        if subs is not None and not isinstance(subs, list):
             subs = [subs]
             was_array = False
 

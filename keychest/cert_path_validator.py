@@ -194,7 +194,7 @@ class PathValidator(object):
         :rtype: ValidationResult
         """
         result = ValidationResult()
-        if not isinstance(chain, types.ListType):
+        if not isinstance(chain, list):
             chain = [chain]
 
         # parse chain certs to [(ossl certificate, cryptography certificate), ...]

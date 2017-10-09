@@ -238,7 +238,7 @@ class TlsHandshaker(object):
         cl_hello = TLSClientHello(version=tls_ver)
         cl_hello.cipher_suites = self._get_cipher_suites(ecc=f_ecc, rsa=f_rsa)
 
-        if not isinstance(hostname, types.ListType):
+        if not isinstance(hostname, list):
             hostname = [hostname]
 
         server_names = [TLSServerName(data=x) for x in hostname]

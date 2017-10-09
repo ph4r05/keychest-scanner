@@ -693,7 +693,7 @@ def strip(x):
     """
     if x is None:
         return None
-    if isinstance(x, types.ListType):
+    if isinstance(x, list):
         return [y.strip() if y is not None else y for y in x]
     else:
         return x.strip()
@@ -707,7 +707,7 @@ def lower(x):
     """
     if x is None:
         return None
-    if isinstance(x, types.ListType):
+    if isinstance(x, list):
         return [y.lower() if y is not None else y for y in x]
     else:
         return x.lower()
@@ -829,7 +829,7 @@ def defvalkeys(js, key, default=None):
     """
     if js is None:
         return default
-    if not isinstance(key, types.ListType):
+    if not isinstance(key, list):
         key = [key]
         
     try:
@@ -1355,7 +1355,7 @@ def first(x):
     if x is None:
         return x
 
-    if isinstance(x, types.ListType):
+    if isinstance(x, list):
         if len(x) > 0:
             return x[0]
         return None
@@ -1453,9 +1453,9 @@ def jsonify(obj):
     """
     if obj is None:
         return obj
-    elif isinstance(obj, types.ListType):
+    elif isinstance(obj, list):
         return [jsonify(x) for x in obj]
-    elif isinstance(obj, types.DictionaryType):
+    elif isinstance(obj, dict):
         return {str(k): jsonify(obj[k]) for k in obj}
     elif isinstance(obj, datetime.datetime):
         return unix_time(obj)

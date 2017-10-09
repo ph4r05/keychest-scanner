@@ -491,10 +491,10 @@ class ServerAgent(ServerModule):
             ret = DbHelper.to_dict(obj)
             ret['_type'] = obj.__class__.__name__
 
-        elif isinstance(obj, types.ListType):
+        elif isinstance(obj, list):
             ret = [sub_dict(x) for x in obj]
 
-        elif isinstance(obj, types.DictionaryType):
+        elif isinstance(obj, dict):
             ret = {str(k): sub_dict(obj[k]) for k in obj}
 
         return ret

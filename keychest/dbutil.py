@@ -1771,9 +1771,9 @@ class DbHelper(object):
             return DbHelper.clone_model(s, obj)
 
         def visit(obj):
-            if isinstance(obj, types.ListType):
+            if isinstance(obj, list):
                 return [visit(x) for x in obj]
-            elif isinstance(obj, types.DictionaryType):
+            elif isinstance(obj, dict):
                 return {k: visit(obj[k]) for k in obj}
             elif hasattr(obj, 'visit_fnc'):
                 rt2 = obj.visit_fnc(visit)
@@ -1810,9 +1810,9 @@ class DbHelper(object):
             return DbHelper.detach(s, obj)
 
         def rec_detach(obj2):
-            if isinstance(obj2, types.ListType):
+            if isinstance(obj2, list):
                 return [rec_detach(x) for x in obj2]
-            elif isinstance(obj2, types.DictionaryType):
+            elif isinstance(obj2, dict):
                 return {k: rec_detach(obj2[k]) for k in obj2}
             elif hasattr(obj2, 'visit_fnc'):
                 ret = obj2.visit_fnc(rec_detach)

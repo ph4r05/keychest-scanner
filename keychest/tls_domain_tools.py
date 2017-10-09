@@ -298,7 +298,7 @@ class TlsDomainTools(object):
         :param include_cn:
         :return:
         """
-        if not isinstance(certificates, types.ListType):
+        if not isinstance(certificates, list):
             certificates = [certificates]
 
         alt_names = []
