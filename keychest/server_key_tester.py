@@ -25,6 +25,7 @@ import json
 import logging
 import threading
 import collections
+import base64
 import imaplib
 import email
 import email.message as emsg
@@ -583,8 +584,11 @@ class KeyTester(ServerModule):
 
         s = None
         try:
-            if keyType is None or keyType == 'file':
+            if keyType is None:
                 self.on_key(job_data)
+
+            elif keyType == 'file':
+                self.on_key(job_data, is_file=True)
 
             elif keyType == 'github':
                 self.on_github_key(job_data)
@@ -645,11 +649,12 @@ class KeyTester(ServerModule):
         """
         return self.on_key(job, True)
 
-    def on_key(self, job, ssh=False):
+    def on_key(self, job, ssh=False, is_file=False, **kwargs):
         """
         generic
-        :param ssh:
         :param job:
+        :param ssh:
+        :param is_file:
         :return:
         """
         res = self.base_job_response(job)
@@ -661,6 +666,9 @@ class KeyTester(ServerModule):
             if isinstance(key, dict):
                 key_name = util.defvalkey(key, 'id', key_name)
                 key = util.defvalkey(key, 'key')
+
+            if is_file:
+                key = base64.b64decode(key)
 
             if key is None:
                 continue
