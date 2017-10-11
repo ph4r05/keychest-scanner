@@ -210,7 +210,6 @@ class KeyTester(ServerModule):
         :return:
         """
         logger.debug('Processing email job')
-        logger.debug(job)
 
         self.local_data.keys_processed = set()
         email_message, senders, key_parts = job
@@ -288,7 +287,9 @@ class KeyTester(ServerModule):
             res['type'] = 'pkcs7'
             res['fprint_sha256'] = util.lower(util.try_get_fprint_sha256(cert))
             res['cname'] = util.utf8ize(util.try_get_cname(cert))
+            res['subject_email'] = util.utf8ize(util.try_get_email(cert))
             res['subject'] = util.utf8ize(util.get_dn_string(cert.subject))
+            res['not_before'] = util.unix_time(cert.not_valid_before)
 
             test_result = self.local_data.fprinter.process_der(cert_der, key_part.filename)
             if test_result is None:
