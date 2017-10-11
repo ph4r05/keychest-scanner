@@ -212,9 +212,24 @@ class KeyTester(ServerModule):
         logger.debug('Processing email job')
         logger.debug(job)
 
+        self.local_data.keys_processed = set()
         email_message, senders, key_parts = job
+
         results = []
+        postponed = []
+
+        # attached keys first
         for part in key_parts:
+            if part.ftype & (EmailArtifactTypes.PGP_KEY) != 0:
+                res = self.email_pgp_key(part)
+                if res is not None:
+                    results.append(res)
+
+            else:
+                postponed.append(part)
+
+        # again, attached keys are processed, same key used for signature is ignored.
+        for part in postponed:
             res = None
             if part.ftype & (EmailArtifactTypes.PKCS7_SIG | EmailArtifactTypes.PKCS7_FILE) != 0:
                 res = self.email_pkcs7(part)
@@ -230,8 +245,9 @@ class KeyTester(ServerModule):
 
             if res is None or len(res) == 0:
                 continue
-
             results.append(res)
+
+        for res in results:
             out = json.dumps(res, indent=2, cls=util.AutoJSONEncoder)
             if len(out) > 10:
                 logger.info(out)
@@ -302,6 +318,10 @@ class KeyTester(ServerModule):
                 res['tests'] = None  # processing failed
 
             res['tests'] = [x.to_json() for x in keys_tools.flatdrop(test_result)]
+            for test in res['tests']:
+                if 'kid' in test:
+                    self.local_data.keys_processed.add(int(test['kid'], 16))
+
             return res
 
         except Exception as e:
@@ -332,11 +352,17 @@ class KeyTester(ServerModule):
                 key_data = None
 
                 key_id = keys_tools.strip_hex_prefix(str(key))
-                key_id = keys_tools.format_pgp_key(int(key_id, 16))
+                key_id_int = int(key_id, 16)
+                if key_id_int in self.local_data.keys_processed:
+                    continue
+
+                key_id = keys_tools.format_pgp_key(key_id_int)
                 sub['key_id'] = key_id
 
                 self.get_pgp_id_scan(sub)
                 res['results'].append(sub)
+
+                self.local_data.keys_processed.add(key_id_int)
             return res
 
         except Exception as e:
