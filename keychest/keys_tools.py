@@ -28,7 +28,7 @@ from pgpdump.packet import SignaturePacket, PublicKeyPacket, PublicSubkeyPacket,
 
 #            '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
 LOG_FORMAT = '%(asctime)s [%(process)d] %(levelname)s %(message)s'
-
+EMAIL_REGEX = re.compile('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$')
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=logging.INFO, fmt=LOG_FORMAT)
@@ -110,13 +110,13 @@ def process_pgp(data):
     return js_base
 
 
-def get_pgp_key(key_id, attempts=3, timeout=20, logger=None):
+def get_pgp_key(key_id, attempts=3, timeout=20, logger=None, **kwargs):
     """
     Simple PGP key getter - tries to fetch given key from the key server
     :param id:
     :return:
     """
-    res = requests.get('https://pgp.mit.edu/pks/lookup?op=get&search=0x%s' % format_pgp_key(key_id), timeout=20)
+    res = requests.get('https://pgp.mit.edu/pks/lookup?op=get&search=0x%s' % format_pgp_key(key_id), timeout=timeout)
     if math.floor(res.status_code / 100) != 2.0:
         res.raise_for_status()
 
@@ -130,6 +130,74 @@ def get_pgp_key(key_id, attempts=3, timeout=20, logger=None):
         return txt[0].strip()
 
     return None
+
+
+def get_pgp_ids_by_email(email, attempts=3, timeout=20, logger=None, **kwargs):
+    """
+    Contacts key server, attempts to download PGP key by the pgp id.
+    :param email:
+    :param attempts:
+    :param timeout:
+    :param logger:
+    :return:
+    """
+    res = requests.get('https://pgp.mit.edu/pks/lookup?op=index&search=%s' % email, timeout=timeout)
+    if math.floor(res.status_code / 100) != 2.0:
+        res.raise_for_status()
+
+    data = res.content
+    if data is None:
+        raise Exception('Empty response')
+
+    return pgp_parse_keys(data)
+
+
+def pgp_parse_keys(data):
+    """
+    Parses key IDs from the index PGP server page
+    :param data:
+    :return:
+    """
+    tree = html.fromstring(data)
+    ahrefs = tree.xpath('//a')
+    if ahrefs is None or len(ahrefs) == 0:
+        return []
+
+    key_ids = []
+    for ahref in ahrefs:
+        link = ahref.attrib['href']
+        if 'op=get' not in link:
+            continue
+
+        match = re.search(r'search=([x0-9a-fA-F]+)', link)
+        if match is not None:
+            key_ids.append(match.group(1))
+    return key_ids
+
+
+def is_email_valid(email):
+    """
+    Very simple email validation
+    :param email:
+    :return:
+    """
+
+    if EMAIL_REGEX.match(email) is None:
+        return False
+
+    if '.' not in email.split('@')[1]:
+        return False
+
+    return True
+
+
+def is_pgp_id(pgp):
+    """
+    Returns true if the input value is valid PGP handle (hex string)
+    :param pgp:
+    :return:
+    """
+    return re.match(r'^[0-9a-fA-F]{5,16}$', pgp) is not None
 
 
 def flatdrop(test_result):

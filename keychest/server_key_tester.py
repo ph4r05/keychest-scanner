@@ -5,6 +5,7 @@
 Key tester
 """
 
+from past.builtins import basestring    # pip install future
 from past.builtins import cmp
 
 import util
@@ -334,21 +335,7 @@ class KeyTester(ServerModule):
                 key_id = keys_tools.format_pgp_key(int(key_id, 16))
                 sub['key_id'] = key_id
 
-                try:
-                    key_data = keys_tools.get_pgp_key(key_id)
-                    if key_data is None or len(key_data) == 0:
-                        raise ValueError('Could not download key')
-
-                except Exception as e:
-                    sub['error'] = 'key-fetch-error'
-
-                try:
-                    test_result = self.local_data.fprinter.process_pgp(key_data, key_id)
-                    sub['tests'] = [x.to_json() for x in list(keys_tools.flatdrop(test_result))]
-
-                except Exception as e:
-                    sub['error'] = 'key-process-error'
-
+                self.get_pgp_id_scan(sub)
                 res['results'].append(sub)
             return res
 
@@ -563,23 +550,19 @@ class KeyTester(ServerModule):
         """
         self.augment_redis_scan_job(job)
 
-        # TODO: extract info to test
         job_data = job.decoded['data']['json']
-        assoc_id = job_data['id']
+        keyType = util.lower(util.strip(job_data['keyType']))
 
         s = None
         try:
-            # TODO: do the test
-            # TODO: pass the result of the test in the event
-            pass
-            # s = self.db.get_session()
-            #
-            # assoc = s.query(DbSubdomainWatchAssoc).filter(DbSubdomainWatchAssoc.id == assoc_id).first()
-            # if assoc is None:
-            #     return
+            if keyType is None or keyType == 'file':
+                self.on_key(job_data)
 
-            # self.auto_fill_assoc(s, assoc)
-            # s.commit()
+            elif keyType == 'github':
+                self.on_github_key(job_data)
+
+            elif keyType == 'pgp':
+                self.on_pgp_key(job_data)
 
         except Exception as e:
             logger.warning('Tester job exception: %s' % e)
@@ -587,4 +570,166 @@ class KeyTester(ServerModule):
 
         finally:
             util.silent_close(s)
+
+    def base_job_response(self, job):
+        """
+        Basic json response skeleton from the job
+        :param job:
+        :return:
+        """
+        ret = collections.OrderedDict()
+        ret['id'] = job['id']
+        ret['time'] = time.time()
+        ret['keyType'] = job['keyType']
+        ret['keyName'] = job['keyName']
+        ret['results'] = []
+        return ret
+
+    def on_pgp_key(self, job):
+        """
+        Pass
+        :param job:
+        :return:
+        """
+        res = self.base_job_response(job)
+
+        pgp = util.lower(util.strip(job['pgp']))
+        pgp = keys_tools.strip_hex_prefix(pgp)
+
+        if keys_tools.is_pgp_id(pgp):
+            key_id = keys_tools.format_pgp_key(int(pgp, 16))
+            sub = collections.OrderedDict()
+            sub['key_id'] = key_id
+            self.get_pgp_id_scan(sub)
+            res['results'].append(sub)
+
+        elif keys_tools.is_email_valid(pgp):
+            res['results'] += self.get_pgp_email_scan(pgp)
+
+        evt = rh.tester_job_progress(res)
+        self.redis_queue.event(evt)
+
+    def on_github_key(self, job):
+        """
+        github
+        :param job:
+        :return:
+        """
+        return self.on_key(job, True)
+
+    def on_key(self, job, ssh=False):
+        """
+        generic
+        :param ssh:
+        :param job:
+        :return:
+        """
+        res = self.base_job_response(job)
+        keys = job['keyValue'] if isinstance(job['keyValue'], list) else [job['keyValue']]
+
+        for idx, key in enumerate(keys):
+            key_name = '%s_%d' % (util.defvalkey(job, 'keyName', None), idx)
+
+            if isinstance(key, dict):
+                key_name = util.defvalkey(key, 'id', key_name)
+                key = util.defvalkey(key, 'key')
+
+            if key is None:
+                continue
+
+            test_result = None
+            if ssh:
+                test_result = self.local_data.fprinter.process_ssh(key, key_name)
+            else:
+                test_result = self.local_data.fprinter.process_file(key, key_name)
+
+            sub = collections.OrderedDict()
+            sub['id'] = idx
+            sub['tests'] = []
+
+            if test_result is not None:
+                sub['tests'] = [x.to_json() for x in keys_tools.flatdrop(test_result)]
+
+            res['results'].append(sub)
+
+        evt = rh.tester_job_progress(res)
+        self.redis_queue.event(evt)
+
+    def get_pgp_id_scan(self, sub):
+        """
+        Fetch PGP key, scan it, return result
+        :param sub: sub-result with key_id
+        :return:
+        """
+        try:
+            key_data = keys_tools.get_pgp_key(sub['key_id'])
+            if key_data is None or len(key_data) == 0:
+                raise ValueError('Could not download key')
+
+        except Exception as e:
+            sub['error'] = 'key-fetch-error'
+
+            logger.debug('PGP fetch error: %s' % e)
+            self.trace_logger.log(e)
+            return sub
+
+        try:
+            test_result = self.local_data.fprinter.process_pgp(key_data, sub['key_id'])
+            sub['tests'] = [x.to_json() for x in list(keys_tools.flatdrop(test_result))]
+
+        except Exception as e:
+            sub['error'] = 'key-process-error'
+            logger.debug('PGP processing error: %s' % e)
+            self.trace_logger.log(e)
+
+        return sub
+
+    def get_pgp_email_scan(self, email):
+        """
+        Fetch PGP key by email, scan it, return results
+        :param email: email
+        :return:
+        """
+        subs = []
+        err_sub = collections.OrderedDict()
+        err_sub['key-id-resolve-error'] = True
+        try:
+            key_ids = keys_tools.get_pgp_ids_by_email(email)
+            if key_ids is None:
+                raise ValueError('Could not resolve email to key ids')
+
+            if len(key_ids) == 0:
+                subs.append({'no-keys': True})
+                return subs
+
+        except Exception as e:
+            err_sub['error'] = 'key-fetch-error'
+
+            logger.debug('PGP error: %s' % e)
+            self.trace_logger.log(e)
+
+            subs.append(err_sub)
+            return subs
+
+        # Fetch key by key, with limit 5 keys.
+        for idx, key_id in enumerate(key_ids):
+            sub = collections.OrderedDict()
+            sub['idx'] = idx
+            sub['key_id'] = key_id
+            if idx >= 5:
+                sub['limit-reached'] = True
+                subs.append(sub)
+                continue
+
+            try:
+                self.get_pgp_id_scan(sub)
+
+            except Exception as e:
+                sub['error'] = 'key-process-error'
+                logger.debug('PGP processing: %s' % e)
+                self.trace_logger.log(e)
+
+            subs.append(sub)
+
+        return subs
 
