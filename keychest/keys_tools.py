@@ -110,10 +110,12 @@ def process_pgp(data):
     return js_base
 
 
-def get_pgp_key(key_id, attempts=3, timeout=20, logger=None, **kwargs):
+def get_pgp_key(key_id, attempts=4, timeout=12, logger=None, **kwargs):
     """
     Simple PGP key getter - tries to fetch given key from the key server
-    :param id:
+    :param attempts:
+    :param timeout:
+    :param logger:
     :return:
     """
     for attempt in range(attempts):
@@ -140,7 +142,7 @@ def get_pgp_key(key_id, attempts=3, timeout=20, logger=None, **kwargs):
                 raise
 
 
-def get_pgp_ids_by_email(email, attempts=3, timeout=20, logger=None, **kwargs):
+def get_pgp_ids_by_email(email, attempts=4, timeout=12, logger=None, **kwargs):
     """
     Contacts key server, attempts to download PGP key by the pgp id.
     :param email:
