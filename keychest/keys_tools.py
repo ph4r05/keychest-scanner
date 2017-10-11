@@ -116,20 +116,28 @@ def get_pgp_key(key_id, attempts=3, timeout=20, logger=None, **kwargs):
     :param id:
     :return:
     """
-    res = requests.get('https://pgp.mit.edu/pks/lookup?op=get&search=0x%s' % format_pgp_key(key_id), timeout=timeout)
-    if math.floor(res.status_code / 100) != 2.0:
-        res.raise_for_status()
+    for attempt in range(attempts):
+        try:
+            res = requests.get('https://pgp.mit.edu/pks/lookup?op=get&search=0x%s' % format_pgp_key(key_id),
+                               timeout=timeout)
 
-    data = res.content
-    if data is None:
-        raise Exception('Empty response')
+            if math.floor(res.status_code / 100) != 2.0:
+                res.raise_for_status()
 
-    tree = html.fromstring(data)
-    txt = tree.xpath('//pre/text()')
-    if len(txt) > 0:
-        return txt[0].strip()
+            data = res.content
+            if data is None:
+                raise Exception('Empty response')
 
-    return None
+            tree = html.fromstring(data)
+            txt = tree.xpath('//pre/text()')
+            if len(txt) > 0:
+                return txt[0].strip()
+
+            return None
+
+        except Exception as e:
+            if attempt+1 >= attempts:
+                raise
 
 
 def get_pgp_ids_by_email(email, attempts=3, timeout=20, logger=None, **kwargs):
@@ -141,15 +149,21 @@ def get_pgp_ids_by_email(email, attempts=3, timeout=20, logger=None, **kwargs):
     :param logger:
     :return:
     """
-    res = requests.get('https://pgp.mit.edu/pks/lookup?op=index&search=%s' % email, timeout=timeout)
-    if math.floor(res.status_code / 100) != 2.0:
-        res.raise_for_status()
+    for attempt in range(attempts):
+        try:
+            res = requests.get('https://pgp.mit.edu/pks/lookup?op=index&search=%s' % email, timeout=timeout)
+            if math.floor(res.status_code / 100) != 2.0:
+                res.raise_for_status()
 
-    data = res.content
-    if data is None:
-        raise Exception('Empty response')
+            data = res.content
+            if data is None:
+                raise Exception('Empty response')
 
-    return pgp_parse_keys(data)
+            return pgp_parse_keys(data)
+
+        except Exception as e:
+            if attempt + 1 >= attempts:
+                raise
 
 
 def pgp_parse_keys(data):
