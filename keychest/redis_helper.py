@@ -234,17 +234,17 @@ class EvtTestJobProgress(EvtBase):
         return obj
 
 
-def default_envelope(display_name='App\\Listeners\\ScanJobListener',
+def default_envelope(listener_name='App\\Listeners\\ScanJobListener',
                      command_name='App\\Keychest\\Events\\Ph4CallQueuedListener'):
     """
     Returns default event envelope
     :return: 
     """
-    evt = MainEventWrapper(display_name=display_name,
+    evt = MainEventWrapper(display_name=listener_name,
                            id=util.random_alphanum(32),
                            job='Illuminate\\Queue\\CallQueuedHandler@call',
                            command_name=command_name)
-    evt.command = CallQueuedListener()
+    evt.command = CallQueuedListener(cls=listener_name)
     return evt
 
 
@@ -268,7 +268,7 @@ def tester_job_progress(data=None):
     :param data:
     :return:
     """
-    envelope = default_envelope(display_name='App\\Listeners\\TesterJobListener')
+    envelope = default_envelope(listener_name='App\\Listeners\\TesterJobListener')
     evt = EvtTestJobProgress(data)
     envelope.set_event(evt)
 
