@@ -21,6 +21,7 @@ import collections
 import traceback
 import requests
 import math
+from math import ceil, log
 from lxml import html
 from pgpdump.data import AsciiData
 from pgpdump.packet import SignaturePacket, PublicKeyPacket, PublicSubkeyPacket, UserIDPacket
