@@ -357,6 +357,7 @@ class KeyTester(ServerModule):
                     continue
 
                 key_id = keys_tools.format_pgp_key(key_id_int)
+                sub['kid'] = key_id
                 sub['key_id'] = key_id
 
                 self.get_pgp_id_scan(sub)
