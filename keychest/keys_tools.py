@@ -6,6 +6,8 @@ Keys utils
 """
 
 from future.utils import iteritems
+from past.builtins import basestring    # pip install future
+
 import json
 import argparse
 import logging
@@ -33,6 +35,25 @@ EMAIL_REGEX = re.compile('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$')
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=logging.INFO, fmt=LOG_FORMAT)
+
+
+def shorten_pre_json(data):
+    """
+    Shorten message being logged
+    :param data:
+    :return:
+    """
+    if isinstance(data, dict):
+        return {k:shorten_pre_json(data[k]) for k in data}
+    elif isinstance(data, list) or isinstance(data, tuple):
+        return [shorten_pre_json(x) for x in data]
+    elif isinstance(data, set):
+        return [shorten_pre_json(x) for x in list(data)]
+    elif isinstance(data, basestring):
+        ln = len(data)
+        return data if ln < 300 else '%s ...(%s)... %s' % (data[:150], ln - 300, data[-150:])
+    else:
+        return data
 
 
 def reformat_pkcs7_pem(data):

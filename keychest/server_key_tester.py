@@ -101,7 +101,7 @@ class KeyTester(ServerModule):
         """
         try:
             # Process job in try-catch so it does not break worker
-            logger.info('New job: %s' % json.dumps(job.decoded, indent=4))
+            logger.info('New job: %s' % json.dumps(keys_tools.shorten_pre_json(job.decoded), indent=2))
             rh.mark_failed_if_exceeds(job)
 
             # Here we will fire off the job and let it process. We will catch any exceptions so
