@@ -720,14 +720,14 @@ class KeyTester(ServerModule):
         """
         subs = []
         err_sub = collections.OrderedDict()
-        err_sub['key-id-resolve-error'] = True
+        err_sub['key_id_resolve_error'] = True
         try:
             key_ids = keys_tools.get_pgp_ids_by_email(email)
             if key_ids is None:
                 raise ValueError('Could not resolve email to key ids')
 
             if len(key_ids) == 0:
-                subs.append({'no-keys': True})
+                subs.append({'no_keys': True})
                 return subs
 
         except Exception as e:
@@ -745,7 +745,7 @@ class KeyTester(ServerModule):
             sub['idx'] = idx
             sub['key_id'] = key_id
             if idx >= 5:
-                sub['limit-reached'] = True
+                sub['limit_reached'] = True
                 subs.append(sub)
                 continue
 
