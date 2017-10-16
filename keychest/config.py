@@ -119,7 +119,7 @@ class Config(object):
     def redis_port(self, val):
         self.set_config('redis_port', val)
 
-    # Redis port number
+    # Workers - UI scanner
     @property
     def workers(self):
         return self.get_config('workers', 10)
