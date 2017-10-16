@@ -83,7 +83,7 @@ class KeyTester(ServerModule):
         email_thread.start()
 
         # Worker start
-        for worker_idx in range(0, self.config.workers):
+        for worker_idx in range(0, self.config.workers_roca):
             t = threading.Thread(target=self.worker_main, args=(worker_idx,))
             t.setDaemon(True)
             t.start()
