@@ -541,7 +541,7 @@ class KeyTester(ServerModule):
         :return:
         """
         self.local_data.idx = idx
-        self.local_data.fprinter = keys_tools.IontFingerprinter()
+        self.local_data.fprinter = keys_tools.RocaFingerprinter()
         logger.info('Worker %02d started' % idx)
 
         while self.is_running():

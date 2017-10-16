@@ -592,7 +592,7 @@ class TestResult(object):
 # Main fingerprinting tool
 #
 
-class IontFingerprinter(object):
+class RocaFingerprinter(object):
     """
     Key fingerprinter
     """
@@ -1870,7 +1870,7 @@ class IontFingerprinter(object):
         Init command line parser
         :return:
         """
-        parser = argparse.ArgumentParser(description='Iont Fingerprinter')
+        parser = argparse.ArgumentParser(description='ROCA Fingerprinter')
 
         parser.add_argument('--tmp', dest='tmp_dir', default='.',
                             help='Temporary dir for subprocessing (e.g. APK parsing scratch)')
@@ -1942,7 +1942,7 @@ class IontFingerprinter(object):
 
 
 def main():
-    app = IontFingerprinter()
+    app = RocaFingerprinter()
     app.main()
 
 
