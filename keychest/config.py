@@ -119,7 +119,7 @@ class Config(object):
     def redis_port(self, val):
         self.set_config('redis_port', val)
 
-    # Redis port number
+    # Workers - UI scanner
     @property
     def workers(self):
         return self.get_config('workers', 10)
@@ -182,6 +182,12 @@ class Config(object):
     def master_apikey(self, val):
         self.set_config('master_apikey', val)
 
+    # Workers - key test scanner
+    @property
+    def workers_roca(self):
+        return self.get_config('workers_roca', 10)
 
-
+    @workers_roca.setter
+    def workers_roca(self, val):
+        self.set_config('workers_roca', val)
 
