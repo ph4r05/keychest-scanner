@@ -673,6 +673,7 @@ class KeyTester(ServerModule):
             if key is None:
                 continue
 
+            key = str(key)
             test_result = None
             if ssh:
                 test_result = self.local_data.fprinter.process_ssh(key, key_name)
