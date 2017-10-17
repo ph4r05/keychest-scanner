@@ -6,6 +6,7 @@ from past.builtins import long
 
 import os
 import re
+import sys
 import stat
 import json
 import pwd
@@ -1509,6 +1510,24 @@ def flatten(inp):
         return flatten(first) + flatten(rest)
     else:
         return [inp]
+
+
+def is_py3():
+    """
+    Returns true if running in py3
+    :return:
+    """
+    return sys.version_info > (3, 0)
+
+
+def make_bytes(s):
+    """
+    to bytes conversion if unicode
+    :param s:
+    :return:
+    """
+    if is_py3():
+        return str(s)
 
 
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
