@@ -1381,6 +1381,18 @@ class DbApiWaitingObjects(Base):
     approval_status = Column(SmallInteger, nullable=False, default=0)  # nan / approved / revoked / review
 
 
+class DbKeycheckerStats(Base):
+    """
+    Simple stats on the keychecker
+    """
+    __tablename__ = 'keychecker_stats'
+    __table_args__ = (UniqueConstraint('stat_id', name='keychecker_stats_stat_id'),)
+    id = Column(BigInteger, primary_key=True)
+
+    stat_id = Column(String(64), default=None)
+    number = Column(Integer, default=0)
+
+
 #
 # DB helper objects
 #  - query building, model comparison, projections
