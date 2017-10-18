@@ -15,9 +15,10 @@ import redis_helper as rh
 from trace_logger import Tracelogger
 from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
+from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
+from dbutil import DbKeycheckerStats
 import keys_tools
 
 import time
@@ -35,6 +36,25 @@ from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 from M2Crypto import SMIME, X509, BIO
 
 logger = logging.getLogger(__name__)
+
+
+class KeyStats(object):
+    """
+    Key stats field name holder
+    """
+    SUBMITTED = 'SUBMITTED'
+    SUBMITTED_EMAIL = 'SUBMITTED.EMAIL'
+    SUBMITTED_EMAIL_PGP = 'SUBMITTED.EMAIL.PGP'
+    SUBMITTED_EMAIL_SMIME = 'SUBMITTED.EMAIL.SMIME'
+    SUBMITTED_GITHUB = 'SUBMITTED.GITHUB'
+    SUBMITTED_PGP = 'SUBMITTED.PGP'
+
+    POSITIVE = 'POSITIVE'
+    POSITIVE_EMAIL = 'POSITIVE.EMAIL'
+    POSITIVE_EMAIL_PGP = 'POSITIVE.EMAIL.PGP'
+    POSITIVE_EMAIL_SMIME = 'POSITIVE.EMAIL.SMIME'
+    POSITIVE_GITHUB = 'POSITIVE.GITHUB'
+    POSITIVE_PGP = 'POSITIVE.PGP'
 
 
 class KeyTester(ServerModule):
@@ -74,6 +94,8 @@ class KeyTester(ServerModule):
         Kick off all running threads
         :return:
         """
+        self.init_stat_fields()
+
         scan_thread = threading.Thread(target=self.scan_redis_jobs, args=())
         scan_thread.setDaemon(True)
         scan_thread.start()
@@ -87,6 +109,39 @@ class KeyTester(ServerModule):
             t = threading.Thread(target=self.worker_main, args=(worker_idx,))
             t.setDaemon(True)
             t.start()
+
+    #
+    # Stats
+    #
+
+    def init_stat_fields(self):
+        """
+        Initializes stat fields in the DB so we can easilly update.
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            all_keys = [a for a in dir(KeyStats) if not a.startswith('__') and not callable(getattr(KeyStats,a))]
+            for key in all_keys:
+                tkey = getattr(KeyStats, key)
+
+                # Select
+                stat = s.query(DbKeycheckerStats).filter(DbKeycheckerStats.stat_id == tkey).first()
+                if stat is not None:
+                    continue
+
+                # Insert zero
+                inst = DbKeycheckerStats()
+                inst.stat_id = tkey
+                inst.number = 0
+                s.add(inst)
+                s.commit()
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
 
     #
     # Interface - Redis interactive jobs
