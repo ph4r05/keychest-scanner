@@ -143,6 +143,26 @@ class KeyTester(ServerModule):
 
         return True
 
+    def inc_counter(self, field):
+        """
+        Increments counter field
+        :param field:
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            stmt = DbKeycheckerStats.__table__.update() \
+                .where(DbKeycheckerStats.stat_id == field) \
+                .values(number=DbKeycheckerStats.number+1)
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
     #
     # Interface - Redis interactive jobs
     #
@@ -266,6 +286,7 @@ class KeyTester(ServerModule):
         :return:
         """
         logger.debug('Processing email job')
+        self.inc_counter(KeyStats.SUBMITTED_EMAIL)
 
         self.local_data.keys_processed = set()
         email_message, senders, key_parts = job
@@ -633,6 +654,7 @@ class KeyTester(ServerModule):
         :return:
         """
         self.augment_redis_scan_job(job)
+        self.inc_counter(KeyStats.SUBMITTED)
 
         job_data = job.decoded['data']['json']
         keyType = util.lower(util.strip(job_data['keyType']))
@@ -678,6 +700,7 @@ class KeyTester(ServerModule):
         :param job:
         :return:
         """
+        self.inc_counter(KeyStats.SUBMITTED_PGP)
         res = self.base_job_response(job)
 
         pgp = util.lower(util.strip(job['pgp']))
@@ -702,6 +725,7 @@ class KeyTester(ServerModule):
         :param job:
         :return:
         """
+        self.inc_counter(KeyStats.SUBMITTED_PGP)
         return self.on_key(job, True)
 
     def on_key(self, job, ssh=False, is_file=False, **kwargs):
