@@ -40,6 +40,7 @@ install_requires = [
     'websocket-client',
     'sseclient-py',
     'socketIO-client',
+    'roca-detect',
 ]
 
 # env markers in extras_require cause problems with older pip: #517
