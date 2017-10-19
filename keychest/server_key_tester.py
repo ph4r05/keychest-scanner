@@ -20,6 +20,7 @@ from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
 from dbutil import DbKeycheckerStats
 import keys_tools
+from roca import detect
 
 import time
 import json
@@ -617,7 +618,7 @@ class KeyTester(ServerModule):
         :return:
         """
         self.local_data.idx = idx
-        self.local_data.fprinter = keys_tools.RocaFingerprinter()
+        self.local_data.fprinter = detect.RocaFingerprinter()
         logger.info('Worker %02d started' % idx)
 
         while self.is_running():
@@ -849,3 +850,10 @@ class KeyTester(ServerModule):
 
         return subs
 
+    def stats_from_results(self, res):
+        """
+        Increments stats counters from results
+        :param res:
+        :return:
+        """
+        pass
