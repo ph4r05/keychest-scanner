@@ -144,17 +144,18 @@ class KeyTester(ServerModule):
 
         return True
 
-    def inc_counter(self, field):
+    def inc_counter(self, field, increment=1):
         """
         Increments counter field
         :param field:
+        :param increment:
         :return:
         """
         s = self.db.get_session()
         try:
             stmt = DbKeycheckerStats.__table__.update() \
                 .where(DbKeycheckerStats.stat_id == field) \
-                .values(number=DbKeycheckerStats.number+1)
+                .values(number=DbKeycheckerStats.number + increment)
             s.execute(stmt)
             s.commit()
 
@@ -310,12 +311,18 @@ class KeyTester(ServerModule):
             res = None
             if part.ftype & (EmailArtifactTypes.PKCS7_SIG | EmailArtifactTypes.PKCS7_FILE) != 0:
                 res = self.email_pkcs7(part)
+                self.inc_counter(KeyStats.SUBMITTED_EMAIL_SMIME)
+                self.inc_stat_positives(res, KeyStats.POSITIVE_EMAIL_SMIME, False)
 
-            elif part.ftype & (EmailArtifactTypes.PGP_KEY) != 0:
+            elif part.ftype & EmailArtifactTypes.PGP_KEY != 0:
                 res = self.email_pgp_key(part)
+                self.inc_counter(KeyStats.SUBMITTED_EMAIL_PGP)
+                self.inc_stat_positives(res, KeyStats.POSITIVE_EMAIL_PGP, False)
 
-            elif part.ftype & (EmailArtifactTypes.PGP_SIG) != 0:
+            elif part.ftype & EmailArtifactTypes.PGP_SIG != 0:
                 res = self.email_pgp_sign(part)
+                self.inc_counter(KeyStats.SUBMITTED_EMAIL_PGP)
+                self.inc_stat_positives(res, KeyStats.POSITIVE_EMAIL_PGP, False)
 
             else:
                 pass
@@ -328,6 +335,10 @@ class KeyTester(ServerModule):
             out = json.dumps(res, indent=2, cls=util.AutoJSONEncoder)
             if len(out) > 10:
                 logger.info(out)
+
+        total_positive = sum([self.num_positive_res(res) for res in results])
+        if total_positive > 0:
+            self.inc_counter(KeyStats.POSITIVE_EMAIL)
 
         job = collections.OrderedDict()
         job['jobType'] = 'email'
@@ -717,6 +728,8 @@ class KeyTester(ServerModule):
         elif keys_tools.is_email_valid(pgp):
             res['results'] += self.get_pgp_email_scan(pgp)
 
+        self.stats_from_results(res)
+
         evt = rh.tester_job_progress(res)
         self.redis_queue.event(evt)
 
@@ -768,6 +781,8 @@ class KeyTester(ServerModule):
                 sub['tests'] = [x.to_json() for x in keys_tools.flatdrop(test_result)]
 
             res['results'].append(sub)
+
+        self.stats_from_results(res)
 
         evt = rh.tester_job_progress(res)
         self.redis_queue.event(evt)
@@ -850,10 +865,80 @@ class KeyTester(ServerModule):
 
         return subs
 
-    def stats_from_results(self, res):
+    def inc_stat_positives(self, res, field, use_inc=True):
         """
-        Increments stats counters from results
+        Increments positive stats for the given field by the number of positive results or by 1
+        :param res:
+        :param field:
+        :return:
+        """
+        pos_cnt = self.num_positive_res(res)
+        if pos_cnt > 0:
+            self.inc_counter(field, pos_cnt if use_inc else 1)
+
+    def num_positive_res(self, res):
+        """
+        Returns number of positive res['tests']
         :param res:
         :return:
         """
-        pass
+        if res is None or 'tests' not in res:
+            return 0
+        return self.num_positive_tests(res['tests'])
+
+    def num_positive_tests(self, tests):
+        """
+        Returns number of positive tests
+        :param res:
+        :return:
+        """
+        if tests is None or not isinstance(tests, list):
+            return False
+
+        positive_cnt = 0
+        for test in tests:
+            ktype = util.defvalkey(test, 'type', None)
+            marked = util.defvalkey(test, 'marked', None)
+            if ktype is None:
+                continue
+
+            if marked:
+                positive_cnt += 1
+
+        return positive_cnt
+
+    def stats_from_results(self, results, is_email=False):
+        """
+        Increments stats counters from results
+        :param res:
+        :param is_email:
+        :return:
+        """
+        if not isinstance(results, list):
+            results = [results]
+
+        for res in results:
+            try:
+                if res is None or 'results' not in res:
+                    continue
+
+                has_positive = False
+                for result in res['results']:
+                    has_positive |= self.num_positive_res(result) > 0
+
+                key_type = util.defvalkey(res, 'keyType')
+                if has_positive:
+                    self.inc_counter(KeyStats.POSITIVE)
+
+                    if key_type == 'github':
+                        self.inc_counter(KeyStats.POSITIVE_GITHUB)
+
+                    if key_type == 'pgp':
+                        self.inc_counter(KeyStats.POSITIVE_PGP)
+
+                    if is_email:
+                        self.inc_counter(KeyStats.POSITIVE_EMAIL)
+
+            except Exception as e:
+                logger.error('Exception in stat counting: %s' % e)
+                self.trace_logger.log(e)
