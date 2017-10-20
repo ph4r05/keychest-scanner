@@ -246,6 +246,30 @@ def flatdrop(test_result):
     :param test_result:
     :return:
     """
-    return detect.drop_none(detect.drop_empty(detect.flatten(test_result)))
+    return detect.drop_none(detect.drop_empty(flatten(test_result)))
 
+
+def flatten(iterable):
+    """
+    Non-recursive flatten.
+    :param iterable:
+    :return:
+    """
+    iterator, sentinel, stack = iter(iterable), object(), []
+    while True:
+        value = next(iterator, sentinel)
+        if value is sentinel:
+            if not stack:
+                break
+            iterator = stack.pop()
+        elif isinstance(value, str):
+            yield value
+        else:
+            try:
+                new_iterator = iter(value)
+            except TypeError:
+                yield value
+            else:
+                stack.append(iterator)
+                iterator = new_iterator
 
