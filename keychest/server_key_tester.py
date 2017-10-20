@@ -423,19 +423,19 @@ class KeyTester(ServerModule):
             js = keys_tools.process_pgp(data)
 
             idset = set()
-            for x in keys_tools.drop_none([js['master_key_id']] + js['signature_keys']):
+            for x in detect.drop_none([js['master_key_id']] + js['signature_keys']):
                 idset.add(x)
 
             for key in list(idset)[:4]:
                 sub = collections.OrderedDict()
                 key_data = None
 
-                key_id = keys_tools.strip_hex_prefix(str(key))
+                key_id = detect.strip_hex_prefix(str(key))
                 key_id_int = int(key_id, 16)
                 if key_id_int in self.local_data.keys_processed:
                     continue
 
-                key_id = keys_tools.format_pgp_key(key_id_int)
+                key_id = detect.format_pgp_key(key_id_int)
                 sub['kid'] = key_id
                 sub['key_id'] = key_id
 
@@ -705,10 +705,10 @@ class KeyTester(ServerModule):
         res = self.base_job_response(job)
 
         pgp = util.lower(util.strip(job['pgp']))
-        pgp = keys_tools.strip_hex_prefix(pgp)
+        pgp = detect.strip_hex_prefix(pgp)
 
         if keys_tools.is_pgp_id(pgp):
-            key_id = keys_tools.format_pgp_key(int(pgp, 16))
+            key_id = detect.format_pgp_key(int(pgp, 16))
             sub = collections.OrderedDict()
             sub['key_id'] = key_id
             self.get_pgp_id_scan(sub)
