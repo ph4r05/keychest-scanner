@@ -726,7 +726,7 @@ class KeyTester(ServerModule):
         :param job:
         :return:
         """
-        self.inc_counter(KeyStats.SUBMITTED_PGP)
+        self.inc_counter(KeyStats.SUBMITTED_GITHUB)
         return self.on_key(job, True)
 
     def on_key(self, job, ssh=False, is_file=False, **kwargs):
