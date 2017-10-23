@@ -22,6 +22,7 @@ from dbutil import DbKeycheckerStats
 import keys_tools
 from roca import detect
 
+import os
 import time
 import json
 import logging
@@ -752,9 +753,11 @@ class KeyTester(ServerModule):
         """
         res = self.base_job_response(job)
         keys = job['keyValue'] if isinstance(job['keyValue'], list) else [job['keyValue']]
+        key_name_param = util.defvalkey(job, 'keyName', None)
+        key_name_base, key_ext = os.path.splitext(key_name_param) if key_name_param is not None else '', ''
 
         for idx, key in enumerate(keys):
-            key_name = '%s_%d' % (util.defvalkey(job, 'keyName', None), idx)
+            key_name = '%s_%d%s' % (key_name_base, idx, key_ext)
 
             if isinstance(key, dict):
                 key_name = util.defvalkey(key, 'id', key_name)
