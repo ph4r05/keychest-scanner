@@ -1394,6 +1394,30 @@ class DbKeycheckerStats(Base):
 
 
 #
+# Management
+#
+
+
+class DbSshKey(Base):
+    """
+    SSH Access key
+    """
+    __tablename__ = 'ssh_key'
+    __table_args__ = (UniqueConstraint('key_id', name='ssh_key_key_id'),)
+    id = Column(BigInteger, primary_key=True)
+
+    key_id = Column(String(64), default=None)
+    pub_key = Column(Text, default=0)
+    priv_key = Column(Text, default=0)
+    key_type = Column(SmallInteger, default=None)
+    storage_type = Column(SmallInteger, default=None)  # key storage type (hsm / encrypted value)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    revoked_at = Column(DateTime, default=None)
+
+
+#
 # DB helper objects
 #  - query building, model comparison, projections
 #
