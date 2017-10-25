@@ -1402,8 +1402,8 @@ class DbSshKey(Base):
     """
     SSH Access key
     """
-    __tablename__ = 'ssh_key'
-    __table_args__ = (UniqueConstraint('key_id', name='ssh_key_key_id'),)
+    __tablename__ = 'ssh_keys'
+    __table_args__ = (UniqueConstraint('key_id', name='ssh_keys_key_id'),)
     id = Column(BigInteger, primary_key=True)
 
     key_id = Column(String(64), default=None)
