@@ -477,6 +477,7 @@ class KeyTester(ServerModule):
                 email_host = self.config.get_config('test_email_host')
                 email_name = self.config.get_config('test_email_name')
                 email_pass = self.config.get_config('test_email_pass')
+                email_dir = self.config.get_config('test_email_dir', 'INBOX')
                 if email_host is None or email_name is None or email_pass is None:
                     continue
 
@@ -484,7 +485,7 @@ class KeyTester(ServerModule):
                 cl.login(email_name, email_pass)
 
                 self.ensure_imap_dirs(cl)
-                select_res = cl.select()
+                select_res = cl.select(email_dir)
 
                 result, data = cl.uid('search', None, 'ALL')  # search and return uids instead
                 email_uids = data[0].split()
