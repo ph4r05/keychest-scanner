@@ -255,7 +255,12 @@ def flatten(iterable):
     :param iterable:
     :return:
     """
-    iterator, sentinel, stack = iter(iterable), object(), []
+    try:
+        iterator, sentinel, stack = iter(iterable), object(), []
+    except TypeError:
+        yield iterable
+        return
+
     while True:
         value = next(iterator, sentinel)
         if value is sentinel:
