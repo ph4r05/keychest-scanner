@@ -1407,8 +1407,8 @@ class DbSshKey(Base):
     id = Column(BigInteger, primary_key=True)
 
     key_id = Column(String(64), default=None)
-    pub_key = Column(Text, default=0)
-    priv_key = Column(Text, default=0)
+    pub_key = Column(Text)
+    priv_key = Column(Text)
     key_type = Column(SmallInteger, default=None)
     storage_type = Column(SmallInteger, default=None)  # key storage type (hsm / encrypted value)
 
@@ -1418,6 +1418,67 @@ class DbSshKey(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     revoked_at = Column(DateTime, default=None)
+
+
+class DbManagedHost(Base):
+    """
+    Managed host
+    """
+    __tablename__ = 'managed_hosts'
+    id = Column(BigInteger, primary_key=True)
+
+    host_name = Column(String(255), default=None)
+    host_addr = Column(String(255), default=None)
+    ssh_port = Column(Integer, default=None)
+
+    host_desc = Column(Text)
+    host_data = Column(Text)
+
+    user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+    agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='NULL'),
+                      nullable=True, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None)
+
+
+class DbHostGroup(Base):
+    """
+    Host group record
+    """
+    __tablename__ = 'managed_host_groups'
+    id = Column(BigInteger, primary_key=True)
+
+    group_name = Column(String(255), default=None)
+    group_desc = Column(Text)
+    group_data = Column(Text)
+
+    user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None)
+
+
+class DbHostToGroupAssoc(Base):
+    """
+    Host -> Group association
+    """
+    __tablename__ = 'managed_host_to_groups'
+    __table_args__ = (UniqueConstraint('host_id', 'group_id', name='uk_managed_host_to_groups_host_group'),)
+    id = Column(BigInteger, primary_key=True)
+
+    host_id = Column(ForeignKey('managed_hosts.id', name='managed_host_to_groups_host_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+    group_id = Column(ForeignKey('managed_host_groups.id', name='managed_host_to_groups_group_id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
 
 
 #
