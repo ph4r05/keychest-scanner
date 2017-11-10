@@ -1455,7 +1455,7 @@ class DbHostGroup(Base):
     group_desc = Column(Text)
     group_data = Column(Text)
 
-    user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
+    user_id = Column(ForeignKey('users.id', name='managed_host_groups_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
