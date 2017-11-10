@@ -1436,7 +1436,7 @@ class DbManagedHost(Base):
 
     user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
-    agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='NULL'),
+    agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
