@@ -56,8 +56,9 @@ class ScanJob(Base):
     Github repositories for the user
     """
     __tablename__ = 'scan_jobs'
+    __table_args__ = (UniqueConstraint('uuid', name='scan_jobs_uuid_unique'),)
     id = Column(BigInteger, primary_key=True)
-    uuid = Column(String(36), nullable=False, unique=True)
+    uuid = Column(String(36), nullable=False)
 
     scan_host = Column(String(255), nullable=True)
     scan_scheme = Column(String(255), nullable=True)
@@ -462,9 +463,10 @@ class DbUser(Base):
     Users - Laravel maintained table!
     """
     __tablename__ = 'users'
+    __table_args__ = (UniqueConstraint('email', name='users_email_unique'),)
     id = Column(INTEGER(10, unsigned=True), primary_key=True)
     name = Column(String(191), nullable=False)
-    email = Column(String(191), nullable=False, unique=True)
+    email = Column(String(191), nullable=False)
     password = Column(String(191), nullable=True)
     remember_token = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=None)
@@ -553,8 +555,9 @@ class DbBaseDomain(Base):
     Base domain for whois lookup.
     """
     __tablename__ = 'base_domain'
+    __table_args__ = (UniqueConstraint('domain_name', name='uk_base_domain_domain_name'),)
     id = Column(BigInteger, primary_key=True)
-    domain_name = Column(String(255), nullable=False, unique=True)
+    domain_name = Column(String(255), nullable=False)
 
 
 class DbWhoisCheck(Base):
@@ -630,8 +633,9 @@ class DbSystemLastEvents(Base):
     Stores only last occurrence of the event.
     """
     __tablename__ = "system_last_events"
+    __table_args__ = (UniqueConstraint('event_key', name='uk_system_last_events_event_key'),)
     id = Column(BigInteger, primary_key=True)
-    event_key = Column(String(191), nullable=False, unique=True)
+    event_key = Column(String(191), nullable=False)
     event_at = Column(DateTime, default=None)
     aux = Column(Text, default=None, nullable=True)
 
@@ -925,9 +929,10 @@ class DbWatchService(Base):
     It is global object, unrelated to the users.
     """
     __tablename__ = 'watch_service'
+    __table_args__ = (UniqueConstraint('service_name', name='uk_watch_service_service_name'),)
     id = Column(BigInteger, primary_key=True)
 
-    service_name = Column(String(255), nullable=False, unique=True)
+    service_name = Column(String(255), nullable=False)
     top_domain_id = Column(ForeignKey('base_domain.id', name='watch_service_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)
     crtsh_input_id = Column(ForeignKey('crtsh_input.id', name='fk_watch_service_crtsh_input_id', ondelete='SET NULL'),
@@ -984,8 +989,9 @@ class DbDomainName(Base):
      - Caches SLD link.
     """
     __tablename__ = 'domain_name'
+    __table_args__ = (UniqueConstraint('domain_name', name='uk_domain_name_domain_name'),)
     id = Column(BigInteger, primary_key=True)
-    domain_name = Column(String(255), nullable=False, unique=True)
+    domain_name = Column(String(255), nullable=False)
     top_domain_id = Column(ForeignKey('base_domain.id', name='domain_name_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)  # SLD link
     top_domain = relationship('DbBaseDomain')
@@ -999,8 +1005,9 @@ class DbIpAddress(Base):
      - Designed mainly to improve storage efficiency as IPv6 addresses are rather long. Used in scan results.
     """
     __tablename__ = 'ip_address'
+    __table_args__ = (UniqueConstraint('ip_addr', name='uk_ip_address_ip_addr'),)
     id = Column(BigInteger, primary_key=True)
-    ip_addr = Column(String(255), nullable=False, unique=True)
+    ip_addr = Column(String(255), nullable=False)
     ip_type = Column(SmallInteger, nullable=False, default=2)
 
 
@@ -1273,13 +1280,14 @@ class DbApiKey(Base):
     For Laravel API / public API.
     """
     __tablename__ = 'api_keys'
+    __table_args__ = (UniqueConstraint('api_key', name='ix_api_keys_api_key'),)
     id = Column(BigInteger, primary_key=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
 
     name = Column(String(191), nullable=True)  # user entered access key name, easy identification
-    api_key = Column(String(191), nullable=True, index=True, unique=True)  # API key / challenge
+    api_key = Column(String(191), nullable=True, index=True)  # API key / challenge
     email_claim = Column(String(191), nullable=True, index=True)  # claimed email association
     ip_registration = Column(String(191), nullable=True, index=True)  # first IP used for registration
     user_id = Column(ForeignKey('users.id', name='fk_api_keys_user_users_id', ondelete='CASCADE'),
