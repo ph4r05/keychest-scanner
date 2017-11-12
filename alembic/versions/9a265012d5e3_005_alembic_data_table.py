@@ -1,7 +1,7 @@
 """005 alembic data table
 
-Revision ID: f2a93968cdc5
-Revises: 7260f851fc2e
+Revision ID: 9a265012d5e3
+Revises: 9a260012d5e3
 Create Date: 2017-07-06 20:31:29.569271
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f2a93968cdc5'
-down_revision = '7260f851fc2e'
+revision = '9a265012d5e3'
+down_revision = '9a260012d5e3'
 branch_labels = None
 depends_on = None
 

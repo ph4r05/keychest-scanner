@@ -1,7 +1,7 @@
 """021 user timezone last email
 
 Revision ID: be7998442daa
-Revises: e4aaf80357ff
+Revises: 9a345012d5e3
 Create Date: 2017-08-15 11:59:14.927931+00:00
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'be7998442daa'
-down_revision = 'e4aaf80357ff'
+down_revision = '9a345012d5e3'
 branch_labels = None
 depends_on = None
 

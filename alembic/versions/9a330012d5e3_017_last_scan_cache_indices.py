@@ -1,7 +1,7 @@
 """017 last scan cache indices
 
-Revision ID: d1d828103f3b
-Revises: 559df3a9366b
+Revision ID: 9a330012d5e3
+Revises: 9a325012d5e3
 Create Date: 2017-07-12 01:52:53.613858
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd1d828103f3b'
-down_revision = '559df3a9366b'
+revision = '9a330012d5e3'
+down_revision = '9a325012d5e3'
 branch_labels = None
 depends_on = None
 

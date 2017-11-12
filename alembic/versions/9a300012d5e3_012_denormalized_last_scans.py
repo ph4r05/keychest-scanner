@@ -1,7 +1,7 @@
 """012 denormalized last scans
 
-Revision ID: 99b3bef9ff03
-Revises: 41339a2c71f7
+Revision ID: 9a300012d5e3
+Revises: 9a295012d5e3
 Create Date: 2017-07-10 12:56:32.886116
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '99b3bef9ff03'
-down_revision = '41339a2c71f7'
+revision = '9a300012d5e3'
+down_revision = '9a295012d5e3'
 branch_labels = None
 depends_on = None
 

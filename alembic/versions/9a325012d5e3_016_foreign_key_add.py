@@ -1,7 +1,7 @@
 """016 foreign key add
 
-Revision ID: 559df3a9366b
-Revises: 28d21378e17b
+Revision ID: 9a325012d5e3
+Revises: 9a320012d5e3
 Create Date: 2017-07-11 09:56:38.386689
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '559df3a9366b'
-down_revision = '28d21378e17b'
+revision = '9a325012d5e3'
+down_revision = '9a320012d5e3'
 branch_labels = None
 depends_on = None
 

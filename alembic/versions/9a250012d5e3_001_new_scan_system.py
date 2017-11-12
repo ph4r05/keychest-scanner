@@ -1,6 +1,6 @@
 """001 new scan system
 
-Revision ID: 9a246a12d5e3
+Revision ID: 9a250012d5e3
 Revises: 
 Create Date: 2017-06-29 20:55:33.109493
 
@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker, Session as BaseSession, relationship
 import logging
 
 # revision identifiers, used by Alembic.
-revision = '9a246a12d5e3'
+revision = '9a250012d5e3'
 down_revision = '9a246a120000'
 branch_labels = None
 depends_on = None

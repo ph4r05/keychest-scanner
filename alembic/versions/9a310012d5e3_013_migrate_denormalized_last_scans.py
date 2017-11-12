@@ -1,7 +1,7 @@
 """013 migrate denormalized last scans
 
-Revision ID: 6da1d6465377
-Revises: 99b3bef9ff03
+Revision ID: 9a310012d5e3
+Revises: 9a300012d5e3
 Create Date: 2017-07-10 12:56:53.845288
 
 """
@@ -26,8 +26,8 @@ from keychest.consts import DbScanType
 
 
 # revision identifiers, used by Alembic.
-revision = '6da1d6465377'
-down_revision = '99b3bef9ff03'
+revision = '9a310012d5e3'
+down_revision = '9a300012d5e3'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """018 indices and watch service
 
-Revision ID: 7808de10af98
-Revises: d1d828103f3b
+Revision ID: 9a335012d5e3
+Revises: 9a330012d5e3
 Create Date: 2017-07-12 14:19:09.244368
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7808de10af98'
-down_revision = 'd1d828103f3b'
+revision = '9a335012d5e3'
+down_revision = '9a330012d5e3'
 branch_labels = None
 depends_on = None
 

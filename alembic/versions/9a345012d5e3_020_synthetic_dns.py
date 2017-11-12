@@ -1,7 +1,7 @@
 """020 synthetic DNS
 
-Revision ID: e4aaf80357ff
-Revises: f4bd13dce6f8
+Revision ID: 9a345012d5e3
+Revises: 9a340012d5e3
 Create Date: 2017-08-03 09:28:31.525223
 
 """
@@ -27,8 +27,8 @@ from keychest.consts import IpType
 
 
 # revision identifiers, used by Alembic.
-revision = 'e4aaf80357ff'
-down_revision = 'f4bd13dce6f8'
+revision = '9a345012d5e3'
+down_revision = '9a340012d5e3'
 branch_labels = None
 depends_on = None
 

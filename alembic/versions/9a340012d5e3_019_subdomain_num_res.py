@@ -1,7 +1,7 @@
 """019 subdomain num res
 
-Revision ID: f4bd13dce6f8
-Revises: 7808de10af98
+Revision ID: 9a340012d5e3
+Revises: 9a335012d5e3
 Create Date: 2017-07-12 17:24:30.084624
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f4bd13dce6f8'
-down_revision = '7808de10af98'
+revision = '9a340012d5e3'
+down_revision = '9a335012d5e3'
 branch_labels = None
 depends_on = None
 

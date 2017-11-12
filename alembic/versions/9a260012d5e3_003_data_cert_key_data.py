@@ -1,7 +1,7 @@
 """003 data cert key data
 
-Revision ID: 7260f851fc2e
-Revises: 234951f144b3
+Revision ID: 9a260012d5e3
+Revises: 9a255012d5e3
 Create Date: 2017-07-06 19:01:06.722847
 
 """
@@ -23,8 +23,8 @@ from keychest import util_cert
 from keychest.consts import CertSigAlg
 
 # revision identifiers, used by Alembic.
-revision = '7260f851fc2e'
-down_revision = '234951f144b3'
+revision = '9a260012d5e3'
+down_revision = '9a255012d5e3'
 branch_labels = None
 depends_on = None
 

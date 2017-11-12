@@ -1,6 +1,6 @@
 """001 new scan system
 
-Revision ID: 9a246a12d5e3
+Revision ID: 9a246a120000
 Revises: 
 Create Date: 2017-06-29 20:55:33.109493
 

@@ -1,7 +1,7 @@
 """007 dns entry and ipv6 
 
-Revision ID: 2cac1bf932e8
-Revises: dec318e2036c
+Revision ID: 9a275012d5e3
+Revises: 9a270012d5e3
 Create Date: 2017-07-09 17:32:39.987794
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = '2cac1bf932e8'
-down_revision = 'dec318e2036c'
+revision = '9a275012d5e3'
+down_revision = '9a270012d5e3'
 branch_labels = None
 depends_on = None
 

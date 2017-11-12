@@ -1,7 +1,7 @@
 """015 foreign key fix
 
-Revision ID: 28d21378e17b
-Revises: 13a9bc619477
+Revision ID: 9a320012d5e3
+Revises: 9a315012d5e3
 Create Date: 2017-07-10 19:46:00.760309
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '28d21378e17b'
-down_revision = '13a9bc619477'
+revision = '9a320012d5e3'
+down_revision = '9a315012d5e3'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """002 extended ct scans
 
-Revision ID: 234951f144b3
-Revises: 9a246a12d5e3
+Revision ID: 9a255012d5e3
+Revises: 9a250012d5e3
 Create Date: 2017-07-04 20:24:01.388040
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = '234951f144b3'
-down_revision = '9a246a12d5e3'
+revision = '9a255012d5e3'
+down_revision = '9a250012d5e3'
 branch_labels = None
 depends_on = None
 

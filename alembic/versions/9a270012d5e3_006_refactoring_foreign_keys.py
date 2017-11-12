@@ -1,7 +1,7 @@
 """006 refactoring and agents
 
-Revision ID: dec318e2036c
-Revises: f2a93968cdc5
+Revision ID: 9a270012d5e3
+Revises: 9a265012d5e3
 Create Date: 2017-07-09 17:17:17.300071
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = 'dec318e2036c'
-down_revision = 'f2a93968cdc5'
+revision = '9a270012d5e3'
+down_revision = '9a265012d5e3'
 branch_labels = None
 depends_on = None
 

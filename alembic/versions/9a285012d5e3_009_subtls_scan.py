@@ -1,7 +1,7 @@
 """009 subtls scan
 
-Revision ID: 21b987630d37
-Revises: 95f544022400
+Revision ID: 9a285012d5e3
+Revises: 9a280012d5e3
 Create Date: 2017-07-09 18:01:40.376736
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '21b987630d37'
-down_revision = '95f544022400'
+revision = '9a285012d5e3'
+down_revision = '9a280012d5e3'
 branch_labels = None
 depends_on = None
 

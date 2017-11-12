@@ -1,7 +1,7 @@
 """014 initial blacklist
 
-Revision ID: 13a9bc619477
-Revises: 6da1d6465377
+Revision ID: 9a315012d5e3
+Revises: 9a310012d5e3
 Create Date: 2017-07-10 17:11:20.747020
 
 """
@@ -27,8 +27,8 @@ from keychest.consts import BlacklistRuleType
 
 
 # revision identifiers, used by Alembic.
-revision = '13a9bc619477'
-down_revision = '6da1d6465377'
+revision = '9a315012d5e3'
+down_revision = '9a310012d5e3'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """011 denormalized migration
 
-Revision ID: 41339a2c71f7
-Revises: b81169edac9e
+Revision ID: 9a295012d5e3
+Revises: 9a290012d5e3
 Create Date: 2017-07-09 20:56:04.167414
 
 """
@@ -25,8 +25,8 @@ from keychest.dbutil import DbHelper
 
 
 # revision identifiers, used by Alembic.
-revision = '41339a2c71f7'
-down_revision = 'b81169edac9e'
+revision = '9a295012d5e3'
+down_revision = '9a290012d5e3'
 branch_labels = None
 depends_on = None
 
