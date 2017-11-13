@@ -15,7 +15,7 @@ import pymysql
 from pymysql.err import Warning as MySQLWarning
 pymysql.install_as_MySQLdb()
 
-from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault
+from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault, Index
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import case, literal_column, orm
 from sqlalchemy.sql import expression
@@ -506,6 +506,17 @@ class DbUser(Base):
     verified_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account verification (auto-created)
     blocked_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account blocking (user refuses)
     new_api_keys_state = Column(SmallInteger, nullable=False, default=0)  # can new api key be created? 1=disabled
+
+
+class DbPasswordResets(Base):
+    """
+    Password resets tokens
+    """
+    __tablename__ = 'password_resets'
+    __table_args__ = (Index('password_resets_email_index', 'email'),)
+    email = Column(String(191), nullable=False, primary_key=True)
+    token = Column(String(191), nullable=True, primary_key=True)
+    created_at = Column(DateTime, default=None)
 
 
 class DbUserLoginHistory(Base):
