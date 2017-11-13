@@ -1,4 +1,4 @@
-"""001 new scan system
+"""000 boot
 
 Revision ID: 9a246a120000
 Revises: 
@@ -20,7 +20,7 @@ import logging
 
 # revision identifiers, used by Alembic.
 revision = '9a246a120000'
-down_revision = None
+down_revision = '9a0000000000'
 branch_labels = None
 depends_on = None
 
@@ -35,6 +35,42 @@ def upgrade():
     Upgrade
     :return:
     """
+    op.create_table('users',
+                    sa.Column('id', INTEGER(10, unsigned=True), nullable=False),
+                    sa.Column('name', sa.String(length=191, collation=u'utf8mb4_unicode_ci'), nullable=False),
+                    sa.Column('email', sa.String(length=191, collation=u'utf8mb4_unicode_ci'), nullable=False),
+                    sa.Column('password', sa.String(length=191, collation=u'utf8mb4_unicode_ci'), nullable=True),
+                    sa.Column('remember_token', sa.String(length=100, collation=u'utf8mb4_unicode_ci'), nullable=True),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    sa.Column('updated_at', sa.DateTime(), nullable=True),
+                    sa.UniqueConstraint('email', name='users_email_unique'),
+                    sa.PrimaryKeyConstraint('id')
+                    )
+
+    op.create_table('password_resets',
+                    sa.Column('email', sa.String(length=191, collation=u'utf8mb4_unicode_ci')),
+                    sa.Column('token', sa.String(length=191, collation=u'utf8mb4_unicode_ci')),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    )
+    op.create_index(op.f('password_resets_email_index'), 'password_resets', ['email'], unique=False)
+
+    op.create_table('scan_jobs',
+                    sa.Column('id', sa.BigInteger(), nullable=False),
+                    sa.Column('uuid', sa.CHAR(length=36), nullable=False),
+                    sa.Column('scan_host', sa.String(length=191), nullable=False),
+                    sa.Column('scan_scheme', sa.String(length=191), nullable=True),
+                    sa.Column('scan_port', sa.String(length=191), nullable=True),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    sa.Column('updated_at', sa.DateTime(), nullable=True),
+                    sa.Column('state', sa.String(length=191), nullable=True),
+                    sa.Column('progress', sa.String(length=191), nullable=True),
+                    sa.Column('user_id', mysql.INTEGER(display_width=10, unsigned=True), nullable=True),
+                    sa.Column('user_ip', sa.String(length=191), nullable=True),
+                    sa.Column('user_sess', sa.String(length=100), nullable=True),
+                    sa.UniqueConstraint('uuid', name='scan_jobs_uuid_unique'),
+                    sa.PrimaryKeyConstraint('id')
+                    )
+
     op.create_table('certificates',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('crt_sh_id', sa.BigInteger(), nullable=True),
@@ -170,5 +206,8 @@ def downgrade():
 
     op.drop_table('certificate_alt_names')
     op.drop_table('certificates')
+    op.drop_table('scan_jobs')
+    op.drop_table('password_resets')
+    op.drop_table('users')
 
 
