@@ -3969,7 +3969,8 @@ class Server(object):
 
     def update_last_dns_scan_id(self, s, db_dns):
         """
-        update cached last dns scan id in the watch_target
+        Update cached last dns scan id in the watch_target.
+        Optimistic locking on the last_dns_scan_id - updates only with newer values (sequentially higher)
         :param s:
         :param db_dns:
         :return:
