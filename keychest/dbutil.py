@@ -1428,12 +1428,14 @@ class DbSshKey(Base):
     key_id = Column(String(64), default=None)
     pub_key = Column(Text)
     priv_key = Column(Text)
+    bit_size = Column(Integer, default=None)
     key_type = Column(SmallInteger, default=None)
     storage_type = Column(SmallInteger, default=None)  # key storage type (hsm / encrypted value)
 
     user_id = Column(ForeignKey('users.id', name='ssh_keys_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
 
+    opt_ver = Column(Integer, default=0)
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     revoked_at = Column(DateTime, default=None)
