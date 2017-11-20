@@ -1446,6 +1446,7 @@ class DbManagedHost(Base):
     Managed host
     """
     __tablename__ = 'managed_hosts'
+    __table_args__ = (UniqueConstraint('host_addr', 'ssh_port', 'user_id', 'agent_id', name='uk_managed_hosts_host_uk'),)
     id = Column(BigInteger, primary_key=True)
 
     host_name = Column(String(255), default=None)
@@ -1458,6 +1459,8 @@ class DbManagedHost(Base):
     user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
                      nullable=False, index=True)
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='SET NULL'),
+                      nullable=True, index=True)
+    ssh_key_id = Column(ForeignKey('ssh_keys.id', name='managed_hosts_ssh_keys_id', ondelete='SET NULL'),
                       nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
