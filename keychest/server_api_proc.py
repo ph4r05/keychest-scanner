@@ -21,7 +21,7 @@ from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from server_jobs import JobTypes, BaseJob, PeriodicJob, ScanResults, PeriodicApiProcessJob
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 from server_module import ServerModule
-from dbutil import DbApiWaitingObjects, DbApiKey, Certificate, CertificateAltName, DbHelper
+from dbutil import DbApiWaitingObjects, DbApiKey, DbUser, DbOwner, Certificate, CertificateAltName, DbHelper
 from crt_sh_processor import CrtShTimeoutException, CrtShException
 
 import time
@@ -338,10 +338,13 @@ class ServerApiProc(ServerModule):
         :return:
         """
         domains = cert_db.all_names
-        api_key = s.query(DbApiKey).filter(DbApiKey.id == job.target.api_key_id).first()
+        api_key, user = s.query(DbApiKey, DbUser)\
+            .outerjoin(DbUser, DbUser.id == DbApiKey.user_id)\
+            .filter(DbApiKey.id == job.target.api_key_id)\
+            .first()
 
         self.server.auto_fill_new_watches_body(s=s,
-                                               user_id=api_key.user_id,
+                                               owner_id=user.primary_owner_id if user is not None else None,
                                                domain_names=domains,
                                                default_new_watches=dict())
 

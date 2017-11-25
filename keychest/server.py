@@ -3436,6 +3436,7 @@ class Server(object):
         Auto-generates new watches from newly generated domains, for one association
         :param s:
         :param assoc:
+        :type assoc: DbSubdomainWatchAssoc
         :param domain_names:
         :param default_new_watches: cache of loaded watch targets, used when iterating over associations
         :type default_new_watches: dict[str -> DbWatchTarget]
@@ -3446,25 +3447,25 @@ class Server(object):
 
         # number of already active hosts
         # TODO: either use PHP rest API for this or somehow get common constant config
-        num_hosts = self.load_num_active_hosts(s, user_id=assoc.user_id)
+        num_hosts = self.load_num_active_hosts(s, owner_id=assoc.owner_id)
         max_hosts = self.config.keychest_max_servers
         if num_hosts >= max_hosts:
             return
 
         # Generic insertion method
         return self.auto_fill_new_watches_body(s=s,
-                                               user_id=assoc.user_id,
+                                               owner_id=assoc.owner_id,
                                                domain_names=domain_names,
                                                default_new_watches=default_new_watches,
                                                num_hosts=num_hosts,
                                                max_hosts=max_hosts)
 
-    def auto_fill_new_watches_body(self, s, user_id, domain_names, default_new_watches=None,
+    def auto_fill_new_watches_body(self, s, owner_id, domain_names, default_new_watches=None,
                                    num_hosts=0, max_hosts=None):
         """
-        Helper for adding all domains to the user_id
+        Helper for adding all domains to the owner_id
         :param s:
-        :param user_id:
+        :param owner_id:
         :param domain_names:
         :param default_new_watches:
         :param num_hosts:
@@ -3475,7 +3476,7 @@ class Server(object):
         # Wont add already present hosts (deleted/disabled doesnt matter)
         res = s.query(DbWatchAssoc, DbWatchTarget) \
             .join(DbWatchTarget, DbWatchAssoc.watch_id == DbWatchTarget.id) \
-            .filter(DbWatchAssoc.user_id == user_id) \
+            .filter(DbWatchAssoc.owner_id == owner_id) \
             .all()  # type: list[tuple[DbWatchAssoc, DbWatchTarget]]
 
         # remove duplicates, extract existing association
@@ -3485,7 +3486,7 @@ class Server(object):
 
         for new_host in domain_names:
             if max_hosts is not None and num_hosts >= max_hosts:
-                logger.debug('User %s reached max hosts %s, not adding more' % (user_id, max_hosts))
+                logger.debug('User %s reached max hosts %s, not adding more' % (owner_id, max_hosts))
                 break
 
             if new_host in existing_host_names:
@@ -3496,7 +3497,7 @@ class Server(object):
                 continue
 
             if not TlsDomainTools.can_connect(new_host):
-                logger.debug('Not going to add host %s to user %s, invalid host name' % (new_host, user_id))
+                logger.debug('Not going to add host %s to user %s, invalid host name' % (new_host, owner_id))
                 continue
 
             wtarget = None
@@ -3511,7 +3512,7 @@ class Server(object):
 
             # new association
             nassoc = DbWatchAssoc()
-            nassoc.user_id = user_id
+            nassoc.owner_id = owner_id
             nassoc.watch_id = wtarget.id
             nassoc.updated_at = salch.func.now()
             nassoc.created_at = salch.func.now()
@@ -3524,8 +3525,8 @@ class Server(object):
 
                 num_hosts += 1
                 existing_host_names.add(new_host)
-                logger.debug('New host %s ID %s associated to the user %s assoc ID %s, hosts: %s'
-                             % (new_host, wtarget.id, user_id, nassoc.id, num_hosts))
+                logger.debug('New host %s ID %s associated to the owner %s assoc ID %s, hosts: %s'
+                             % (new_host, wtarget.id, owner_id, nassoc.id, num_hosts))
 
             except Exception as e:
                 logger.debug('Exception when adding auto watch: %s' % e)
@@ -3621,7 +3622,7 @@ class Server(object):
         """
         # number of already active hosts
         # TODO: either use PHP rest API for this or somehow get common constant config
-        num_hosts = self.load_num_active_hosts(s, user_id=assoc.user_id)
+        num_hosts = self.load_num_active_hosts(s, owner_id=assoc.owner_id)
         max_hosts = self.config.keychest_max_servers
         if num_hosts >= max_hosts:
             return
@@ -3629,7 +3630,7 @@ class Server(object):
         # If there is some record of the association, do not add a new one.
         # If association has been deleted / disabled it is left in the current state.
         res = s.query(DbWatchAssoc) \
-            .filter(DbWatchAssoc.user_id == assoc.user_id) \
+            .filter(DbWatchAssoc.owner_id == assoc.owner_id) \
             .filter(DbWatchAssoc.watch_id == record.id) \
             .first()  # type: DbWatchAssoc
         if res is not None:
@@ -3637,7 +3638,7 @@ class Server(object):
 
         # add new user <-> watch target new association
         nassoc = DbWatchAssoc()
-        nassoc.user_id = assoc.user_id
+        nassoc.owner_id = assoc.owner_id
         nassoc.watch_id = record.id
         nassoc.updated_at = salch.func.now()
         nassoc.created_at = salch.func.now()
@@ -3954,16 +3955,16 @@ class Server(object):
 
         return ret if was_array else None
 
-    def load_num_active_hosts(self, s, user_id):
+    def load_num_active_hosts(self, s, owner_id):
         """
         Loads number of active user hosts
         :param s:
-        :param user_id:
+        :param owner_id:
         :return:
         """
         return DbHelper.get_count(
             s.query(DbWatchAssoc)\
-            .filter(DbWatchAssoc.user_id==user_id)\
+            .filter(DbWatchAssoc.owner_id == owner_id)\
             .filter(DbWatchAssoc.deleted_at == None)\
             .filter(DbWatchAssoc.disabled_at == None))
 

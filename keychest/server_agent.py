@@ -24,7 +24,7 @@ from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInpu
 from server_module import ServerModule
 from dbutil import DbApiWaitingObjects, DbApiKey, Certificate, CertificateAltName, DbHelper, DbUser, DbOrganization, \
     DbWatchAssoc, DbWatchTarget, ModelUpdater, DbWatchService, DbDnsResolve, DbHandshakeScanJob, \
-    DbHandshakeScanJobResult, DbBaseDomain, DbCrtShQueryInput, DbLastScanCache, ResultModelUpdater, DbDnsEntry
+    DbHandshakeScanJobResult, DbBaseDomain, DbCrtShQueryInput, DbLastScanCache, ResultModelUpdater, DbDnsEntry, DbOwner
 from crt_sh_processor import CrtShTimeoutException, CrtShException
 
 import time
@@ -138,12 +138,22 @@ class ServerAgent(ServerModule):
         Initializes agent sentinels - DB placeholders
         :return:
         """
+        owner = s.query(DbOwner).filter(DbOwner.id == 1).first()
+        if owner is None:
+            owner = DbOwner()
+            owner.id = 1
+            owner.name = 'PLACEHOLDER'
+            owner.created_at = owner.updated_at = salch.func.now()
+            s.add(owner)
+            s.commit()
+
         user = s.query(DbUser).filter(DbUser.id == 1).first()
         if user is None:
             user = DbUser()
             user.id = 1
             user.name = 'PLACEHOLDER'
             user.email = 'local@master.net'
+            user.primary_owner_id = owner.id
             user.created_at = user.updated_at = salch.func.now()
             s.add(user)
             s.commit()
@@ -230,7 +240,7 @@ class ServerAgent(ServerModule):
         for wid in watches_to_assoc:
             assoc = DbWatchAssoc()
             assoc.watch_id = wid
-            assoc.user_id = 1
+            assoc.owner_id = 1
             assoc.deleted_at = None
             assoc.disabled_at = None
             assoc.created_at = assoc.updated_at = salch.func.now()

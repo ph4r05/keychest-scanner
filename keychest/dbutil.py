@@ -507,6 +507,9 @@ class DbUser(Base):
     blocked_at = Column(DateTime, default=None, nullable=True)  # timestamp of the account blocking (user refuses)
     new_api_keys_state = Column(SmallInteger, nullable=False, default=0)  # can new api key be created? 1=disabled
 
+    primary_owner_id = Column(ForeignKey('owners.id', name='fk_users_primary_owner_id', ondelete='SET NULL'),
+                              nullable=True, index=True)
+
 
 class DbPasswordResets(Base):
     """
@@ -538,17 +541,17 @@ class DbUserLoginHistory(Base):
 
 class DbWatchAssoc(Base):
     """
-    User -> Watch target association
+    Owner -> Watch target association
     Enables to have watch_target id immutable to have valid results with target_id.
     Also helps with deduplication of watch target scans.
     """
-    __tablename__ = 'user_watch_target'
-    __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='wa_user_watcher_uniqe'),)
+    __tablename__ = 'owner_watch_target'
+    __table_args__ = (UniqueConstraint('owner_id', 'watch_id', name='uk_owner_watch_target_owner_watch'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id', name='wa_users_id', ondelete='CASCADE'),
-                     nullable=False, index=True)
-    watch_id = Column(ForeignKey('watch_target.id', name='wa_watch_target_id', ondelete='CASCADE'),
+    owner_id = Column(ForeignKey('owners.id', name='fk_owner_watch_target_owner_id',
+                                 ondelete='CASCADE'), nullable=False, index=True)
+    watch_id = Column(ForeignKey('watch_target.id', name='fk_owner_watch_target_watch_id', ondelete='CASCADE'),
                       nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -767,17 +770,17 @@ class DbSubdomainWatchTarget(Base):
 
 class DbSubdomainWatchAssoc(Base):
     """
-    User -> subdomain Watch target association
+    Owner -> subdomain Watch target association
     Enables to have watch_target id immutable to have valid results with target_id.
     Also helps with deduplication of watch target scans.
     """
-    __tablename__ = 'user_subdomain_watch_target'
-    __table_args__ = (UniqueConstraint('user_id', 'watch_id', name='wa_user_sub_watcher_uniqe'),)
+    __tablename__ = 'owner_subdomain_watch_target'
+    __table_args__ = (UniqueConstraint('owner_id', 'watch_id', name='uk_owner_subdomain_watch_target_owner_watch'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id', name='wa_sub_users_id', ondelete='CASCADE'),
-                     nullable=False, index=True)
-    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='wa_sub_watch_target_id', ondelete='CASCADE'),
+    owner_id = Column(ForeignKey('owners.id', name='fk_owner_subdomain_watch_target_owner_id',
+                                 ondelete='CASCADE'), nullable=False, index=True)
+    watch_id = Column(ForeignKey('subdomain_watch_target.id', name='fk_owner_subdomain_watch_target_watch_id', ondelete='CASCADE'),
                       nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -867,6 +870,40 @@ class DbSubdomainWatchResultEntry(Base):
 
 
 #
+# Owner
+#
+
+
+class DbOwner(Base):
+    """
+    Abstract owner record for resource ownership management
+    """
+    __tablename__ = "owners"
+    id = Column(BigInteger, primary_key=True)
+    name = Column(String(191), nullable=False)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbUserToOwner(Base):
+    """
+    User -> Owner mapping
+    """
+    __tablename__ = "user_to_owner"
+    __table_args__ = (UniqueConstraint('user_id', 'owner_id', name='uk_user_to_owner_user_owner'),)
+    id = Column(BigInteger, primary_key=True)
+
+    user_id = Column(ForeignKey('users.id', name='fk_user_to_owner_user_id', ondelete='CASCADE'),
+                     nullable=False, index=True)
+    owner_id = Column(ForeignKey('owners.id', name='fk_user_to_owner_owner_id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+#
 # Organization
 #
 
@@ -919,6 +956,8 @@ class DbKeychestAgent(Base):
 
     organization_id = Column(ForeignKey('organization.id', name='keychest_agent_organization_id',
                                         ondelete='CASCADE'), nullable=False, index=True)
+    owner_id = Column(ForeignKey('owners.id', name='fk_keychest_agent_owner_id',
+                                 ondelete='CASCADE'), nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1169,20 +1208,20 @@ class DbIpScanRecord(Base):
 
 class DbIpScanRecordUser(Base):
     """
-    User -> IpScanRecord target association
+    Owner -> IpScanRecord target association
     Enables to have watch_target id immutable to have valid results with target_id.
     Also helps with deduplication of watch target scans.
     """
-    __tablename__ = 'user_ip_scan_record'
-    __table_args__ = (UniqueConstraint('user_id', 'ip_scan_record_id', name='uk_user_ip_scan_record_unique'),)
+    __tablename__ = 'owner_ip_scan_record'
+    __table_args__ = (UniqueConstraint('owner_id', 'ip_scan_record_id', name='uk_owner_ip_scan_record_unique'),)
     id = Column(BigInteger, primary_key=True)
 
-    user_id = Column(ForeignKey('users.id', name='fk_user_ip_scan_record_users_id', ondelete='CASCADE'),
-                     nullable=False, index=True)
-    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_ip_scan_record_ip_scan_record_id',
+    owner_id = Column(ForeignKey('owners.id', name='fk_owner_ip_scan_record_owner_id',
+                                 ondelete='CASCADE'), nullable=False, index=True)
+    ip_scan_record_id = Column(ForeignKey('ip_scan_record.id', name='fk_owner_ip_scan_record_ip_scan_record_id',
                                           ondelete='CASCADE'), nullable=False, index=True)
 
-    user = relationship('DbUser')
+    owner = relationship('DbOwner')
     ip_scan_record = relationship('DbIpScanRecord')
 
     created_at = Column(DateTime, default=None)
@@ -1434,6 +1473,8 @@ class DbSshKey(Base):
 
     user_id = Column(ForeignKey('users.id', name='ssh_keys_users_id', ondelete='CASCADE'),
                      nullable=True, index=True)
+    owner_id = Column(ForeignKey('owners.id', name='ssh_keys_owner_id', ondelete='CASCADE'),
+                     nullable=True, index=True)
 
     rec_version = Column(Integer, default=0)
     created_at = Column(DateTime, default=None)
@@ -1446,7 +1487,7 @@ class DbManagedHost(Base):
     Managed host
     """
     __tablename__ = 'managed_hosts'
-    __table_args__ = (UniqueConstraint('host_addr', 'ssh_port', 'user_id', 'agent_id', name='uk_managed_hosts_host_uk'),)
+    __table_args__ = (UniqueConstraint('host_addr', 'ssh_port', 'owner_id', 'agent_id', name='uk_managed_hosts_host_uk'),)
     id = Column(BigInteger, primary_key=True)
 
     host_name = Column(String(255), default=None)
@@ -1456,8 +1497,8 @@ class DbManagedHost(Base):
     host_desc = Column(Text)
     host_data = Column(Text)
 
-    user_id = Column(ForeignKey('users.id', name='managed_hosts_users_id', ondelete='CASCADE'),
-                     nullable=False, index=True)
+    owner_id = Column(ForeignKey('owners.id', name='managed_hosts_owner_id', ondelete='CASCADE'),
+                      nullable=True, index=True)
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
     ssh_key_id = Column(ForeignKey('ssh_keys.id', name='managed_hosts_ssh_keys_id', ondelete='SET NULL'),
@@ -1479,8 +1520,8 @@ class DbHostGroup(Base):
     group_desc = Column(Text)
     group_data = Column(Text)
 
-    user_id = Column(ForeignKey('users.id', name='managed_host_groups_users_id', ondelete='CASCADE'),
-                     nullable=False, index=True)
+    owner_id = Column(ForeignKey('owners.id', name='managed_host_groups_owner_id', ondelete='CASCADE'),
+                      nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
