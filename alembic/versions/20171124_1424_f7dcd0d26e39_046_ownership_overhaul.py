@@ -266,6 +266,14 @@ class DbIpScanRecordUser(Base):
     auto_fill_watches = Column(SmallInteger, default=0, nullable=False) # if 1 new hosts will be converted to active watches
 
 
+class DbManagedHost(Base):
+    """
+    Managed host
+    """
+    __tablename__ = 'managed_hosts'
+    id = Column(BigInteger, primary_key=True)
+
+
 #
 # Migration
 #
@@ -317,8 +325,9 @@ def create_owners():
         uown.created_at = sa.func.now()
         uown.updated_at = sa.func.now()
 
-        rec.primary_owner_id = own.id
         sess.flush()
+        rec.primary_owner_id = own.id
+
     sess.commit()
 
 
@@ -391,6 +400,23 @@ def migrate_ipscan_watch_assoc():
         new_model = DbHelper.to_model(obj=model_rep, ret=DbIpScanRecordUser())
         sess.add(new_model)
 
+    sess.commit()
+
+
+def clean_managed_hosts():
+    """
+    Managed hosts cleanup
+    :return:
+    """
+    if context.is_offline_mode():
+        logger.warning('Data migration skipped in the offline mode')
+        return
+
+    bind = op.get_bind()
+    sess = BaseSession(bind=bind)
+
+    sess.query(DbManagedHost) \
+        .delete(synchronize_session='fetch')
     sess.commit()
 
 
@@ -550,6 +576,7 @@ def downgrade():
     op.drop_constraint('uk_managed_hosts_host_uk', 'managed_hosts', type_='unique')
     op.drop_index(op.f('ix_managed_hosts_owner_id'), table_name='managed_hosts')
 
+    clean_managed_hosts()
     op.create_unique_constraint(u'uk_managed_hosts_host_uk', 'managed_hosts',
                                 ['host_addr', 'ssh_port', 'user_id', 'agent_id'])
     op.create_index('ix_managed_hosts_user_id', 'managed_hosts', ['user_id'], unique=False)
