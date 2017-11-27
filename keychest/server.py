@@ -2828,6 +2828,10 @@ class Server(object):
         cert_db.authority_key_info = util.take(util.lower(util.b16encode(
             util.try_get_authority_key_identifier(cert))), 64)
 
+        cert_db.is_ev = util_cert.try_cert_is_ev(cert)
+        cert_db.is_cn_wildcard = util_cert.is_cname_wildcard(cert_db.cname)
+        cert_db.is_alt_wildcard = util_cert.num_wildcard_alts(alt_names) > 0
+
         alt_name_test = list(alt_names)
         if not util.is_empty(cert_db.cname):
             alt_name_test.append(cert_db.cname)
