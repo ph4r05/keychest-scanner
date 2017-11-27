@@ -6,6 +6,8 @@ import dbutil
 from dbutil import AlembicDataMigration
 import base64
 import logging
+
+from keychest import util_cert
 from trace_logger import Tracelogger
 
 
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 # current data migration version, integer
-CUR_VERSION = 2
+CUR_VERSION = 3
 
 
 class DbMigrationManager(object):
@@ -82,6 +84,8 @@ class DbMigrationManager(object):
             self._migrate_1()
         if db_ver < 2:
             self._migrate_2()
+        if db_ver < 3:
+            self._migrate_3()
 
     #
     # Migration routines
@@ -208,4 +212,76 @@ class DbMigrationManager(object):
             logger.info('Migration 02: please fix the error to continue with the migration')
         elif migrate_continue:
             logger.info('Migration 02: interrupted, will continue on next run')
+
+    def _migrate_3(self):
+        """
+        Add EV status, wildcards flags to the certificate record.
+        Incremental migration process, chunk by chunk.
+        :return:
+        """
+        logger.info('Migration 03: EV status, wildcard information')
+
+        ignore_set = set()
+        fatal_error = False
+        migrate_continue = True
+        dbcrt = dbutil.Certificate
+
+        last_offset = 0
+        offset = 0
+        page_size = 1000
+        while not self.test_termination() and migrate_continue and not fatal_error:
+
+            # per-chunk processing
+            # finished with processing if there are no such certs without subj key info
+            migrate_continue = True
+            while migrate_continue and not fatal_error:
+                res = self.s.query(dbcrt) \
+                    .filter(dbcrt.pem != None) \
+                    .order_by(dbcrt.id)\
+                    .limit(page_size)\
+                    .offset(offset)\
+                    .all()
+
+                if res is None or len(res) == 0:
+                    migrate_continue = False
+                    break
+
+                all_ignored = sum([x.id in ignore_set for x in res]) == page_size
+                if all_ignored:
+                    offset += page_size
+                    continue
+
+                for cert_db in res:
+                    if cert_db.id in ignore_set:
+                        continue
+                    try:
+                        der = util.pem_to_der(cert_db.pem)
+                        cert = util.load_x509_der(der)  # type: cryptography.x509.Certificate
+
+                        cert_db.is_ev = util_cert.try_cert_is_ev(cert)
+                        cert_db.is_cn_wildcard = util_cert.try_cert_is_cn_wildcard(cert)
+                        cert_db.is_alt_wildcard = util_cert.try_cert_alt_wildcard_num(cert) > 0
+
+                    except Exception as e:
+                        logger.error('Error in migration certificate %s, exception: %s' % (cert_db.id, e))
+                        self.trace_logger.log(e)
+                        ignore_set.add(cert_db.id)
+
+                self.s.flush()
+                self.s.commit()
+                self.s.expunge_all()
+
+                if offset - last_offset > 50000:
+                    last_offset = offset
+                    logger.info('Migration offset: %s' % offset)
+
+            if migrate_continue is False:
+                logger.info('Migration 03: successfully migrated, skipped: %s' % len(ignore_set))
+                self._save_new_ver(3)
+                return
+
+        if fatal_error:
+            logger.info('Migration 03: please fix the error to continue with the migration')
+        elif migrate_continue:
+            logger.info('Migration 03: interrupted, will continue on next run')
 
