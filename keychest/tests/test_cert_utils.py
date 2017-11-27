@@ -120,6 +120,18 @@ class CertUtilTest(unittest.TestCase):
         self.assertEqual(util.b16encode(auth_ids[2]),
                          self._ossl('7B:52:06:B4:C2:C2:D1:28:CB:71:A4:AC:3A:C1:80:94:57:7C:35:AD'))
 
+    def test_ev(self):
+        """
+        Extended validation test
+        :return:
+        """
+        for cname in ['cert04.pem']:
+            self.certs.append(self._get_res(cname))
+
+        certs = [util.load_x509(cert) for cert in self.certs]
+        ev_status = [util_cert.cert_is_ev(cert) for cert in certs]
+        self.assertEqual(ev_status, [False, False, False, True])
+
 
 if __name__ == "__main__":
     unittest.main()  # pragma: no cover
