@@ -129,8 +129,8 @@ class CertUtilTest(unittest.TestCase):
             self.certs.append(self._get_res(cname))
 
         certs = [util.load_x509(cert) for cert in self.certs]
-        ev_status = [util_cert.cert_is_ev(cert) for cert in certs]
         self.assertEqual(ev_status, [False, False, False, True])
+        ev_status = [util_cert.try_cert_is_ev(cert, quiet=False) for cert in certs]
 
 
 if __name__ == "__main__":

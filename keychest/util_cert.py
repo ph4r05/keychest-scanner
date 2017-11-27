@@ -100,7 +100,7 @@ def cloudflare_altnames(altnames):
                 re.match(r'^ssl[0-9]+.cloudflare.com$', x))]
 
 
-def cert_is_ev(cert, quiet=True):
+def try_cert_is_ev(cert, quiet=True):
     """
     Determines if the certificate has extended validation
     :param cert:
