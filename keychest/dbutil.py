@@ -116,6 +116,9 @@ class Certificate(Base):
     is_cloudflare = Column(SmallInteger, nullable=False, default=0)
     subject_key_info = Column(String(64), index=True, nullable=True)
     authority_key_info = Column(String(64), index=True, nullable=True)
+    is_ev = Column(SmallInteger, default=0, nullable=False)  # extended validation flag
+    is_cn_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in CN
+    is_alt_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in alt names
 
     key_type = Column(SmallInteger, nullable=True)  # 1=rsa, 2=dsa, 3=ecc, 4=unknown
     key_bit_size = Column(Integer, nullable=True)  # bitsize of the public part, depends on the type, mainly for RSA & ECC
