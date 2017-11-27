@@ -140,7 +140,7 @@ def try_cert_is_cn_wildcard(cert, quiet=True):
     """
     try:
         cname = util.try_get_cname(cert)
-        return TlsDomainTools.has_wildcard(cname)
+        return is_cname_wildcard(cname)
 
     except Exception as e:
         if not quiet:
@@ -150,13 +150,43 @@ def try_cert_is_cn_wildcard(cert, quiet=True):
     return False
 
 
-def try_cert_alt_wildcard_num(cert):
+def try_cert_alt_wildcard_num(cert, quiet=True):
     """
     Returns number of wildcard domain in the alt domains
     :param cert:
+    :param quiet:
     :return:
     """
-    alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
-    num_wilds = sum([1 for x in alt_names if TlsDomainTools.has_wildcard(x)])
+    try:
+        alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+        return num_wildcard_alts(alt_names)
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting alts wildcard status. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return 0
+
+
+def is_cname_wildcard(cname):
+    """
+    Returns true if cname is wildcard
+    :param cname:
+    :return:
+    """
+    return cname is not None and TlsDomainTools.has_wildcard(cname)
+
+
+def num_wildcard_alts(alts):
+    """
+    Returns number of alt domains with wildcard in it
+    :param alts:
+    :return:
+    """
+    if alts is None:
+        return 0
+
+    num_wilds = sum([1 for x in alts if TlsDomainTools.has_wildcard(x)])
     return num_wilds
 
