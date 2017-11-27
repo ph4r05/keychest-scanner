@@ -125,12 +125,36 @@ class CertUtilTest(unittest.TestCase):
         Extended validation test
         :return:
         """
-        for cname in ['cert04.pem']:
+        for cname in ['cert04.pem', 'cert05.pem']:
             self.certs.append(self._get_res(cname))
 
         certs = [util.load_x509(cert) for cert in self.certs]
-        self.assertEqual(ev_status, [False, False, False, True])
         ev_status = [util_cert.try_cert_is_ev(cert, quiet=False) for cert in certs]
+        self.assertEqual(ev_status, [False, False, False, True, False])
+
+    def test_cn_wildcard(self):
+        """
+        Number of wildcards
+        :return:
+        """
+        for cname in ['cert04.pem', 'cert05.pem']:
+            self.certs.append(self._get_res(cname))
+
+        certs = [util.load_x509(cert) for cert in self.certs]
+        cn_wilds = [util_cert.try_cert_is_cn_wildcard(cert, quiet=False) for cert in certs]
+        self.assertEqual(cn_wilds, [False, False, False, False, True])
+
+    def test_alt_wildcard(self):
+        """
+        Number of wildcards
+        :return:
+        """
+        for cname in ['cert04.pem', 'cert05.pem']:
+            self.certs.append(self._get_res(cname))
+
+        certs = [util.load_x509(cert) for cert in self.certs]
+        alt_wilds = [util_cert.try_cert_alt_wildcard_num(cert) for cert in certs]
+        self.assertEqual(alt_wilds, [0, 0, 0, 0, 10])
 
 
 if __name__ == "__main__":

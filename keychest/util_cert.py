@@ -15,6 +15,8 @@ from cryptography.x509.oid import NameOID, ObjectIdentifier
 from cryptography.x509.oid import ExtensionOID
 from cryptography.x509 import ExtensionNotFound, PolicyInformation
 
+from keychest.tls_domain_tools import TlsDomainTools
+
 logger = logging.getLogger(__name__)
 
 
@@ -128,4 +130,33 @@ def try_cert_is_ev(cert, quiet=True):
 
     return False
 
+
+def try_cert_is_cn_wildcard(cert, quiet=True):
+    """
+    Returns true if the certificate has *. in the CN
+    :param cert:
+    :param quiet:
+    :return:
+    """
+    try:
+        cname = util.try_get_cname(cert)
+        return TlsDomainTools.has_wildcard(cname)
+
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in getting CN wildcard status. %s' % e)
+            logger.debug(traceback.format_exc())
+
+    return False
+
+
+def try_cert_alt_wildcard_num(cert):
+    """
+    Returns number of wildcard domain in the alt domains
+    :param cert:
+    :return:
+    """
+    alt_names = [util.utf8ize(x) for x in util.try_get_san(cert)]
+    num_wilds = sum([1 for x in alt_names if TlsDomainTools.has_wildcard(x)])
+    return num_wilds
 
