@@ -270,6 +270,7 @@ class DbMigrationManager(object):
                 self.s.flush()
                 self.s.commit()
                 self.s.expunge_all()
+                offset += page_size
 
                 if offset - last_offset > 50000:
                     last_offset = offset
