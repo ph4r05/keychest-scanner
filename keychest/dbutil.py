@@ -106,6 +106,7 @@ class Certificate(Base):
     cname = Column(Text, nullable=True)
     subject = Column(Text, nullable=True)
     issuer = Column(Text, nullable=True)
+    issuer_o = Column(String(64), nullable=True)
     is_ca = Column(SmallInteger, nullable=False, default=0)
     is_self_signed = Column(SmallInteger, nullable=False, default=0)
     is_precert = Column(SmallInteger, nullable=False, default=0)
