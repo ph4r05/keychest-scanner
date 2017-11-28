@@ -1151,6 +1151,19 @@ def try_get_email(cert):
     return None
 
 
+def try_get_issuer_org(cert):
+    """
+    Issuer organization
+    :param cert:
+    :return:
+    """
+    try:
+        return get_dn_part(cert.issuer, NameOID.ORGANIZATION_NAME)
+    except:
+        pass
+    return None
+
+
 def try_parse_datetime_string(x):
     """
     Tries to parse try_parse_datetime_string
