@@ -20,7 +20,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy import case, literal_column, orm
 from sqlalchemy.sql import expression
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger
+from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger, Float
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
 from sqlalchemy.orm.session import make_transient
 from sqlalchemy.ext.declarative import declarative_base
@@ -1453,6 +1453,28 @@ class DbKeycheckerStats(Base):
 
     stat_id = Column(String(64), default=None)
     number = Column(Integer, default=0)
+
+
+#
+# Analytics
+#
+
+
+class DbCertificatePriceList(Base):
+    """
+    Certificate price list
+    """
+    __tablename__ = 'certificate_price_list'
+    id = Column(BigInteger, primary_key=True)
+
+    issuer_org = Column(String(255), default=None)
+    is_ev = Column(SmallInteger, default=0, nullable=False)  # extended validation flag
+    is_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in CN
+
+    price = Column(Float, default=0, nullable=False)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
 
 
 #
