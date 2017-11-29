@@ -1,8 +1,8 @@
 """050 cert price list
 
-Revision ID: 5d5ba5825a60
+Revision ID: 1d973942057b
 Revises: a2d90960dfdd
-Create Date: 2017-11-28 08:46:47.314318+00:00
+Create Date: 2017-11-29 14:13:45.021827+00:00
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '5d5ba5825a60'
+revision = '1d973942057b'
 down_revision = 'a2d90960dfdd'
 branch_labels = None
 depends_on = None
@@ -21,9 +21,11 @@ def upgrade():
     op.create_table('certificate_price_list',
     sa.Column('id', sa.BigInteger(), nullable=False),
     sa.Column('issuer_org', sa.String(length=255), nullable=True),
-    sa.Column('is_ev', sa.SmallInteger(), nullable=False),
-    sa.Column('is_wildcard', sa.SmallInteger(), nullable=False),
     sa.Column('price', sa.Float(), nullable=False),
+    sa.Column('price_personal', sa.Float(), nullable=True),
+    sa.Column('price_ev', sa.Float(), nullable=True),
+    sa.Column('price_wildcard', sa.Float(), nullable=True),
+    sa.Column('price_ev_wildcard', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')

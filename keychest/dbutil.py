@@ -1468,10 +1468,15 @@ class DbCertificatePriceList(Base):
     id = Column(BigInteger, primary_key=True)
 
     issuer_org = Column(String(255), default=None)
-    is_ev = Column(SmallInteger, default=0, nullable=False)  # extended validation flag
-    is_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in CN
+
+    #is_ev = Column(SmallInteger, default=0, nullable=False)  # extended validation flag
+    #is_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in CN
 
     price = Column(Float, default=0, nullable=False)
+    price_personal = Column(Float, default=0, nullable=True)
+    price_ev = Column(Float, default=0, nullable=True)
+    price_wildcard = Column(Float, default=0, nullable=True)
+    price_ev_wildcard = Column(Float, default=0, nullable=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
