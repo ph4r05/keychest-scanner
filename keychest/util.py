@@ -1138,6 +1138,19 @@ def try_get_cname(cert):
     return None
 
 
+def try_get_org_name(cert):
+    """
+    Subject organization
+    :param cert:
+    :return:
+    """
+    try:
+        return get_dn_part(cert.subject, NameOID.ORGANIZATION_NAME)
+    except:
+        pass
+    return None
+
+
 def try_get_email(cert):
     """
     Email attribute
