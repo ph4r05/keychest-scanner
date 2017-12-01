@@ -118,6 +118,7 @@ class Certificate(Base):
     subject_key_info = Column(String(64), index=True, nullable=True)
     authority_key_info = Column(String(64), index=True, nullable=True)
     is_ev = Column(SmallInteger, default=0, nullable=False)  # extended validation flag
+    is_ov = Column(SmallInteger, default=0, nullable=False)  # organization validation flag
     is_cn_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in CN
     is_alt_wildcard = Column(SmallInteger, default=0, nullable=False)  # wildcard in alt names
 
@@ -126,6 +127,7 @@ class Certificate(Base):
     sig_alg = Column(Integer, nullable=True)  # signature hash used, SHA1, SHA2, ...
 
     alt_names = Column(Text, nullable=True)  # json encoded alt names array. denormalized for efficiency
+    alt_names_cnt = Column(Integer, nullable=True)  # number of alt names
 
     source = Column(String(255), nullable=True)  # CT / crt.sh / manual
 
