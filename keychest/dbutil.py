@@ -1474,6 +1474,7 @@ class DbCertificatePriceList(Base):
 
     price = Column(Float, default=0, nullable=False)
     price_personal = Column(Float, default=0, nullable=True)
+    price_ov = Column(Float, default=0, nullable=True)
     price_ev = Column(Float, default=0, nullable=True)
     price_wildcard = Column(Float, default=0, nullable=True)
     price_ev_wildcard = Column(Float, default=0, nullable=True)

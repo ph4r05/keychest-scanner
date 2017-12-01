@@ -23,6 +23,7 @@ def upgrade():
     sa.Column('issuer_org', sa.String(length=255), nullable=True),
     sa.Column('price', sa.Float(), nullable=False),
     sa.Column('price_personal', sa.Float(), nullable=True),
+    sa.Column('price_ov', sa.Float(), nullable=True),
     sa.Column('price_ev', sa.Float(), nullable=True),
     sa.Column('price_wildcard', sa.Float(), nullable=True),
     sa.Column('price_ev_wildcard', sa.Float(), nullable=True),
