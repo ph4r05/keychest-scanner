@@ -711,6 +711,7 @@ class DbDnsResolve(Base):
     num_ipv6 = Column(SmallInteger, default=0, nullable=False)
     is_synthetic = Column(SmallInteger, default=0, nullable=False)  # dummy value inserted manually
     dns = Column(Text, nullable=True)  # normalized json with dns results
+    cname = Column(String(255), nullable=True)  # cname from the resolution
 
     entries = relationship('DbDnsEntry', back_populates='scan')
 
