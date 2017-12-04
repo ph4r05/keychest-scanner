@@ -1480,6 +1480,7 @@ class DbCertificatePriceList(Base):
     price_ev = Column(Float, default=0, nullable=True)
     price_wildcard = Column(Float, default=0, nullable=True)
     price_ev_wildcard = Column(Float, default=0, nullable=True)
+    price_ov_wildcard = Column(Float, default=0, nullable=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
