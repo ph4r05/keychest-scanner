@@ -78,6 +78,7 @@ from sqlalchemy.orm.session import make_transient
 from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShException, CrtShTimeoutException
 import ph4whois
 import requests
+import dns.resolver
 
 
 __author__ = 'dusanklinec'
@@ -850,6 +851,21 @@ class Server(object):
             logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
             scan_db.status = 3
             scan_db.dns_status = 3
+            self.trace_logger.log(e)
+
+        # CNAME resolution
+        try:
+            if is_ip == IpType.NOT_IP:
+                my_resolver = dns.resolver.Resolver()
+                cnames = list(my_resolver.query(domain, 'CNAME'))
+                if len(cnames) > 0:
+                    scan_db.cname = util.remove_trailing_char(cnames[0].to_text(), '.')
+
+        except dns.resolver.NoAnswer:
+            pass  # no cname
+
+        except Exception as e:
+            logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
             self.trace_logger.log(e)
 
         if store_to_db:
@@ -2452,7 +2468,7 @@ class Server(object):
         :return:
         """
         m = DbDnsResolve
-        return [m.status, m.dns]
+        return [m.status, m.dns, m.cname]
 
     def diff_scan_dns(self, cur_scan, last_scan):
         """

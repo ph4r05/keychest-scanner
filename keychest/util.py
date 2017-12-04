@@ -1556,6 +1556,21 @@ def make_bytes(s):
         return str(s)
 
 
+def remove_trailing_char(x, s):
+    """
+    Removes trailing character from the string
+    :param x:
+    :param s:
+    :return:
+    """
+    if x is None or len(x) == 0:
+        return x
+    if x[-1] == s:
+        return x[:-1]
+    else:
+        return x
+
+
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
     """
     Runs command line task synchronously
