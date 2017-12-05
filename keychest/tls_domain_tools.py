@@ -1,29 +1,35 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from past.builtins import basestring    # pip install future
-from six.moves.urllib.parse import urlparse, urlencode
-
-import json
 import logging
-import time
-import requests
-import util
-import datetime
-import traceback
-import errors
-import types
+import random
 import re
 import socket
-import random
-from trace_logger import Tracelogger
+import json
+
+import pkg_resources
+import requests
 import tldextract
 from IPy import IP
+from six.moves.urllib.parse import urlparse
+
+import util
 from consts import IpType
 from cyclic_tools import CyclicTools
 
-
 logger = logging.getLogger(__name__)
+
+
+class CdnProviders(object):
+    """
+    Server HTTP headers resolved CDN providers
+    """
+    CLOUDFLARE = 'Cloudflare'
+    CHINACACHE = 'ChinaCache'
+    ONAPP = 'OnApp'
+    AMAZON_CLOUDFRONT = 'AmazonCloudfront'
+    BITGRAVITY = 'Bitgravity'
+    SKYPARK = 'Skypark'
 
 
 class HstsInfo(object):
@@ -92,6 +98,54 @@ class TargetUrl(object):
         :return:
         """
         return TlsDomainTools.assemble_url(self.scheme, self.host, self.port)
+
+
+class CnameCDNClassifier(object):
+    """
+    Cname -> CDN classifier.
+    """
+    def __init__(self):
+        """
+        Init
+        """
+        self.db = None
+
+    def init(self):
+        """
+        Wrapping initialization function
+        :return:
+        """
+        self.load_data()
+
+    def load_data(self):
+        """
+        Loads mapping data from the dataset
+        :return:
+        """
+        resource_package = __name__
+        resource_path = 'data/cdn_cnames.json'
+        data_file = pkg_resources.resource_string(resource_package, resource_path)
+
+        self.db = json.loads(data_file)
+        self.db = sorted(self.db, key=lambda x: -1*len(x[1]))  # sort by the longest substring (longest match first)
+
+    def classify_cname(self, cname):
+        """
+        Classifies CNAME to the CDN group
+        Returns None if no rule matched
+        :return:
+        """
+        if util.is_empty(cname):
+            return None
+
+        if self.db is None:
+            raise ValueError('Database not initialized')
+
+        for subs, cdn in self.db:
+            if util.contains(cname, subs):
+                return cdn
+
+        return None
 
 
 class TlsDomainTools(object):
@@ -385,6 +439,41 @@ class TlsDomainTools(object):
                 logger.debug('Exception in parsing HSTS: %s' % e)
 
         return ret
+
+    @staticmethod
+    def detect_cdn(res):
+        """
+        Detects CDN from the headers sent by the server
+        :param res:
+        :return:
+        """
+        if res is None:
+            return None
+
+        hdr = res.headers
+        if hdr is None:
+            return None
+
+        if util.lower(util.defvalkey_ic(hdr, 'Server')) == 'cloudflare-nginx':
+            return CdnProviders.CLOUDFLARE
+
+        if not util.is_empty(util.defvalkey_ic(hdr, 'powered-by-chinacache')):
+            return CdnProviders.CHINACACHE
+
+        if not util.is_empty(util.defvalkey_ic(hdr, 'x-edge-location')):
+            return CdnProviders.ONAPP
+
+        if not util.is_empty(util.defvalkey_ic(hdr, 'x-amz-cf-id')):
+            return CdnProviders.AMAZON_CLOUDFRONT
+
+        via = util.lower(util.defvalkey_ic(hdr, 'via'))
+        if via is not None and util.contains(via, 'bitgravity.com'):
+            return CdnProviders.BITGRAVITY
+
+        if util.defvalkey_ic(hdr, 'X-CDN-Provider') == 'SkyparkCDN':
+            return CdnProviders.SKYPARK
+
+        return None
 
     @staticmethod
     def scheme_port_detect(scheme, port):

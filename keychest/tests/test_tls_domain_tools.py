@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from keychest.tls_domain_tools import TlsDomainTools
+from keychest.tls_domain_tools import TlsDomainTools, CnameCDNClassifier, CdnProviders
 import random
 import unittest
+from . import MicroMock
+
 
 __author__ = 'dusanklinec'
 
@@ -93,6 +95,46 @@ class TlsDomainToolsTest(unittest.TestCase):
             ipi = TlsDomainTools.ip_to_int(ip)
             self.assertGreaterEqual(ipi, ip_ai)
             self.assertLessEqual(ipi, ip_bi)
+
+    def test_cname_classif(self):
+        """
+        CNAME -> CDN classifier test
+        :return:
+        """
+        classif = CnameCDNClassifier()
+        classif.load_data()
+        self.assertEqual('Akamai', classif.classify_cname('test22.akamai.net'))
+        self.assertEqual('Cloudflare', classif.classify_cname('enigma.cloudflare.com'))
+        self.assertEqual('Cloudflare', classif.classify_cname('enigma.cloudflare.net'))
+        self.assertEqual('Google', classif.classify_cname('tester.domain.googleusercontent.com'))
+        self.assertEqual(None, classif.classify_cname('nonsense.test.it'))
+        self.assertEqual(None, classif.classify_cname('enigmabrigde.com'))
+        self.assertEqual(None, classif.classify_cname('keychest.net'))
+        self.assertEqual(None, classif.classify_cname(None))
+
+    def test_hdr_cdn(self):
+        """
+        Headers -> CDN classif
+        :return:
+        """
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(None))
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(MicroMock(headers=None)))
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'server': 'apache'})))
+        self.assertEqual(CdnProviders.CLOUDFLARE,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'serVer': 'CloudFlare-nGinx'})))
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'serVer': 'nGinx'})))
+        self.assertEqual(CdnProviders.CHINACACHE,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'powered-by-chinacache': 'whatever'})))
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'via': 'test1'})))
+        self.assertEqual(None,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'via': None})))
+        self.assertEqual(CdnProviders.BITGRAVITY,
+                         TlsDomainTools.detect_cdn(MicroMock(headers={'via': 'test.bitgravity.com'})))
 
 
 if __name__ == "__main__":
