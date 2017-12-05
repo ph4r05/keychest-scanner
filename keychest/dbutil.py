@@ -310,6 +310,11 @@ class DbHandshakeScanJob(Base):
     follow_http_url = Column(String(255), nullable=True)  # URL after loading HTTP page
     follow_https_url = Column(String(255), nullable=True)  # URL after loading HTTPs page
 
+    ip_scanned_reverse = Column(String(255), default=None, nullable=True)
+    cdn_cname = Column(String(255), default=None, nullable=True)  # CDN detection from cname
+    cdn_headers = Column(String(255), default=None, nullable=True)  # CDN detection from headers
+    cdn_reverse = Column(String(255), default=None, nullable=True)  # CDN detection from reverse IP lookup
+
     hsts_present = Column(SmallInteger, default=0)  # HSTS
     hsts_max_age = Column(BigInteger, nullable=True)  # HSTS
     hsts_include_subdomains = Column(SmallInteger, nullable=True)  # HSTS
