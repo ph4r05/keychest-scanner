@@ -596,6 +596,10 @@ class Server(object):
             if store_job:
                 s.flush()
 
+            # Reverse IP lookup
+            if scan_db.ip_scanned is not None and scan_db.ip_scanned != '-':
+                self.reverse_ip_analysis(s, sys_params, resp, scan_db, domain_sni, job_data=job_data)
+
             # Try direct connect with requests, follow urls
             if do_connect_analysis:
                 self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme, job_data=job_data)
@@ -2407,7 +2411,8 @@ class Server(object):
             ColTransformWrapper(m.follow_http_url, TlsDomainTools.strip_query),
             ColTransformWrapper(m.follow_https_url, TlsDomainTools.strip_query),
             m.hsts_present, m.hsts_max_age, m.hsts_include_subdomains, m.hsts_preload,
-            m.pinning_present, m.pinning_report_only, m.pinning_pins]
+            m.pinning_present, m.pinning_report_only, m.pinning_pins,
+            m.ip_scanned_reverse, m.cdn_cname, m.cdn_headers, m.cdn_reverse]
         return cols
 
     def diff_scan_tls(self, cur_scan, last_scan):
@@ -3078,6 +3083,36 @@ class Server(object):
 
         # CDN detection
         scan_db.cdn_headers = TlsDomainTools.detect_cdn(r)
+
+    def reverse_ip_analysis(self, s, sys_params, resp, scan_db, domain, job_data=None):
+        """
+        Reverse IP lookup + CDN detection
+        :param s:
+        :param sys_params:
+        :param resp:
+        :param scan_db:
+        :param domain:
+        :param job_data:
+        :return:
+        """
+        ip = scan_db.ip_scanned
+        if ip is None or ip == '-':
+            return None
+
+        try:
+            addr = socket.gethostbyaddr(ip)
+            scan_db.ip_scanned_reverse = util.take_last(addr[0], 254)
+            scan_db.cdn_reverse = self.cname_cdn_classif.classify_cname(scan_db.ip_scanned_reverse)
+
+        except socket.gaierror as gai:
+            logger.debug('GAI error: %s: %s' % (ip, gai))
+
+        except socket.herror as herr:
+            logger.debug('Unknown host error: %s: %s' % (ip, herr))
+
+        except Exception as e:
+            logger.debug('Exception in IP reverse lookup: %s : %s' % (domain, e))
+            self.trace_logger.log(e)
 
     def get_job_type(self, job_data):
         """

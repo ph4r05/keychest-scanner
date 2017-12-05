@@ -1484,6 +1484,20 @@ def take(x, cnt=1):
     return x[0:cnt]
 
 
+def take_last(x, cnt=1):
+    """
+    Takes last cnt elements from x
+    :param x:
+    :param cnt:
+    :return:
+    """
+    if x is None:
+        return None
+    if len(x) <= cnt:
+        return x
+    return x[-1*cnt:]
+
+
 def jsonify(obj):
     """
     Transforms object for transmission
