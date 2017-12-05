@@ -19,7 +19,6 @@ import shutil
 import calendar
 import string
 import random
-import types
 import decimal
 import logging
 import traceback
@@ -1554,6 +1553,70 @@ def make_bytes(s):
     """
     if is_py3():
         return str(s)
+
+
+def startswith(haystack, prefix):
+    """
+    py3 comp startswith
+    :param haystack:
+    :param prefix:
+    :return:
+    """
+    if haystack is None:
+        return None
+
+    if sys.version_info[0] < 3:
+        return haystack.startswith(prefix)
+
+    return to_bytes(haystack).startswith(to_bytes(prefix))
+
+
+def to_string(x):
+    """
+    Utf8 conversion
+    :param x:
+    :return:
+    """
+    if isinstance(x, bytes):
+        return x.decode('utf-8')
+    if isinstance(x, basestring):
+        return x
+
+
+def to_bytes(x):
+    """
+    Byte conv
+    :param x:
+    :return:
+    """
+    if isinstance(x, bytes):
+        return x
+    if isinstance(x, basestring):
+        return x.encode('utf-8')
+
+
+def contains(haystack, needle):
+    """
+    py3 contains
+    :param haystack:
+    :param needle:
+    :return:
+    """
+    if sys.version_info[0] < 3:
+        return needle in haystack
+    else:
+        return to_bytes(needle) in to_bytes(haystack)
+
+
+def strip_spaces(x):
+    """
+    Strips spaces
+    :param x:
+    :return:
+    """
+    x = x.replace(b' ', b'')
+    x = x.replace(b'\t', b'')
+    return x
 
 
 def remove_trailing_char(x, s):
