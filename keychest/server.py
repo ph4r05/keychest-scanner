@@ -32,7 +32,7 @@ import redis_helper as rh
 from trace_logger import Tracelogger
 from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsResolutionError, TlsException, TlsHandshakeErrors
 from cert_path_validator import PathValidator, ValidationException, ValidationOsslException, ValidationResult
-from tls_domain_tools import TlsDomainTools, TargetUrl
+from tls_domain_tools import TlsDomainTools, TargetUrl, CnameCDNClassifier
 from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
 from errors import Error, InvalidHostname, ServerShuttingDown
 from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
@@ -150,6 +150,7 @@ class Server(object):
         self.tls_handshaker = TlsHandshaker(timeout=5, tls_version='TLS_1_2', attempts=3)
         self.crt_validator = PathValidator()
         self.domain_tools = TlsDomainTools()
+        self.cname_cdn_classif = CnameCDNClassifier()
         self.tls_scanner = TlsScanner()
         self.test_timeout = 5
         self.api = None
@@ -265,6 +266,7 @@ class Server(object):
         :return: 
         """
         self.crt_validator.init()
+        self.cname_cdn_classif.init()
         signal.signal(signal.SIGINT, self.signal_handler)
 
     def init_modules(self):
@@ -596,7 +598,7 @@ class Server(object):
 
             # Try direct connect with requests, follow urls
             if do_connect_analysis:
-                self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme)
+                self.connect_analysis(s, sys_params, resp, scan_db, domain_sni, port, scheme, job_data=job_data)
             else:
                 logger.debug('Connect analysis skipped for %s' % domain_sni)
 
@@ -860,6 +862,7 @@ class Server(object):
                 cnames = list(my_resolver.query(domain, 'CNAME'))
                 if len(cnames) > 0:
                     scan_db.cname = util.remove_trailing_char(cnames[0].to_text(), '.')
+                    job_data['cname'] = scan_db.cname
 
         except dns.resolver.NoAnswer:
             pass  # no cname
@@ -1913,6 +1916,10 @@ class Server(object):
         else:
             job_scan.skip(scan_list)  # skip TLS handshake check totally if DNS is not valid
             return False
+
+        # Cname from DNS scan
+        if job.scan_dns and job.scan_dns.aux and job.scan_dns.aux.cname:
+            job_spec['cname'] = job.scan_dns.aux.cname
 
         handshake_res, db_scan = self.scan_handshake(s, job_spec, url.host, None, store_job=False)
         if handshake_res is None:
@@ -2977,7 +2984,7 @@ class Server(object):
         except Exception as e:
             logger.debug('Path validation failed: %s' % e)
 
-    def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None):
+    def connect_analysis(self, s, sys_params, resp, scan_db, domain, port=None, scheme=None, hostname=None, job_data=None):
         """
         Connects to the host, performs simple connection analysis - HTTP connect, HTTPS connect, follow redirects.
         :param s: 
@@ -2988,7 +2995,8 @@ class Server(object):
         :param port: 
         :param scheme: 
         :param hostname: 
-        :return: 
+        :param job_data:
+        :return:
         """
         # scheme & port setting, params + auto-detection defaults
         scheme, port = TlsDomainTools.scheme_port_detect(scheme, port)
@@ -2997,6 +3005,10 @@ class Server(object):
         if scheme not in ['http', 'https']:
             logger.debug('Unsupported connect scheme / port: %s / %s' % (scheme, port))
             return
+
+        # CDN
+        if job_data is not None:
+            scan_db.cdn_cname = self.cname_cdn_classif.classify_cname(util.defvalkey(job_data, 'cname'))
 
         # Raw hostname
         test_domain = TlsDomainTools.parse_hostname(hostname)
@@ -3041,7 +3053,7 @@ class Server(object):
 
     def http_headers_analysis(self, s, scan_db, r):
         """
-        HSTS / cert pinning
+        HSTS / cert pinning / CDN
         :param s:
         :param scan_db:
         :param r:
@@ -3063,6 +3075,9 @@ class Server(object):
         if pinn.enabled:
             scan_db.pinning_report_only = pinn.report_only
             scan_db.pinning_pins = json.dumps(pinn.pins)
+
+        # CDN detection
+        scan_db.cdn_headers = TlsDomainTools.detect_cdn(r)
 
     def get_job_type(self, job_data):
         """
