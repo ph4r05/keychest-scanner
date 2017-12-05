@@ -6,6 +6,7 @@
   [".akamaiedge.net", "Akamai"],
   [".akadns.net", "Akamai"],
   [".akamaitechnologies.com", "Akamai"],
+  [".b-cdn.net", "Bunny CDN"],
   [".gslb.tbcache.com", "Alimama"],
   [".cloudfront.net", "Amazon Cloudfront"],
   [".anankecdn.com.br", "Ananke"],
