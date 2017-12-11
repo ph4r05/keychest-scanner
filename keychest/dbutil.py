@@ -1667,7 +1667,7 @@ class DbManagedServiceToSolutionAssoc(Base):
     deleted_at = Column(DateTime, default=None, nullable=True)
 
 
-class DbManagedServiceToGroupAssoc(Base):
+class DbManagedSolutionToGroupAssoc(Base):
     """
     Managed solutions -> Host Group association
     List of associated host groups.
