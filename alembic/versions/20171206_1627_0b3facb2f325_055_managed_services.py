@@ -22,84 +22,84 @@ def upgrade():
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('sol_display', sa.String(length=255), nullable=True),
                     sa.Column('sol_name', sa.String(length=255), nullable=True),
-                    sa.Column('sol_provider', sa.String(length=255), nullable=True),
-                    sa.Column('sol_deployment', sa.String(length=255), nullable=True),
-                    sa.Column('sol_domain_auth', sa.String(length=255), nullable=True),
-                    sa.Column('sol_config', sa.String(length=255), nullable=True),
+                    sa.Column('sol_type', sa.String(length=64), nullable=True),
+                    sa.Column('sol_assurance_level', sa.String(length=64), nullable=True),
+                    sa.Column('sol_criticality', sa.Integer(), nullable=True),
                     sa.Column('sol_desc', sa.Text(), nullable=True),
                     sa.Column('sol_data', sa.Text(), nullable=True),
                     sa.Column('owner_id', sa.BigInteger(), nullable=True),
-                    sa.Column('agent_id', sa.BigInteger(), nullable=True),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
-                    sa.ForeignKeyConstraint(['agent_id'], ['keychest_agent.id'], name='managed_solutions_agent_id',
-                                            ondelete='SET NULL'),
                     sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], name='managed_solutions_owner_id',
                                             ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')
                     )
-    op.create_index(op.f('ix_managed_solutions_agent_id'), 'managed_solutions', ['agent_id'], unique=False)
     op.create_index(op.f('ix_managed_solutions_owner_id'), 'managed_solutions', ['owner_id'], unique=False)
 
     op.create_table('managed_services',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('svc_display', sa.String(length=255), nullable=True),
                     sa.Column('svc_name', sa.String(length=255), nullable=True),
-                    sa.Column('svc_type', sa.String(length=64), nullable=True),
-                    sa.Column('svc_assurance_level', sa.String(length=64), nullable=True),
-                    sa.Column('svc_criticality', sa.Integer(), nullable=True),
+                    sa.Column('svc_provider', sa.String(length=255), nullable=True),
+                    sa.Column('svc_deployment', sa.String(length=255), nullable=True),
+                    sa.Column('svc_domain_auth', sa.String(length=255), nullable=True),
+                    sa.Column('svc_config', sa.String(length=255), nullable=True),
                     sa.Column('svc_desc', sa.Text(), nullable=True),
                     sa.Column('svc_data', sa.Text(), nullable=True),
                     sa.Column('owner_id', sa.BigInteger(), nullable=True),
+                    sa.Column('agent_id', sa.BigInteger(), nullable=True),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
                     sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], name='managed_services_owner_id',
                                             ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['agent_id'], ['keychest_agent.id'], name='managed_services_agent_id',
+                                            ondelete='SET NULL'),
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_index(op.f('ix_managed_services_owner_id'), 'managed_services', ['owner_id'], unique=False)
+    op.create_index(op.f('ix_managed_services_agent_id'), 'managed_services', ['agent_id'], unique=False)
     op.create_unique_constraint('uk_managed_host_groups_name_owner', 'managed_host_groups', ['group_name', 'owner_id'])
 
-    op.create_table('managed_service_to_solution',
+    op.create_table('managed_solution_to_service',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('service_id', sa.BigInteger(), nullable=False),
                     sa.Column('solution_id', sa.BigInteger(), nullable=False),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
-                    sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
-                                            name='managed_service_to_solution_service_id', ondelete='CASCADE'),
                     sa.ForeignKeyConstraint(['solution_id'], ['managed_solutions.id'],
-                                            name='managed_service_to_solution_solution_id', ondelete='CASCADE'),
+                                            name='managed_solution_to_service_solution_id', ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
+                                            name='managed_solution_to_service_service_id', ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id'),
-                    sa.UniqueConstraint('service_id', 'solution_id', name='uk_managed_service_to_solution_svc_sol')
+                    sa.UniqueConstraint('solution_id', 'service_id', name='uk_managed_solution_to_service_svc_sol')
                     )
-    op.create_index(op.f('ix_managed_service_to_solution_solution_id'), 'managed_service_to_solution', ['solution_id'],
+    op.create_index(op.f('ix_managed_solution_to_service_solution_id'), 'managed_solution_to_service', ['solution_id'],
                     unique=False)
-    op.create_index(op.f('ix_managed_service_to_solution_service_id'), 'managed_service_to_solution', ['service_id'],
+    op.create_index(op.f('ix_managed_solution_to_service_service_id'), 'managed_solution_to_service', ['service_id'],
                     unique=False)
 
-    op.create_table('managed_solution_to_group',
+    op.create_table('managed_service_to_group',
                     sa.Column('id', sa.BigInteger(), nullable=False),
-                    sa.Column('solution_id', sa.BigInteger(), nullable=False),
+                    sa.Column('service_id', sa.BigInteger(), nullable=False),
                     sa.Column('group_id', sa.BigInteger(), nullable=False),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
                     sa.ForeignKeyConstraint(['group_id'], ['managed_host_groups.id'],
-                                            name='managed_solution_to_group_group_id', ondelete='CASCADE'),
-                    sa.ForeignKeyConstraint(['solution_id'], ['managed_solutions.id'],
-                                            name='managed_solution_to_group_solution_id', ondelete='CASCADE'),
+                                            name='managed_service_to_group_group_id', ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
+                                            name='managed_service_to_group_service_id', ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id'),
-                    sa.UniqueConstraint('solution_id', 'group_id',
-                                        name='uk_managed_solution_to_group_sol_group')
+                    sa.UniqueConstraint('service_id', 'group_id',
+                                        name='uk_managed_service_to_group_svc_group')
                     )
-    op.create_index(op.f('ix_managed_solution_to_group_group_id'), 'managed_solution_to_group', ['group_id'],
+    op.create_index(op.f('ix_managed_service_to_group_group_id'), 'managed_service_to_group', ['group_id'],
                     unique=False)
-    op.create_index(op.f('ix_managed_solution_to_group_solution_id'), 'managed_solution_to_group',
-                    ['solution_id'], unique=False)
+    op.create_index(op.f('ix_managed_service_to_group_service_id'), 'managed_service_to_group', ['service_id'],
+                    unique=False)
 
     op.add_column('managed_hosts', sa.Column('host_os', sa.String(length=255), nullable=True))
     op.add_column('managed_hosts', sa.Column('host_os_ver', sa.String(length=255), nullable=True))
@@ -115,13 +115,9 @@ def downgrade():
 
     op.drop_constraint('uk_managed_host_groups_name_owner', 'managed_host_groups', type_='unique')
 
-    # op.drop_index(op.f('ix_managed_solution_to_group_solution_id'), table_name='managed_solution_to_group')
-    # op.drop_index(op.f('ix_managed_solution_to_group_group_id'), table_name='managed_solution_to_group')
-    op.drop_table('managed_solution_to_group')
+    op.drop_table('managed_service_to_group')
 
-    # op.drop_index(op.f('ix_managed_service_to_solution_service_id'), table_name='managed_service_to_solution')
-    # op.drop_index(op.f('ix_managed_service_to_solution_solution_id'), table_name='managed_service_to_solution')
-    op.drop_table('managed_service_to_solution')
+    op.drop_table('managed_solution_to_service')
 
     # op.drop_index(op.f('ix_managed_services_owner_id'), table_name='managed_services')
     op.drop_table('managed_services')

@@ -1595,23 +1595,27 @@ class DbHostToGroupAssoc(Base):
 
 class DbManagedService(Base):
     """
-    Managed Service, e.g. particular web service
-    High level service record.
+    Managed Service solution, e.g. configuration for the deployment
+    Tech level service record, service specification.
     """
     __tablename__ = 'managed_services'
     __table_args__ = ()
     id = Column(BigInteger, primary_key=True)
 
     svc_display = Column(String(255), default=None)  # human name
-    svc_name = Column(String(255), default=None)  # e.g., domain name
-    svc_type = Column(String(64), default=None)  # web service / email server / ...
-    svc_assurance_level = Column(String(64), default=None)  # assurance level code
-    svc_criticality = Column(Integer, default=None)  # criticality int code
+    svc_name = Column(String(255), default=None)  # unique key for the solution per owner
+
+    svc_provider = Column(String(255), default=None)  # apache / nginx
+    svc_deployment = Column(String(255), default=None)  # ansible / agent
+    svc_domain_auth = Column(String(255), default=None)  # local-certbot
+    svc_config = Column(String(255), default=None)  # manual
 
     svc_desc = Column(Text)  # text desc, informal, unstructured
     svc_data = Column(Text)  # aux json
 
     owner_id = Column(ForeignKey('owners.id', name='managed_services_owner_id', ondelete='CASCADE'),
+                      nullable=True, index=True)
+    agent_id = Column(ForeignKey('keychest_agent.id', name='managed_services_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -1621,26 +1625,21 @@ class DbManagedService(Base):
 
 class DbManagedSolution(Base):
     """
-    Managed Service solution, e.g. configuration for the deployment
-    Tech level service record, solution.
+    Managed Solution, e.g. particular web service, internet banking.
+    High level service record.
     """
     __tablename__ = 'managed_solutions'
     __table_args__ = ()
     id = Column(BigInteger, primary_key=True)
 
     sol_display = Column(String(255), default=None)  # human name
-    sol_name = Column(String(255), default=None)  # unique key for the solution per owner
+    sol_name = Column(String(255), default=None)  # unique key for the service per owner
 
-    sol_provider = Column(String(255), default=None)  # apache / nginx
-    sol_deployment = Column(String(255), default=None)  # ansible / agent
-    sol_domain_auth = Column(String(255), default=None)  # local-certbot
-    sol_config = Column(String(255), default=None)  # manual
-    sol_desc = Column(Text)  # human description text
-    sol_data = Column(Text)  # aux json
+    sol_type = Column(String(64), default=None)  # web service / email server / ...
+    sol_assurance_level = Column(String(64), default=None)  # assurance level code
+    sol_criticality = Column(Integer, default=None)  # criticality int code
 
     owner_id = Column(ForeignKey('owners.id', name='managed_solutions_owner_id', ondelete='CASCADE'),
-                      nullable=True, index=True)
-    agent_id = Column(ForeignKey('keychest_agent.id', name='managed_solutions_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
 
     created_at = Column(DateTime, default=None)
@@ -1648,36 +1647,36 @@ class DbManagedSolution(Base):
     deleted_at = Column(DateTime, default=None)
 
 
-class DbManagedServiceToSolutionAssoc(Base):
+class DbManagedSolutionToServiceAssoc(Base):
     """
     Managed service -> managed solution
     List of associated host groups.
     """
-    __tablename__ = 'managed_service_to_solution'
-    __table_args__ = (UniqueConstraint('service_id', 'solution_id', name='uk_managed_service_to_solution_svc_sol'),)
+    __tablename__ = 'managed_solution_to_service'
+    __table_args__ = (UniqueConstraint('service_id', 'solution_id', name='uk_managed_solution_to_service_sol_svc'),)
     id = Column(BigInteger, primary_key=True)
 
-    service_id = Column(ForeignKey('managed_services.id', name='managed_service_to_solution_service_id',
-                                   ondelete='CASCADE'), nullable=False, index=True)
-    solution_id = Column(ForeignKey('managed_solutions.id', name='managed_service_to_solution_solution_id',
+    solution_id = Column(ForeignKey('managed_solutions.id', name='managed_solution_to_service_solution_id',
                                     ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='managed_solution_to_service_service_id',
+                                   ondelete='CASCADE'), nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None, nullable=True)
 
 
-class DbManagedSolutionToGroupAssoc(Base):
+class DbManagedServiceToGroupAssoc(Base):
     """
-    Managed solutions -> Host Group association
+    Managed services -> Host Group association
     List of associated host groups.
     """
-    __tablename__ = 'managed_solution_to_group'
-    __table_args__ = (UniqueConstraint('solution_id', 'group_id', name='uk_managed_solution_to_group_sol_group'),)
+    __tablename__ = 'managed_service_to_group'
+    __table_args__ = (UniqueConstraint('service_id', 'group_id', name='uk_managed_service_to_group_svc_group'),)
     id = Column(BigInteger, primary_key=True)
 
-    solution_id = Column(ForeignKey('managed_solutions.id', name='managed_solution_to_group_solution_id',
-                                    ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='managed_service_to_group_service_id',
+                                   ondelete='CASCADE'), nullable=False, index=True)
     group_id = Column(ForeignKey('managed_host_groups.id', name='managed_solution_to_group_group_id',
                                  ondelete='CASCADE'), nullable=False, index=True)
 
