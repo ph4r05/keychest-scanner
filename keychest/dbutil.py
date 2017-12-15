@@ -1609,6 +1609,8 @@ class DbManagedService(Base):
     svc_deployment = Column(String(255), default=None)  # ansible / agent
     svc_domain_auth = Column(String(255), default=None)  # local-certbot
     svc_config = Column(String(255), default=None)  # manual
+    svc_watch_id = Column(ForeignKey('watch_target.id', name='managed_services_svc_watch_id', ondelete='SET NULL'),
+                          nullable=True, index=True)  # associated monitored counterpart
 
     svc_desc = Column(Text)  # text desc, informal, unstructured
     svc_data = Column(Text)  # aux json
