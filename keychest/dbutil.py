@@ -271,6 +271,8 @@ class DbHandshakeScanJob(Base):
     job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
     watch_id = Column(ForeignKey('watch_target.id', name='tls_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
+    test_id = Column(ForeignKey('managed_test.id', name='tls_watch_managed_test_id', ondelete='SET NULL'),
+                     nullable=True, index=True)  # managed test, optional anchor
 
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP), ip also tied by watch id
     is_ipv6 = Column(SmallInteger, default=0, nullable=False)
@@ -1606,11 +1608,11 @@ class DbManagedService(Base):
     svc_name = Column(String(255), default=None)  # unique key for the solution per owner
 
     svc_provider = Column(String(255), default=None)  # apache / nginx
-    svc_deployment = Column(String(255), default=None)  # ansible / agent
+    svc_deployment = Column(String(255), default=None)  # ansible / certificate-agent
     svc_domain_auth = Column(String(255), default=None)  # local-certbot
     svc_config = Column(String(255), default=None)  # manual
     svc_watch_id = Column(ForeignKey('watch_target.id', name='managed_services_svc_watch_id', ondelete='SET NULL'),
-                          nullable=True, index=True)  # associated monitored counterpart
+                          nullable=True, index=True)  # associated monitored counterpart, if reachable by the scanner.
 
     svc_desc = Column(Text)  # text desc, informal, unstructured
     svc_data = Column(Text)  # aux json
@@ -1685,6 +1687,87 @@ class DbManagedServiceToGroupAssoc(Base):
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None, nullable=True)
+
+
+class DbManagedTest(Base):
+    """
+    Particular watchdog test for managed services on given hosts.
+    Creates KeyChest scanner from (solutions, services, hostGroups, hosts) configuration.
+    If a new host is added to the associated host group a new test record is added to watch a new host in the config.
+    If a host is removed from the configuration the record is set as deleted (soft delete).
+    """
+    __tablename__ = 'managed_test'
+    __table_args__ = ()
+    id = Column(BigInteger, primary_key=True)
+
+    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_test_managed_solution_id',
+                                    ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_test_managed_service_id',
+                                   ondelete='CASCADE'), nullable=False, index=True)
+
+    # Host identification for advanced checks and renewal.
+    # Host ID also identifies particular check on the given host (solution, service, host).
+    host_id = Column(ForeignKey('managed_hosts.id', name='fk_managed_test_managed_host_id',
+                                ondelete='CASCADE'), nullable=True, index=True)
+
+    # Watch target - only if the target is reachable by standard monitoring part. Optional.
+    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_watch_target_id',
+                                        ondelete='SET NULL'), nullable=True, index=True)
+
+    # watch target scan fields
+    scan_host = Column(String(255), nullable=True)
+    scan_scheme = Column(String(255), nullable=True)
+    scan_port = Column(String(255), nullable=True)
+    scan_connect = Column(SmallInteger, default=0, nullable=False)  # TLS or STARTTLS
+    scan_data = Column(Text, nullable=True)
+
+    # Explicit SNI / service name to scan on host if multiplexing / raw IP for internal networks.
+    scan_service_id = Column(ForeignKey('watch_service.id', name='fk_managed_test_scan_service_id', ondelete='SET NULL'),
+                             nullable=True, index=True)
+    top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_test_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
+
+    last_scan_at = Column(DateTime, default=None)  # last scan for this entry (e.g., cert)
+    last_scan_status = Column(SmallInteger, default=None)  # last scan status
+    last_scan_data = Column(Text, nullable=True)  # last scan result data
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None)
+
+
+class DbManagedCertIssue(Base):
+    """
+    Cert issue/renewal record.
+    Mainly serves as a renewal log of all previous renewal attempts of the particular certificate on the host.
+    """
+    __tablename__ = 'managed_cert_issue'
+    __table_args__ = ()
+    id = Column(BigInteger, primary_key=True)
+
+    # Issue/renewal is always tied to the specific management configuration and the particular test.
+    test_id = Column(ForeignKey('managed_test.id', name='fk_managed_cert_issue_test_id', ondelete='CASCADE'),
+                     nullable=True, index=True)
+
+    # Certificate being renewed, optional. Null for new cert issue.
+    certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_certificate_id', ondelete='SET NULL'),
+                            nullable=True, index=True)
+    
+    # New renewed certificate id
+    new_certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_new_certificate_id',
+                                           ondelete='SET NULL'), nullable=True, index=True)
+
+    affected_certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
+
+    # Renew / issue request data. CSR or aux cert information.
+    request_data = Column(Text, nullable=True)
+
+    last_issue_at = Column(DateTime, default=None)  # last issue timestamp
+    last_issue_status = Column(SmallInteger, default=None)  # last issue status (success / fail)
+    last_issue_data = Column(Text, nullable=True)  # last issue/renew json data. The issue log / aux info
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
 
 
 #
