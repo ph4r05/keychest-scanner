@@ -93,5 +93,22 @@ original scanner part and increase the coupling. As monitoring and management di
 split data model of those two by design to reduce the coupling and checker system complexity which has slightly
 different goals and objectives.
 
+### Design use-cases, goals, objectives
 
+- Consider multiple different certificates for one (solution, service, host). E.g., RSA, ECC certs.
+We may want to renew all, can have different validity and policy.
+
+- Consider more different monitoring strategies:
+  - Standard TLS check
+  - More protocols check (START-TLS, another protocols)
+  - Physical file check (ansible)
+  - API call
+  - Passive check - submitted by the installed endpoint certificate-agent.
+
+- All cert properties, configuration, renewal policies and mechanisms should be the same in the
+managed service -> delegates to associated hosts via groups.
+
+- One cert can be shared across multiple hosts.
+  - Monitoring - monitor all hosts if they have valid certs.
+  - Renewal - renew only once (e.g., LetsEncrypt, Vault), then sync on the end hosts.
 
