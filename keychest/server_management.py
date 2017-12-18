@@ -18,11 +18,9 @@ from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, Period
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
-from dbutil import DbKeycheckerStats
-import keys_tools
-from roca import detect
+from dbutil import DbKeycheckerStats, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
+    DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc
 
-import os
 import time
 import json
 import logging
@@ -35,14 +33,20 @@ import email.message as emsg
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 
-from M2Crypto import SMIME, X509, BIO
-
 logger = logging.getLogger(__name__)
 
 
 class ManagementModule(ServerModule):
     """
     Management monitor and processor
+    Responsibilities:
+      - Manage test records according to the database records
+        - For each solution, service, service group and host create a new test record for certificate checking.
+        - If host gets deleted / de-associated from the service, suspend testing on this host.
+
+      - Watch test records, monitor certificates status
+      - Issue new certificates, renew certificates (domain validation)
+      - Deploy/sync new certs
     """
 
     def __init__(self, *args, **kwargs):
@@ -80,10 +84,10 @@ class ManagementModule(ServerModule):
         :return:
         """
 
-        # scan_thread = threading.Thread(target=self.scan_redis_jobs, args=())
-        # scan_thread.setDaemon(True)
-        # scan_thread.start()
-        #
+        test_sync_thread = threading.Thread(target=self.main_test_sync, args=())
+        test_sync_thread.setDaemon(True)
+        test_sync_thread.start()
+
         # email_thread = threading.Thread(target=self.main_scan_emails, args=())
         # email_thread.setDaemon(True)
         # email_thread.start()
@@ -97,6 +101,31 @@ class ManagementModule(ServerModule):
     #
     # Running
     #
+
+    def main_test_sync(self):
+        """
+        Test target sync
+        :return:
+        """
+        logger.info('Test target sync started')
+        while self.is_running():
+            self.server.interruptible_sleep(2)
+            try:
+                # iterate over all solutions
+                # iterate over all associated services
+                # iterate over all associated host groups
+                # iterate over all associated hosts
+                # sync
+                pass
+
+            except Exception as e:
+                logger.error('Exception in processing job %s' % (e,))
+                self.trace_logger.log(e)
+
+            finally:
+                self.server.interruptible_sleep(10)
+
+        logger.info('Test target sync terminated')
 
     def worker_main(self, idx):
         """
