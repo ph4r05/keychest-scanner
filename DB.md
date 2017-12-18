@@ -30,3 +30,49 @@ Alternative is to track each detected server as watch_traget with `scan_host` ha
 - Association to the user can hold `ip_scan_record_id`, or the `watch_target` itself as both are user unspecific.
 
 
+## Owners
+
+System was refactored so each resource is not attached to the particular user but to the more abstract entity - an owner.
+
+This allows greater flexibility and multi-user setups. By design user can represent more owners. In that case user
+sees all resources available to all attached owners. But for the simplicity each user has `primary_owner_id` set -
+the primary owner associated to the user. Multiple-owner feature is not fully implemented.
+
+In the current settings two users can share the same view just by setting `primary_owner_id` to the same value.
+
+For individual owners there is 1:1 association to the owner. New owner is created for each newly created user.
+It makes the further extensions easier.
+
+Owner can represent a group of users or the whole company. Later, owners could be extended to support hierarchy. This
+hierarchical ownership is not implemented yet.
+
+### Authorization
+
+Obviously user can manipulate only resources that belong to the owner user is associated to.
+
+Further operations granularity is implemented by permission system: https://github.com/spatie/laravel-permission
+It defines the operations user can do with the resource.
+
+## Monitoring
+
+Monitoring system is designed to be usable by many different entities, the scalability is important requirement.
+Users can have overlaps on the monitored services so if two users are monitoring the same service the KeyChest scanner
+scans the destination only once. There is an association monitored target <-> user.
+
+## Managed services
+
+Management part of the KeyChest is an executive part - in contrast with pure monitoring part of the original system.
+It allows to actively prevent certificate expiration by automated renewal of the certificates before they expire.
+
+Managed services also contain some monitoring part but it differs from the original monitoring KeyChest subsystem.
+
+ - Typically no resource sharing. One monitored target has one owner.
+ - More advanced checks supported: physical file check, API support (GET /certificates/)
+
+Abusing the original scanner part for this advanced monitoring and renewal would increase the complexity of the
+original scanner part and increase the coupling. As monitoring and management differ quite a lot we decided to
+split data model of those two by design to reduce the coupling and checker system complexity which has slightly
+different goals and objectives.
+
+
+
