@@ -30,6 +30,25 @@ Alternative is to track each detected server as watch_traget with `scan_host` ha
 - Association to the user can hold `ip_scan_record_id`, or the `watch_target` itself as both are user unspecific.
 
 
+## Agents
+
+There is one master KeyChest server with primary database copy and the PHP backend. They communicate via Redis interface
+(events, jobs) and via API (configuration, changes). PHP parts provides dashboard and management interface (GUI),
+sending email alerts, etc...
+
+Architecture supports agents - slave copies of KeyChest scanner.
+Agents are installed to private networks so even private services are reachable to the KeyChest scanner. One agent
+scans the whole private network. The functionality is very similar to the master node.
+
+Scan results are reported back to the master node which aggregates the results from all agents.
+Master node then provides a complete picture to the operator.
+
+Agent -> Master communication is via HTTPS REST API. As Agents are usually installed in the firewalled environment
+the communication model is designed so the agent initiates the connection to the master which is supposed to have a public
+interface OR there is a SSH tunnel from the agent to the master server. More in `agent.md`.
+
+Master -> Agent eventing is over websocket socket.io protocol.
+
 ## Owners
 
 System was refactored so each resource is not attached to the particular user but to the more abstract entity - an owner.
