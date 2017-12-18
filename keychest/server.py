@@ -42,6 +42,7 @@ from server_api import RestAPI
 from server_api_proc import ServerApiProc
 from server_key_tester import KeyTester
 from server_agent import ServerAgent
+from server_management import ManagementModule
 
 import threading
 import pid
@@ -159,6 +160,7 @@ class Server(object):
         self.mod_api_proc = None  # type: ServerApiProc
         self.mod_key_tester = None  # type: KeyTester
         self.mod_agent = None  # type: ServerAgent
+        self.mod_mgmt = None  # type: ManagementModule
 
         self.cleanup_last_check = 0
         self.cleanup_check_time = 60
@@ -285,6 +287,10 @@ class Server(object):
         self.mod_agent = ServerAgent()
         self.mod_agent.init(self)
         self.modules.append(self.mod_agent)
+
+        self.mod_mgmt = ManagementModule()
+        self.mod_mgmt.init(self)
+        self.modules.append(self.mod_mgmt)
 
     def signal_handler(self, signal, frame):
         """
