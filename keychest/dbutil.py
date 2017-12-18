@@ -1517,7 +1517,10 @@ class DbSshKey(Base):
     user_id = Column(ForeignKey('users.id', name='ssh_keys_users_id', ondelete='CASCADE'),
                      nullable=True, index=True)
     owner_id = Column(ForeignKey('owners.id', name='ssh_keys_owner_id', ondelete='CASCADE'),
-                     nullable=True, index=True)
+                      nullable=True, index=True)
+
+    user = relationship('DbUser')
+    owner = relationship('DbOwner')
 
     rec_version = Column(Integer, default=0)
     created_at = Column(DateTime, default=None)
@@ -1550,7 +1553,11 @@ class DbManagedHost(Base):
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_hosts_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
     ssh_key_id = Column(ForeignKey('ssh_keys.id', name='managed_hosts_ssh_keys_id', ondelete='SET NULL'),
-                      nullable=True, index=True)
+                        nullable=True, index=True)
+
+    ssh_key = relationship('DbSshKey')
+    owner = relationship('DbOwner')
+    agent = relationship('DbKeychestAgent')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1571,6 +1578,8 @@ class DbHostGroup(Base):
 
     owner_id = Column(ForeignKey('owners.id', name='managed_host_groups_owner_id', ondelete='CASCADE'),
                       nullable=True, index=True)
+
+    owner = relationship('DbOwner')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1622,6 +1631,9 @@ class DbManagedService(Base):
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_services_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
 
+    owner = relationship('DbOwner')
+    agent = relationship('DbKeychestAgent')
+
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None)
@@ -1645,6 +1657,8 @@ class DbManagedSolution(Base):
 
     owner_id = Column(ForeignKey('owners.id', name='managed_solutions_owner_id', ondelete='CASCADE'),
                       nullable=True, index=True)
+
+    owner = relationship('DbOwner')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1714,6 +1728,11 @@ class DbManagedTest(Base):
     watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_watch_target_id',
                                         ondelete='SET NULL'), nullable=True, index=True)
 
+    solution = relationship('DbManagedSolution')
+    service = relationship('DbManagedService')
+    host = relationship('DbManagedHost')
+    watch_target = relationship('DbWatchTarget')
+
     # watch target scan fields
     scan_host = Column(String(255), nullable=True)
     scan_scheme = Column(String(255), nullable=True)
@@ -1726,6 +1745,9 @@ class DbManagedTest(Base):
                              nullable=True, index=True)
     top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_test_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)
+
+    scan_service = relationship('DbWatchService')
+    top_domain = relationship('DbBaseDomain')
 
     last_scan_at = Column(DateTime, default=None)  # last scan for this entry (e.g., cert)
     last_scan_status = Column(SmallInteger, default=None)  # last scan status
@@ -1750,12 +1772,16 @@ class DbManagedCertIssue(Base):
                      nullable=True, index=True)
 
     # Certificate being renewed, optional. Null for new cert issue.
-    certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_certificate_id', ondelete='SET NULL'),
+    certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_certificate_id', ondelete='SET NULL'),
                             nullable=True, index=True)
     
     # New renewed certificate id
-    new_certificate_id = Column(ForeignKey('certificates.id', name='fk_api_waiting_new_certificate_id',
+    new_certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_new_certificate_id',
                                            ondelete='SET NULL'), nullable=True, index=True)
+
+    test = relationship('DbManagedTest')
+    certificate = relationship('Certificate', foreign_keys=certificate_id)
+    new_certificate = relationship('Certificate', foreign_keys=new_certificate_id)
 
     affected_certs_ids = Column(Text, nullable=True)  # json encoded array of certificate ids, denormalized for efficiency.
 
