@@ -96,7 +96,11 @@ different goals and objectives.
 ### Design use-cases, goals, objectives
 
 - Consider multiple different certificates for one (solution, service, host). E.g., RSA, ECC certs.
-We may want to renew all, can have different validity and policy.
+We may want to renew all, can have different validity and policy. Each certificate defined by a separate service.
+
+- Dual certificates (ECC+RSA) could have requirement that the renewal process has to be synchronous for both.
+Such certificates could not be treated independently as individual renewal would not work. Dual certificates should
+be configured in the service itself. *Extension*: Certificate profiles
 
 - Consider more different monitoring strategies:
   - Standard TLS check
