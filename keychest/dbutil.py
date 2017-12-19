@@ -271,7 +271,7 @@ class DbHandshakeScanJob(Base):
     job_id = Column(BigInteger, nullable=True)  # job id for web initiated scan
     watch_id = Column(ForeignKey('watch_target.id', name='tls_watch_target_id', ondelete='SET NULL'),
                       nullable=True, index=True)  # watch id scan for periodic scanner
-    test_id = Column(ForeignKey('managed_test.id', name='tls_watch_managed_test_id', ondelete='SET NULL'),
+    test_id = Column(ForeignKey('managed_tests.id', name='tls_watch_managed_tests_id', ondelete='SET NULL'),
                      nullable=True, index=True)  # managed test, optional anchor
 
     ip_scanned = Column(String(255), nullable=True)  # ip address used to connect to (remote peer IP), ip also tied by watch id
@@ -1725,22 +1725,22 @@ class DbManagedTest(Base):
     If a new host is added to the associated host group a new test record is added to watch a new host in the config.
     If a host is removed from the configuration the record is set as deleted (soft delete).
     """
-    __tablename__ = 'managed_test'
+    __tablename__ = 'managed_tests'
     __table_args__ = ()
     id = Column(BigInteger, primary_key=True)
 
-    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_test_managed_solution_id',
+    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_tests_managed_solution_id',
                                     ondelete='CASCADE'), nullable=False, index=True)
-    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_test_managed_service_id',
+    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_tests_managed_service_id',
                                    ondelete='CASCADE'), nullable=False, index=True)
 
     # Host identification for advanced checks and renewal.
     # Host ID also identifies particular check on the given host (solution, service, host).
-    host_id = Column(ForeignKey('managed_hosts.id', name='fk_managed_test_managed_host_id',
+    host_id = Column(ForeignKey('managed_hosts.id', name='fk_managed_tests_managed_host_id',
                                 ondelete='CASCADE'), nullable=True, index=True)
 
     # Watch target - only if the target is reachable by standard monitoring part. Optional.
-    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_watch_target_id',
+    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_tests_watch_target_id',
                                         ondelete='SET NULL'), nullable=True, index=True)
 
     solution = relationship('DbManagedSolution')
@@ -1756,9 +1756,9 @@ class DbManagedTest(Base):
     scan_data = Column(Text, nullable=True)
 
     # Explicit SNI / service name to scan on host if multiplexing / raw IP for internal networks.
-    scan_service_id = Column(ForeignKey('watch_service.id', name='fk_managed_test_scan_service_id', ondelete='SET NULL'),
+    scan_service_id = Column(ForeignKey('watch_service.id', name='fk_managed_tests_scan_service_id', ondelete='SET NULL'),
                              nullable=True, index=True)
-    top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_test_base_domain_id', ondelete='SET NULL'),
+    top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_tests_base_domain_id', ondelete='SET NULL'),
                            nullable=True, index=True)
 
     scan_service = relationship('DbWatchService')
@@ -1783,7 +1783,7 @@ class DbManagedCertIssue(Base):
     id = Column(BigInteger, primary_key=True)
 
     # Issue/renewal is always tied to the specific management configuration and the particular test.
-    test_id = Column(ForeignKey('managed_test.id', name='fk_managed_cert_issue_test_id', ondelete='CASCADE'),
+    test_id = Column(ForeignKey('managed_tests.id', name='fk_managed_cert_issue_test_id', ondelete='CASCADE'),
                      nullable=True, index=True)
 
     # Certificate being renewed, optional. Null for new cert issue.
