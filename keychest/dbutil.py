@@ -1558,6 +1558,7 @@ class DbManagedHost(Base):
     ssh_key = relationship('DbSshKey')
     owner = relationship('DbOwner')
     agent = relationship('DbKeychestAgent')
+    groups = relationship('DbHostToGroupAssoc', back_populates='host')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1580,6 +1581,8 @@ class DbHostGroup(Base):
                       nullable=True, index=True)
 
     owner = relationship('DbOwner')
+    hosts = relationship('DbHostToGroupAssoc', back_populates='group')
+    services = relationship('DbManagedServiceToGroupAssoc', back_populates='group')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1598,6 +1601,9 @@ class DbHostToGroupAssoc(Base):
                      nullable=False, index=True)
     group_id = Column(ForeignKey('managed_host_groups.id', name='managed_host_to_groups_group_id', ondelete='CASCADE'),
                       nullable=False, index=True)
+
+    host = relationship('DbManagedHost', back_populates='groups')
+    group = relationship('DbHostGroup', back_populates='hosts')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1633,6 +1639,8 @@ class DbManagedService(Base):
 
     owner = relationship('DbOwner')
     agent = relationship('DbKeychestAgent')
+    solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
+    groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1659,6 +1667,7 @@ class DbManagedSolution(Base):
                       nullable=True, index=True)
 
     owner = relationship('DbOwner')
+    services = relationship('DbManagedSolutionToServiceAssoc', back_populates='solution')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1679,6 +1688,9 @@ class DbManagedSolutionToServiceAssoc(Base):
     service_id = Column(ForeignKey('managed_services.id', name='managed_solution_to_service_service_id',
                                    ondelete='CASCADE'), nullable=False, index=True)
 
+    solution = relationship('DbManagedSolution', back_populates='services')
+    service = relationship('DbManagedService', back_populates='solutions')
+
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None, nullable=True)
@@ -1697,6 +1709,9 @@ class DbManagedServiceToGroupAssoc(Base):
                                    ondelete='CASCADE'), nullable=False, index=True)
     group_id = Column(ForeignKey('managed_host_groups.id', name='managed_solution_to_group_group_id',
                                  ondelete='CASCADE'), nullable=False, index=True)
+
+    service = relationship('DbManagedService', back_populates='groups')
+    group = relationship('DbHostGroup', back_populates='services')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
