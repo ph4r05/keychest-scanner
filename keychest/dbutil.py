@@ -1636,11 +1636,14 @@ class DbManagedService(Base):
                       nullable=True, index=True)
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_services_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
+    test_profile_id = Column(ForeignKey('managed_test_profiles.id', name='managed_services_test_profile_id', ondelete='SET NULL'),
+                             nullable=True, index=True)
 
     owner = relationship('DbOwner')
     agent = relationship('DbKeychestAgent')
     solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
+    test_profile = relationship('DbManagedTestProfile', back_populates='services')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1727,18 +1730,12 @@ class DbManagedTestProfile(Base):
     __table_args__ = ()
     id = Column(BigInteger, primary_key=True)
 
-    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_test_profiles_managed_solution_id',
-                                    ondelete='CASCADE'), nullable=False, index=True)
-    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_test_profiles_managed_service_id',
-                                   ondelete='CASCADE'), nullable=False, index=True)
-
     # Watch target - only if the target is reachable by standard monitoring part. Optional.
     watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_profiles_watch_target_id',
                                         ondelete='SET NULL'), nullable=True, index=True)
 
-    solution = relationship('DbManagedSolution')
-    service = relationship('DbManagedService')
     watch_target = relationship('DbWatchTarget')
+    services = relationship('DbManagedService', back_populates='test_profile')
 
     # watch target scan fields
     scan_key = Column(String(255), nullable=True)
