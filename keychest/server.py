@@ -1052,11 +1052,12 @@ class Server(object):
         Initializes data structures required for data processing
         :return:
         """
-        num_max_recon = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1))  # 15 %
-        num_max_ips = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1))  # 10 %
-        num_max_api = max(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1))  # 10 %
+        num_max_recon = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)))  # 15 %
+        num_max_ips = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1)))  # 10 %
+        num_max_api = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1)))  # 10 %
         num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads available
-        logger.info('Max watch: %s, Max recon: %s' % (num_max_watch, num_max_recon))
+        logger.info('Max watch: %s, Max recon: %s, Max IPS: %s, Max API: %s'
+                    % (num_max_watch, num_max_recon, num_max_ips, num_max_api))
 
         # semaphore array init
         self.watcher_job_semaphores = {
