@@ -93,6 +93,8 @@ original scanner part and increase the coupling. As monitoring and management di
 split data model of those two by design to reduce the coupling and checker system complexity which has slightly
 different goals and objectives.
 
+Service contains test record - same for all allocated groups.
+
 ### Design use-cases, goals, objectives
 
 - Consider multiple different certificates for one (solution, service, host). E.g., RSA, ECC certs.

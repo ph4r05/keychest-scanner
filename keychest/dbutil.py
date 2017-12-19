@@ -1718,6 +1718,52 @@ class DbManagedServiceToGroupAssoc(Base):
     deleted_at = Column(DateTime, default=None, nullable=True)
 
 
+class DbManagedTestProfile(Base):
+    """
+    Profile of the managed service test.
+    Associated to the service, applies on all associated hosts.
+    """
+    __tablename__ = 'managed_test_profiles'
+    __table_args__ = ()
+    id = Column(BigInteger, primary_key=True)
+
+    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_test_profiles_managed_solution_id',
+                                    ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_test_profiles_managed_service_id',
+                                   ondelete='CASCADE'), nullable=False, index=True)
+
+    # Watch target - only if the target is reachable by standard monitoring part. Optional.
+    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_profiles_watch_target_id',
+                                        ondelete='SET NULL'), nullable=True, index=True)
+
+    solution = relationship('DbManagedSolution')
+    service = relationship('DbManagedService')
+    watch_target = relationship('DbWatchTarget')
+
+    # watch target scan fields
+    scan_key = Column(String(255), nullable=True)
+    scan_passive = Column(SmallInteger, nullable=False, default=0)
+    scan_host = Column(String(255), nullable=True)
+    scan_scheme = Column(String(255), nullable=True)
+    scan_port = Column(String(255), nullable=True)
+    scan_connect = Column(SmallInteger, default=0, nullable=False)  # TLS or STARTTLS
+    scan_data = Column(Text, nullable=True)
+
+    # Explicit SNI / service name to scan on host if multiplexing / raw IP for internal networks.
+    scan_service_id = Column(ForeignKey('watch_service.id', name='fk_managed_test_profiles_scan_service_id', ondelete='SET NULL'),
+                             nullable=True, index=True)
+
+    top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_test_profiles_base_domain_id', ondelete='SET NULL'),
+                           nullable=True, index=True)
+
+    scan_service = relationship('DbWatchService')
+    top_domain = relationship('DbBaseDomain')
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None)
+
+
 class DbManagedTest(Base):
     """
     Particular watchdog test for managed services on given hosts.
@@ -1739,30 +1785,12 @@ class DbManagedTest(Base):
     host_id = Column(ForeignKey('managed_hosts.id', name='fk_managed_tests_managed_host_id',
                                 ondelete='CASCADE'), nullable=True, index=True)
 
-    # Watch target - only if the target is reachable by standard monitoring part. Optional.
-    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_tests_watch_target_id',
-                                        ondelete='SET NULL'), nullable=True, index=True)
-
     solution = relationship('DbManagedSolution')
     service = relationship('DbManagedService')
     host = relationship('DbManagedHost')
-    watch_target = relationship('DbWatchTarget')
 
     # watch target scan fields
-    scan_host = Column(String(255), nullable=True)
-    scan_scheme = Column(String(255), nullable=True)
-    scan_port = Column(String(255), nullable=True)
-    scan_connect = Column(SmallInteger, default=0, nullable=False)  # TLS or STARTTLS
     scan_data = Column(Text, nullable=True)
-
-    # Explicit SNI / service name to scan on host if multiplexing / raw IP for internal networks.
-    scan_service_id = Column(ForeignKey('watch_service.id', name='fk_managed_tests_scan_service_id', ondelete='SET NULL'),
-                             nullable=True, index=True)
-    top_domain_id = Column(ForeignKey('base_domain.id', name='fk_managed_tests_base_domain_id', ondelete='SET NULL'),
-                           nullable=True, index=True)
-
-    scan_service = relationship('DbWatchService')
-    top_domain = relationship('DbBaseDomain')
 
     last_scan_at = Column(DateTime, default=None)  # last scan for this entry (e.g., cert)
     last_scan_status = Column(SmallInteger, default=None)  # last scan status
@@ -1789,7 +1817,7 @@ class DbManagedCertIssue(Base):
     # Certificate being renewed, optional. Null for new cert issue.
     certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_certificate_id', ondelete='SET NULL'),
                             nullable=True, index=True)
-    
+
     # New renewed certificate id
     new_certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_new_certificate_id',
                                            ondelete='SET NULL'), nullable=True, index=True)
