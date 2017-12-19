@@ -1114,7 +1114,7 @@ class Server(object):
         Feeder loop body
         :return:
         """
-        if self.periodic_queue_is_full():
+        if self.periodic_queue_is_full() or self.config.monitor_disabled:
             return
 
         s = self.db.get_session()

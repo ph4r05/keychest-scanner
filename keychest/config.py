@@ -191,3 +191,9 @@ class Config(object):
     def workers_roca(self, val):
         self.set_config('workers_roca', val)
 
+    # KC monitor disabled status
+    @property
+    def monitor_disabled(self):
+        return self.get_config('monitor_disabled', False)
+
+
