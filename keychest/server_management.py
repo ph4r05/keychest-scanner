@@ -18,8 +18,8 @@ from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, Period
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
-from dbutil import DbKeycheckerStats, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
-    DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc
+from dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
+    DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, DbHelper
 
 import time
 import json
@@ -111,11 +111,36 @@ class ManagementModule(ServerModule):
         while self.is_running():
             self.server.interruptible_sleep(2)
             try:
+                s = self.db.get_session()
+                q_sol = s.query(DbManagedSolution)\
+                    .filter(DbManagedSolution.deleted_at is not None)\
+                    .order_by(DbManagedSolution.id)
+
                 # iterate over all solutions
                 # iterate over all associated services
                 # iterate over all associated host groups
                 # iterate over all associated hosts
                 # sync
+                for sol in DbHelper.yield_limit(q_sol, DbManagedSolution.id):  # type: DbManagedSolution
+
+                    for svc in [x.service for x in sol.services]:  # type: DbManagedService
+
+                        mgmt_tests = s.query(DbManagedTest)\
+                            .filter(DbManagedTest.solution == sol)\
+                            .filter(DbManagedTest.service == sol)\
+                            .all()  # type: list[DbManagedTest]
+
+                        mgmt_hosts_tests = {x.host_id : x for x in mgmt_tests}  # type: dict[int, DbManagedTest]
+                        all_hosts = {}  # type: dict[int, DbManagedHost]
+
+                        for grp in [x.group for x in svc.groups]:  # type: DbHostGroup
+                            for host in [x.host for x in grp.hosts]:  # type: DbManagedHost
+                                all_hosts[host.id] = host
+
+                        # Sync with host tests. For all new host add corresponding test record
+                        # And for each test record in the DB
+
+
                 pass
 
             except Exception as e:
@@ -123,6 +148,7 @@ class ManagementModule(ServerModule):
                 self.trace_logger.log(e)
 
             finally:
+                util.silent_close(s)
                 self.server.interruptible_sleep(10)
 
         logger.info('Test target sync terminated')
