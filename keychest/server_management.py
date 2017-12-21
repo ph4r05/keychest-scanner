@@ -14,16 +14,19 @@ from config import Config
 from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
+from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
+from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicApiProcessJob, PeriodicMgmtTestJob, ScanResults
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
 from dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
-    DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, DbHelper
+    DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
+    DbKeychestAgent, DbHelper
 
 import time
 import json
+import math
+import random
 import logging
 import threading
 import collections
@@ -31,6 +34,7 @@ import base64
 import imaplib
 import email
 import email.message as emsg
+from datetime import datetime, timedelta
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 import sqlalchemy as salch
@@ -115,8 +119,8 @@ class ManagementModule(ServerModule):
             self.server.interruptible_sleep(2)
             try:
                 s = self.db.get_session()
-                q_sol = s.query(DbManagedSolution)\
-                    .filter(DbManagedSolution.deleted_at is not None)\
+                q_sol = s.query(DbManagedSolution) \
+                    .filter(DbManagedSolution.deleted_at is not None) \
                     .order_by(DbManagedSolution.id)
 
                 # iterate over all solutions
@@ -132,9 +136,9 @@ class ManagementModule(ServerModule):
                         if svc.deleted_at is not None:
                             continue
 
-                        mgmt_tests = s.query(DbManagedTest)\
-                            .filter(DbManagedTest.solution == sol)\
-                            .filter(DbManagedTest.service == svc)\
+                        mgmt_tests = s.query(DbManagedTest) \
+                            .filter(DbManagedTest.solution == sol) \
+                            .filter(DbManagedTest.service == svc) \
                             .all()  # type: list[DbManagedTest]
 
                         mgmt_hosts_tests = {x.host_id: x for x in mgmt_tests}  # type: dict[int, DbManagedTest]
@@ -176,12 +180,12 @@ class ManagementModule(ServerModule):
                             s.add(ntest)
                         s.commit()
 
-                        stmt = salch.update(DbManagedTest)\
+                        stmt = salch.update(DbManagedTest) \
                             .where(DbManagedTest.id.in_([x.id for x in tests_enable])) \
                             .values(deleted_at=None, updated_at=salch.func.now())
                         s.execute(stmt)
 
-                        stmt = salch.update(DbManagedTest)\
+                        stmt = salch.update(DbManagedTest) \
                             .where(DbManagedTest.id.in_([x.id for x in tests_disable])) \
                             .values(deleted_at=salch.func.now(), updated_at=salch.func.now())
                         s.execute(stmt)
@@ -234,4 +238,173 @@ class ManagementModule(ServerModule):
             finally:
                 self.job_queue.task_done()
         logger.info('Worker %02d terminated' % idx)
+
+    def load_active_tests(self, s, last_scan_margin=300, randomize=True):
+        """
+        Load test records to process
+
+        :param s : SaQuery query
+        :type s: SaQuery
+        :param last_scan_margin: margin for filtering out records that were recently processed.
+        :param randomize:
+        :return:
+        """
+        q = s.query(DbManagedTest, DbManagedSolution, DbManagedService, DbManagedTestProfile,
+                    DbManagedHost, DbKeychestAgent) \
+            .join(DbManagedSolution, DbManagedSolution.id == DbManagedTest.solution_id) \
+            .join(DbManagedService, DbManagedService.id == DbManagedTest.service_id) \
+            .outerjoin(DbManagedHost, DbManagedHost.id == DbManagedTest.host_id) \
+            .outerjoin(DbManagedTestProfile, DbManagedTestProfile.id == DbManagedService.test_profile_id) \
+            .outerjoin(DbKeychestAgent, DbKeychestAgent.id == DbManagedService.agent_id) \
+            .filter(DbManagedTest.deleted_at == None)
+
+        if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, float) else self.server.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
+            cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
+
+            q = q.filter(salch.or_(
+                DbManagedTest.last_scan_at < cur_margin,
+                DbManagedTest.last_scan_at == None
+            ))
+
+        return q.group_by(DbManagedTest.id) \
+            .order_by(DbManagedTest.last_scan_at)  # select the oldest scanned first
+
+    def periodic_feeder(self, s):
+        """
+        Feed jobs for processing to the queue
+        :param s:
+        :return:
+        """
+        self.periodic_feeder_test(s)
+
+    def periodic_feeder_test(self, s):
+        """
+        Feed jobs - tester
+        :param s:
+        :return:
+        """
+        if self.server.periodic_queue_is_full():
+            return
+
+        try:
+            min_scan_margin = self.server.min_scan_margin()
+            query = self.load_active_tests(s, last_scan_margin=min_scan_margin)
+
+            for x in DbHelper.yield_limit(query, DbManagedTest.id, 100):
+                if self.server.periodic_queue_is_full():
+                    return
+
+                job = PeriodicMgmtTestJob(target=x[0], periodicity=None,
+                                          solution=x[1], service=x[2], test_profile=x[3], host=x[4], agent=x[5])
+                self.server.periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
+
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
+
+    def periodic_job_update_last_scan(self, job):
+        """
+        Update last scan of the job
+        :param job:
+        :return: True if job was consumed
+        """
+        if not isinstance(job, PeriodicMgmtTestJob):
+            return False
+
+        s = self.db.get_session()
+        try:
+            stmt = DbManagedTest.__table__.update() \
+                .where(DbManagedTest.id == job.target.id) \
+                .values(last_scan_at=salch.func.now())
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
+    def finish_test_object(self, s, target, **kwargs):
+        """
+        Updates test job
+        :param target:
+        :type target: DbManagedTest
+        :param kwargs:
+        :return:
+        """
+        target.last_scan_at = salch.func.now()
+        for key, value in iteritems(kwargs):
+            setattr(target, key, value)
+
+        return s.merge(target)
+
+    def process_periodic_job(self, job):
+        """
+        Process my jobs in the worker thread.
+        :param job:
+        :type job: PeriodicMgmtTestJob
+        :return:
+        """
+        if not isinstance(job, PeriodicMgmtTestJob):
+            return False
+
+        logger.debug('Processing Mgmt job: %s, qsize: %s, sems: %s'
+                     % (job, self.server.watcher_job_queue.qsize(), self.server.periodic_semaphores()))
+
+        s = None
+        try:
+            s = self.db.get_session()
+
+            self.process_job_body(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.scan_test_results.is_failed():
+                logger.info('Test scan job failed: %s' % (job.scan_test_results.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidInputData as id:
+            logger.debug('Invalid test input')
+            job.success_scan = True  # job is deemed processed
+            self.finish_test_object(s, job.target, last_scan_status=-1)
+
+        except InvalidHostname as ih:
+            logger.debug('Invalid host')
+            job.success_scan = True  # TODO: back-off / disable, fatal error
+            self.finish_test_object(s, job.target, last_scan_status=-2)
+
+        except Exception as e:
+            logger.debug('Exception when processing the mgmt process job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
+    def process_job_body(self, s, job):
+        """
+        Process test job
+        :param s:
+        :param job:
+        :type job: PeriodicMgmtTestJob
+        :return:
+        """
+        pass
 
