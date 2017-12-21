@@ -1740,7 +1740,6 @@ class DbManagedTestProfile(Base):
     # watch target scan fields
     scan_key = Column(String(255), nullable=True)
     scan_passive = Column(SmallInteger, nullable=False, default=0)
-    scan_host = Column(String(255), nullable=True)
     scan_scheme = Column(String(255), nullable=True)
     scan_port = Column(String(255), nullable=True)
     scan_connect = Column(SmallInteger, default=0, nullable=False)  # TLS or STARTTLS

@@ -23,7 +23,6 @@ def upgrade():
                     sa.Column('watch_target_id', sa.BigInteger(), nullable=True),
                     sa.Column('scan_key', sa.String(length=255), nullable=True),
                     sa.Column('scan_passive', sa.SmallInteger, nullable=True, server_default='0'),
-                    sa.Column('scan_host', sa.String(length=255), nullable=True),
                     sa.Column('scan_scheme', sa.String(length=255), nullable=True),
                     sa.Column('scan_port', sa.String(length=255), nullable=True),
                     sa.Column('scan_connect', sa.SmallInteger(), nullable=False),
