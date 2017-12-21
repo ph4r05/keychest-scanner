@@ -1055,17 +1055,17 @@ class Server(object):
         num_max_recon = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.15 + 1)))  # 15 %
         num_max_ips = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1)))  # 10 %
         num_max_api = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1)))  # 10 %
+        num_max_others = max(1, min(self.config.periodic_workers, int(self.config.periodic_workers * 0.10 + 1)))  # 10 %
         num_max_watch = max(1, self.config.periodic_workers - 5)  # leave at leas few threads available
         logger.info('Max watch: %s, Max recon: %s, Max IPS: %s, Max API: %s'
                     % (num_max_watch, num_max_recon, num_max_ips, num_max_api))
 
         # semaphore array init
-        self.watcher_job_semaphores = {
-            JobTypes.TARGET: StatSemaphore(num_max_watch),
-            JobTypes.SUB: StatSemaphore(num_max_recon),
-            JobTypes.IP_SCAN: StatSemaphore(num_max_ips),
-            JobTypes.API_PROC: StatSemaphore(num_max_api),
-        }
+        self.watcher_job_semaphores = collections.defaultdict(lambda: StatSemaphore(num_max_others))
+        self.watcher_job_semaphores[JobTypes.TARGET] = StatSemaphore(num_max_watch)
+        self.watcher_job_semaphores[JobTypes.SUB] = StatSemaphore(num_max_recon)
+        self.watcher_job_semaphores[JobTypes.IP_SCAN] = StatSemaphore(num_max_ips)
+        self.watcher_job_semaphores[JobTypes.API_PROC] = StatSemaphore(num_max_api)
 
         # periodic worker start
         for worker_idx in range(self.config.periodic_workers):
