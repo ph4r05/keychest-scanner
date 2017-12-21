@@ -8,7 +8,8 @@ Server job classes
 from past.builtins import cmp
 import collections
 from tls_domain_tools import TargetUrl
-from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects
+from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects, DbManagedTest, \
+    DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent
 
 
 class ScanResults(object):
@@ -56,6 +57,7 @@ class JobTypes(object):
     UI = 3  # UI initiated scan
     IP_SCAN = 4  # IPv4 scanning to detect running hosts
     API_PROC = 5  # API requests processing
+    MGMT_TEST = 6  # Management testing
 
     def __init__(self):
         pass
@@ -116,6 +118,18 @@ class BaseJob(object):
     def to_json(self):
         js = collections.OrderedDict()
         return js
+
+    def on_run(self):
+        pass
+
+    def on_fail(self):
+        pass
+
+    def on_readd(self):
+        pass
+
+    def on_remove(self):
+        pass
 
     def __repr__(self):
         return '<BaseJob(type=%r, attempts=%r, later=%r)>' % (self.type, self.attempts, self.later)
@@ -349,6 +363,53 @@ class PeriodicApiProcessJob(BaseJob):
 
     def __repr__(self):
         return '<PeriodicApiProcessJob(target=<DbApiWaitingObjects(id=%r, self=%r)>, attempts=%r, later=%r,' \
+               'processed_at=%r, last_scan_at=%r)>' \
+               % (self.target.id, self.target, self.attempts, self.later,
+                  self.target.processed_at, self.target.last_scan_at)
+
+
+class PeriodicMgmtTestJob(BaseJob):
+    """
+    Represents periodic job loaded from the db for managed service testing
+    """
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbManagedTest
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicMgmtTestJob, self).__init__(type=JobTypes.MGMT_TEST)
+
+        self.target = target  # type: DbManagedTest
+        self.solution = kwargs.get('solution')  # type: DbManagedSolution
+        self.service = kwargs.get('service')  # type: DbManagedService
+        self.host = kwargs.get('host')  # type: DbManagedHost
+        self.test_profile = kwargs.get('test_profile')  # type: DbManagedTestProfile
+        self.agent = kwargs.get('agent')  # type: DbKeychestAgent
+
+        self.periodicity = periodicity
+        self.scan_test_results = ScanResults()
+
+    def key(self):
+        return 'mgmt_test_%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.last_scan_at is None, \
+               self.target.last_scan_at
+
+    def record_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<PeriodicMgmtTestJob(target=<DbManagedTest(id=%r, self=%r)>, attempts=%r, later=%r,' \
                'processed_at=%r, last_scan_at=%r)>' \
                % (self.target.id, self.target, self.attempts, self.later,
                   self.target.processed_at, self.target.last_scan_at)
