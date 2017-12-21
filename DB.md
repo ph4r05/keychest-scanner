@@ -93,7 +93,44 @@ original scanner part and increase the coupling. As monitoring and management di
 split data model of those two by design to reduce the coupling and checker system complexity which has slightly
 different goals and objectives.
 
-Service contains test record - same for all allocated groups.
+All managed models are unique per owner.
+
+DbManagedSolution is the main wrapping model of the managed object. It is e.g., "web", "internetbanking".
+
+DbManagedService is associated to the solution and defined one particular implementation of the solution.
+It contains various parameters and settings for this particular solution instance.
+
+DbManagedHost is basic KeyChest monitored host. It represents single VirtualHost instance KeyChest has access to
+for monitoring and management. Typically there is DbSshKey associated to the host or API key for the certificate-agent
+deployed on the host.
+
+DbHostGroup groups DbManagedHost in a flat hierarchy (i.e., DbHostGroup are not related one to another).
+- DbHostGroup and DbManagedHost is many-to-many relation via DbHostToGroupAssoc.
+- DbHostGroup can be used in a way Ansible uses groups
+- DbHostGroup recommended naming convention: use dot separated names. E.g., webservers.atlanta, production.atlanta.
+- DbHostGroup is associated to the DbManagedService via many-to-many relation DbManagedServiceToGroupAssoc.
+- Host is not associated with any other managed object on its own. All bindings to services and solution must be
+performed via groups as it is easier to extend and manage after system grows.
+- Each added host should have assigned so-called single-host DbHostGroup to overcome limitation of the previous point.
+
+DbManagedService + DbManagedTestProfile define the certificate check and renewal parameters, policies, etc...,
+for all associated hosts (associated via host groups).
+There is no direct host parameter association as we want to avoid such relations.
+
+DbManagedTest keeps track of the KeyChest certificate checks on particular hosts for given (solution, service) tuple.
+It tracks (solution, service, host) -> {last_scan_at, ...}. Managed certificate checks are scheduled based on
+this relation. Test can be also passive - result pushed from the ManagedHost by the certificate-agent.
+
+DbManagedCertificate associates (solution, service) tuple to the active certificate set. The certificate set is
+watched for the whole service and should be present on all hosts associated to the service.
+ - Model supports retrieval of all active certs for the given service easily (record_deprecated_at == None)
+ - In majority of cases there will be just one active certificate (with record_deprecated_at == None) associated.
+ - The model also supports scenarios with dual certificates (RSA + ECC).
+ - The model keeps track of a check and renewal process for particular certificates.
+ - Active certificates are supposed to be deployed to associated hosts (via service).
+ - Contains renewal history chain.
+
+DbManagedCertIssue keeps track of certificate renewal process in more detail - some kind of logging.
 
 ### Design use-cases, goals, objectives
 
