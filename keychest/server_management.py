@@ -34,7 +34,7 @@ import base64
 import imaplib
 import email
 import email.message as emsg
-from datetime import datetime, timedelta
+import datetime
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 import sqlalchemy as salch
@@ -94,16 +94,6 @@ class ManagementModule(ServerModule):
         test_sync_thread = threading.Thread(target=self.main_test_sync, args=())
         test_sync_thread.setDaemon(True)
         test_sync_thread.start()
-
-        # email_thread = threading.Thread(target=self.main_scan_emails, args=())
-        # email_thread.setDaemon(True)
-        # email_thread.start()
-
-        # Worker start
-        for worker_idx in range(0, self.config.workers_roca):
-            t = threading.Thread(target=self.worker_main, args=(worker_idx,))
-            t.setDaemon(True)
-            t.start()
 
     #
     # Running
@@ -334,6 +324,19 @@ class ManagementModule(ServerModule):
 
         return True
 
+    def update_object(self, s, target, **kwargs):
+        """
+        General object update method
+        :param s:
+        :param target:
+        :param kwargs:
+        :return:
+        """
+        for key, value in iteritems(kwargs):
+            setattr(target, key, value)
+
+        return s.merge(target)
+
     def finish_test_object(self, s, target, **kwargs):
         """
         Updates test job
@@ -352,6 +355,67 @@ class ManagementModule(ServerModule):
         """
         Process my jobs in the worker thread.
         :param job:
+        :type job: PeriodicMgmtTestJob|PeriodicMgmtRenewalJob
+        :return:
+        """
+
+        if isinstance(job, PeriodicMgmtTestJob):
+            return self.process_periodic_job_test(job)
+
+        if isinstance(job, PeriodicMgmtRenewalJob):
+            return self.process_periodic_job_renew(job)
+
+        return False
+
+    def process_periodic_job_renew(self, job):
+        """
+        Check if the renewal is needed
+        :param job:
+        :type job: PeriodicMgmtRenewalJob
+        :return:
+        """
+        if not isinstance(job, PeriodicMgmtRenewalJob):
+            return False
+
+        logger.debug('Processing Mgmt renew job: %s, qsize: %s, sems: %s'
+                     % (job, self.server.watcher_job_queue.qsize(), self.server.periodic_semaphores()))
+
+        s = None
+        try:
+            s = self.db.get_session()
+
+            self.process_renew_job_body(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.results.is_failed():
+                logger.info('Renew scan job failed: %s' % (job.results.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidInputData as id:
+            logger.debug('Invalid test input')
+            job.success_scan = True  # job is deemed processed
+            # self.finish_test_object(s, job.target, last_scan_status=-1)
+
+        except Exception as e:
+            logger.debug('Exception when processing the mgmt renew process job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
+    def process_periodic_job_test(self, job):
+        """
+        Process my jobs in the worker thread.
+        :param job:
         :type job: PeriodicMgmtTestJob
         :return:
         """
@@ -365,7 +429,7 @@ class ManagementModule(ServerModule):
         try:
             s = self.db.get_session()
 
-            self.process_job_body(s, job)
+            self.process_test_job_body(s, job)
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
@@ -398,7 +462,15 @@ class ManagementModule(ServerModule):
 
         return True
 
-    def process_job_body(self, s, job):
+    def process_renew_job_body(self, s, job):
+        """
+        Renew job processing
+        :param s:
+        :param job:
+        :return:
+        """
+
+    def process_test_job_body(self, s, job):
         """
         Process test job
         :param s:
@@ -406,5 +478,15 @@ class ManagementModule(ServerModule):
         :type job: PeriodicMgmtTestJob
         :return:
         """
+
+        # Test certificate status / freshness on the given host. May be:
+        #  - classic watch_target TLS test, locked on particular IP address
+        #  - physical file test
+        #  - API call certificate test
+        #
+        # When the certificate for the service is marked for renewal, start renewal and deployment process
+
         pass
+
+
 
