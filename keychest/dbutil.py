@@ -19,6 +19,7 @@ from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault, Index
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import case, literal_column, orm
 from sqlalchemy.sql import expression
+from sqlalchemy.sql.elements import and_
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger, Float
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
@@ -1644,6 +1645,8 @@ class DbManagedService(Base):
     solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
     test_profile = relationship('DbManagedTestProfile', back_populates='service')
+    managed_certificates = relationship('DbManagedCertificate', primaryjoin=lambda: and_(
+        DbManagedService.id == DbManagedCertificate.service_id, DbManagedCertificate.record_deprecated_at == None))
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1797,6 +1800,47 @@ class DbManagedTest(Base):
     deleted_at = Column(DateTime, default=None)
 
 
+class DbManagedCertificate(Base):
+    """
+    Managed certificate.
+    """
+    __tablename__ = 'managed_certificates'
+    __table_args__ = ()
+    id = Column(BigInteger, primary_key=True)
+
+    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_certificate_managed_solution_id',
+                                    ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_certificate_service_id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+
+    # RSA/ECC certificate
+    certificate_key = Column(String(255), default=None)
+
+    # Active certificate for the service
+    certificate_id = Column(
+        ForeignKey('certificates.id', name='fk_managed_certificates_certificate_id', ondelete='SET NULL'),
+        nullable=True, index=True)
+
+    # Certificate deprecated by the certificate_id
+    deprecated_certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_certificates_deprecated_certificate_id',
+                                                  ondelete='SET NULL'), nullable=True, index=True)
+
+    solution = relationship('DbManagedSolution')
+    service = relationship('DbManagedService')
+    certificate = relationship('Certificate', foreign_keys=certificate_id)
+    deprecated_certificate = relationship('Certificate', foreign_keys=deprecated_certificate_id)
+
+    cert_params = Column(Text, nullable=True)
+    record_deprecated_at = Column(DateTime, default=None)  # if not null the record is not active anymore
+
+    last_check_at = Column(DateTime, default=None)
+    last_check_status = Column(SmallInteger, default=None)
+    last_check_data = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 class DbManagedCertIssue(Base):
     """
     Cert issue/renewal record.
@@ -1820,7 +1864,8 @@ class DbManagedCertIssue(Base):
     new_certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_new_certificate_id',
                                            ondelete='SET NULL'), nullable=True, index=True)
 
-    test = relationship('DbManagedTest')
+    solution = relationship('DbManagedSolution')
+    service = relationship('DbManagedService')
     certificate = relationship('Certificate', foreign_keys=certificate_id)
     new_certificate = relationship('Certificate', foreign_keys=new_certificate_id)
 

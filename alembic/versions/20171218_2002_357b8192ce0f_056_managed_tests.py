@@ -68,6 +68,38 @@ def upgrade():
     op.create_index(op.f('ix_managed_tests_service_id'), 'managed_tests', ['service_id'], unique=False)
     op.create_index(op.f('ix_managed_tests_solution_id'), 'managed_tests', ['solution_id'], unique=False)
 
+    op.create_table('managed_certificates',
+                    sa.Column('id', sa.BigInteger(), nullable=False),
+                    sa.Column('solution_id', sa.BigInteger(), nullable=False),
+                    sa.Column('service_id', sa.BigInteger(), nullable=False),
+                    sa.Column('certificate_key', sa.String(length=255), nullable=True),
+                    sa.Column('certificate_id', sa.BigInteger(), nullable=True),
+                    sa.Column('deprecated_certificate_id', sa.BigInteger(), nullable=True),
+                    sa.Column('cert_params', sa.Text(), nullable=True),
+                    sa.Column('record_deprecated_at', sa.DateTime(), nullable=True),
+                    sa.Column('last_check_at', sa.DateTime(), nullable=True),
+                    sa.Column('last_check_status', sa.SmallInteger(), nullable=True),
+                    sa.Column('last_check_data', sa.Text(), nullable=True),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    sa.Column('updated_at', sa.DateTime(), nullable=True),
+                    sa.ForeignKeyConstraint(['certificate_id'], ['certificates.id'],
+                                            name='fk_managed_certificates_certificate_id', ondelete='SET NULL'),
+                    sa.ForeignKeyConstraint(['deprecated_certificate_id'], ['certificates.id'],
+                                            name='fk_managed_certificates_deprecated_certificate_id',
+                                            ondelete='SET NULL'),
+                    sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
+                                            name='fk_managed_certificate_service_id', ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['solution_id'], ['managed_solutions.id'],
+                                            name='fk_managed_certificate_managed_solution_id', ondelete='CASCADE'),
+                    sa.PrimaryKeyConstraint('id')
+                    )
+    op.create_index(op.f('ix_managed_certificates_certificate_id'), 'managed_certificates', ['certificate_id'],
+                    unique=False)
+    op.create_index(op.f('ix_managed_certificates_deprecated_certificate_id'), 'managed_certificates',
+                    ['deprecated_certificate_id'], unique=False)
+    op.create_index(op.f('ix_managed_certificates_service_id'), 'managed_certificates', ['service_id'], unique=False)
+    op.create_index(op.f('ix_managed_certificates_solution_id'), 'managed_certificates', ['solution_id'], unique=False)
+
     op.create_table('managed_cert_issue',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('solution_id', sa.BigInteger(), nullable=False),
