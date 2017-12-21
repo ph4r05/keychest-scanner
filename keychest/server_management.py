@@ -15,7 +15,7 @@ from redis_queue import RedisQueue
 import redis_helper as rh
 from trace_logger import Tracelogger
 from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicApiProcessJob, PeriodicMgmtTestJob, ScanResults
+from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob
 from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
@@ -293,7 +293,7 @@ class ManagementModule(ServerModule):
             min_scan_margin = self.server.min_scan_margin()
             query = self.load_active_tests(s, last_scan_margin=min_scan_margin)
 
-            for x in DbHelper.yield_limit(query, DbManagedTest.id, 100):
+            for x in DbHelper.yield_limit(query, DbManagedTest.id, 100, primary_obj=lambda x: x[0]):
                 if self.server.periodic_queue_is_full():
                     return
 
