@@ -1800,15 +1800,17 @@ class DbManagedTest(Base):
 class DbManagedCertIssue(Base):
     """
     Cert issue/renewal record.
-    Mainly serves as a renewal log of all previous renewal attempts of the particular certificate on the host.
+    Mainly serves as a renewal log of all previous renewal attempts of the particular certificate on the service.
     """
     __tablename__ = 'managed_cert_issue'
     __table_args__ = ()
     id = Column(BigInteger, primary_key=True)
 
-    # Issue/renewal is always tied to the specific management configuration and the particular test.
-    test_id = Column(ForeignKey('managed_tests.id', name='fk_managed_cert_issue_test_id', ondelete='CASCADE'),
-                     nullable=True, index=True)
+    # Issue/renewal is always tied to the specific management configuration - service.
+    solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_cert_issue_managed_solution_id',
+                                    ondelete='CASCADE'), nullable=False, index=True)
+    service_id = Column(ForeignKey('managed_services.id', name='fk_managed_cert_issue_service_id', ondelete='CASCADE'),
+                        nullable=True, index=True)
 
     # Certificate being renewed, optional. Null for new cert issue.
     certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_certificate_id', ondelete='SET NULL'),

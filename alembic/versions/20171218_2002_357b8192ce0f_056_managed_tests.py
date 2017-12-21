@@ -70,7 +70,8 @@ def upgrade():
 
     op.create_table('managed_cert_issue',
                     sa.Column('id', sa.BigInteger(), nullable=False),
-                    sa.Column('test_id', sa.BigInteger(), nullable=True),
+                    sa.Column('solution_id', sa.BigInteger(), nullable=True),
+                    sa.Column('service_id', sa.BigInteger(), nullable=True),
                     sa.Column('certificate_id', sa.BigInteger(), nullable=True),
                     sa.Column('new_certificate_id', sa.BigInteger(), nullable=True),
                     sa.Column('affected_certs_ids', sa.Text(), nullable=True),
@@ -84,7 +85,9 @@ def upgrade():
                                             name='fk_managed_cert_issue_certificate_id', ondelete='SET NULL'),
                     sa.ForeignKeyConstraint(['new_certificate_id'], ['certificates.id'],
                                             name='fk_managed_cert_issue_new_certificate_id', ondelete='SET NULL'),
-                    sa.ForeignKeyConstraint(['test_id'], ['managed_tests.id'], name='fk_managed_cert_issue_test_id',
+                    sa.ForeignKeyConstraint(['solution_id'], ['managed_solutions.id'], name='fk_managed_cert_issue_managed_solution_id',
+                                            ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'], name='fk_managed_cert_issue_service_id',
                                             ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')
                     )
@@ -92,7 +95,8 @@ def upgrade():
                     unique=False)
     op.create_index(op.f('ix_managed_cert_issue_new_certificate_id'), 'managed_cert_issue', ['new_certificate_id'],
                     unique=False)
-    op.create_index(op.f('ix_managed_cert_issue_test_id'), 'managed_cert_issue', ['test_id'], unique=False)
+    op.create_index(op.f('ix_managed_cert_issue_managed_solution_id'), 'managed_cert_issue', ['solution_id'], unique=False)
+    op.create_index(op.f('ix_managed_cert_issue_service_id'), 'managed_cert_issue', ['service_id'], unique=False)
 
     op.add_column('managed_services', sa.Column('svc_watch_id', sa.BigInteger(), nullable=True))
     op.create_index(op.f('ix_managed_services_svc_watch_id'), 'managed_services', ['svc_watch_id'], unique=False)
