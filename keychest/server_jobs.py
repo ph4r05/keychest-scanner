@@ -9,7 +9,7 @@ from past.builtins import cmp
 import collections
 from tls_domain_tools import TargetUrl
 from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects, DbManagedTest, \
-    DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent
+    DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent, DbManagedCertIssue
 
 
 class ScanResults(object):
@@ -58,6 +58,7 @@ class JobTypes(object):
     IP_SCAN = 4  # IPv4 scanning to detect running hosts
     API_PROC = 5  # API requests processing
     MGMT_TEST = 6  # Management testing
+    MGMT_RENEW = 7  # Management renewal
 
     def __init__(self):
         pass
@@ -368,6 +369,50 @@ class PeriodicApiProcessJob(BaseJob):
                   self.target.processed_at, self.target.last_scan_at)
 
 
+class PeriodicMgmtRenewalJob(BaseJob):
+    """
+    Check if the renewal for the managed service is not needed, performs the renewal
+    """
+
+    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+        """
+        :param target:
+        :type target: DbManagedService
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicMgmtRenewalJob, self).__init__(type=JobTypes.MGMT_RENEW)
+
+        self.target = target  # type: DbManagedService
+        self.solution = kwargs.get('solution')  # type: DbManagedSolution
+        self.test_profile = kwargs.get('test_profile')  # type: DbManagedTestProfile
+        self.agent = kwargs.get('agent')  # type: DbKeychestAgent
+
+        self.periodicity = periodicity
+        self.results = ScanResults()
+
+    def key(self):
+        return 'mgmt_renew_%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.id
+
+    def record_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        return '<PeriodicMgmtRenewalJob(target=<DbManagedService(id=%r, self=%r)>, attempts=%r, later=%r,' \
+               'svc_name=%r)>' \
+               % (self.target.id, self.target, self.attempts, self.later,
+                  self.target.svc_name)
+
+
 class PeriodicMgmtTestJob(BaseJob):
     """
     Represents periodic job loaded from the db for managed service testing
@@ -410,6 +455,6 @@ class PeriodicMgmtTestJob(BaseJob):
 
     def __repr__(self):
         return '<PeriodicMgmtTestJob(target=<DbManagedTest(id=%r, self=%r)>, attempts=%r, later=%r,' \
-               'processed_at=%r, last_scan_at=%r)>' \
+               'host_id=%r, last_scan_at=%r)>' \
                % (self.target.id, self.target, self.attempts, self.later,
-                  self.target.processed_at, self.target.last_scan_at)
+                  self.target.host_id, self.target.last_scan_at)
