@@ -1115,15 +1115,16 @@ class Server(object):
         Feeder loop body
         :return:
         """
-        if self.periodic_queue_is_full() or self.config.monitor_disabled:
+        if self.periodic_queue_is_full():
             return
 
         s = self.db.get_session()
 
         try:
-            self._periodic_feeder_watch(s)
-            self._periodic_feeder_recon(s)
-            self._periodic_feeder_ips(s)
+            if not self.config.monitor_disabled:
+                self._periodic_feeder_watch(s)
+                self._periodic_feeder_recon(s)
+                self._periodic_feeder_ips(s)
 
             for server_mod in self.modules:
                 server_mod.periodic_feeder(s)
