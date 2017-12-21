@@ -2101,7 +2101,7 @@ class DbHelper(object):
         return changes
 
     @staticmethod
-    def yield_limit(qry, pk_attr, maxrq=100):
+    def yield_limit(qry, pk_attr, maxrq=100, primary_obj=lambda x: x):
         """specialized windowed query generator (using LIMIT/OFFSET)
 
         This recipe is to select through a large number of rows thats too
@@ -2119,7 +2119,7 @@ class DbHelper(object):
                 yield rec
             if rec is None:
                 break
-            firstid = pk_attr.__get__(rec, pk_attr) if rec else None
+            firstid = pk_attr.__get__(primary_obj(rec), pk_attr) if rec and primary_obj(rec) else None
 
     @staticmethod
     def get_count(q):
