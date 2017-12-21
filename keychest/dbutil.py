@@ -1633,7 +1633,7 @@ class DbManagedService(Base):
     svc_data = Column(Text)  # aux json
 
     owner_id = Column(ForeignKey('owners.id', name='managed_services_owner_id', ondelete='CASCADE'),
-                      nullable=True, index=True)
+                      nullable=False, index=True)
     agent_id = Column(ForeignKey('keychest_agent.id', name='managed_services_agent_id', ondelete='SET NULL'),
                       nullable=True, index=True)
     test_profile_id = Column(ForeignKey('managed_test_profiles.id', name='managed_services_test_profile_id', ondelete='SET NULL'),
@@ -1667,7 +1667,7 @@ class DbManagedSolution(Base):
     sol_criticality = Column(Integer, default=None)  # criticality int code
 
     owner_id = Column(ForeignKey('owners.id', name='managed_solutions_owner_id', ondelete='CASCADE'),
-                      nullable=True, index=True)
+                      nullable=False, index=True)
 
     owner = relationship('DbOwner')
     services = relationship('DbManagedSolutionToServiceAssoc', back_populates='solution')
@@ -1810,7 +1810,7 @@ class DbManagedCertIssue(Base):
     solution_id = Column(ForeignKey('managed_solutions.id', name='fk_managed_cert_issue_managed_solution_id',
                                     ondelete='CASCADE'), nullable=False, index=True)
     service_id = Column(ForeignKey('managed_services.id', name='fk_managed_cert_issue_service_id', ondelete='CASCADE'),
-                        nullable=True, index=True)
+                        nullable=False, index=True)
 
     # Certificate being renewed, optional. Null for new cert issue.
     certificate_id = Column(ForeignKey('certificates.id', name='fk_managed_cert_issue_certificate_id', ondelete='SET NULL'),
