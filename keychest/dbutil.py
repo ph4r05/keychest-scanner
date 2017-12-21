@@ -1643,7 +1643,7 @@ class DbManagedService(Base):
     agent = relationship('DbKeychestAgent')
     solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
-    test_profile = relationship('DbManagedTestProfile', back_populates='services')
+    test_profile = relationship('DbManagedTestProfile', back_populates='service')
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
@@ -1735,7 +1735,7 @@ class DbManagedTestProfile(Base):
                                         ondelete='SET NULL'), nullable=True, index=True)
 
     watch_target = relationship('DbWatchTarget')
-    services = relationship('DbManagedService', back_populates='test_profile')
+    service = relationship('DbManagedService', back_populates='test_profile', uselist=False)
 
     # watch target scan fields
     scan_key = Column(String(255), nullable=True)
