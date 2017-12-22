@@ -21,7 +21,7 @@ from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
 from dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
-    DbKeychestAgent, DbHelper
+    DbKeychestAgent, DbManagedCertificate, DbHelper
 
 import time
 import json
@@ -223,6 +223,34 @@ class ManagementModule(ServerModule):
 
         return q.group_by(DbManagedTest.id) \
             .order_by(DbManagedTest.last_scan_at)  # select the oldest scanned first
+
+    def load_cert_checks(self, s, last_scan_margin=300, randomize=True):
+        """
+        Loads cert checks for renewal
+        :param s:
+        :param last_scan_margin:
+        :param randomize:
+        :return:
+        """
+        q = s.query(DbManagedCertificate, DbManagedSolution, DbManagedService, DbManagedTestProfile, DbKeychestAgent) \
+            .join(DbManagedSolution, DbManagedSolution.id == DbManagedCertificate.solution_id) \
+            .join(DbManagedService, DbManagedService.id == DbManagedCertificate.service_id) \
+            .outerjoin(DbManagedTestProfile, DbManagedTestProfile.id == DbManagedService.test_profile_id) \
+            .outerjoin(DbKeychestAgent, DbKeychestAgent.id == DbManagedService.agent_id) \
+            .filter(DbManagedCertificate.record_deprecated_at == None)
+
+        if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, float) else self.server.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
+            cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
+
+            q = q.filter(salch.or_(
+                DbManagedCertificate.last_check_at < cur_margin,
+                DbManagedCertificate.last_check_at == None
+            ))
+
+        return q.order_by(DbManagedCertificate.last_check_at)  # select the oldest scanned first
 
     def periodic_feeder(self, s):
         """
