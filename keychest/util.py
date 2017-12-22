@@ -739,7 +739,7 @@ def strip_pem(x):
     if x is None:
         return None
 
-    pem = x.replace('-----BEGIN CERTIFICATE-----', '')
+    pem = to_string(x).replace('-----BEGIN CERTIFICATE-----', '')
     pem = pem.replace('-----END CERTIFICATE-----', '')
     pem = pem.replace(' ', '')
     pem = pem.replace('\t', '')
