@@ -126,7 +126,7 @@ class CnameCDNClassifier(object):
         resource_path = 'data/cdn_cnames.json'
         data_file = pkg_resources.resource_string(resource_package, resource_path)
 
-        self.db = json.loads(data_file)
+        self.db = json.loads(util.to_string(data_file))
         self.db = sorted(self.db, key=lambda x: -1*len(x[1]))  # sort by the longest substring (longest match first)
 
     def classify_cname(self, cname):
@@ -223,6 +223,7 @@ class TlsDomainTools(object):
         :param hostname:
         :return:
         """
+        hostname = util.to_string(hostname)
         return '*.' in hostname or '%' in hostname
 
     @staticmethod
@@ -715,7 +716,7 @@ class TlsDomainTools(object):
 
         # Simple case - small range, generate sequence and shuffle
         if (ip_stop_int - ip_start_int) < 250:
-            lst = range(ip_start_int, ip_stop_int + 1)
+            lst = list(range(ip_start_int, ip_stop_int + 1))
             random.shuffle(lst)
             for cur in lst:
                 yield TlsDomainTools.int_to_ip(cur)
