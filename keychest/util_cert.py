@@ -1,21 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import cryptography.x509.oid as coid
-import util
-import consts
-import re
 import logging
+import re
 import traceback
 
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-from cryptography.x509.oid import NameOID, ObjectIdentifier
-from cryptography.x509.oid import ExtensionOID
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.x509 import ExtensionNotFound, PolicyInformation
+from cryptography.x509.oid import ExtensionOID
+from cryptography.x509.oid import ObjectIdentifier
 
-from keychest.tls_domain_tools import TlsDomainTools
+from . import consts
+from . import util
+from .tls_domain_tools import TlsDomainTools
 
 logger = logging.getLogger(__name__)
 

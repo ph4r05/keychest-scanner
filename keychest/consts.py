@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import cryptography.x509.oid as coid
-import util
 
+from . import util
 
 SIGS = coid.SignatureAlgorithmOID
 SIG_ID_MAP = {
@@ -94,4 +94,3 @@ class IpType(object):
 
     NET_IPv4 = 2
     NET_IPv6 = 10
-

@@ -1,26 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
-import time
 
 import coloredlogs
-import requests
-import util
-import datetime
-import traceback
-import base64
-import trace_logger
-import errors
-
-import scapy
-from scapy_ssl_tls.ssl_tls import *
 from scapy.packet import NoPayload
-import socket
+from scapy_ssl_tls.ssl_tls import *
 
-from tls_domain_tools import TlsDomainTools
-
+from . import errors
+from . import trace_logger
+from . import util
+from .tls_domain_tools import TlsDomainTools
 
 logger = logging.getLogger(__name__)
 

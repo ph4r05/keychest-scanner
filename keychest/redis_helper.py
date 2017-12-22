@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import phpserialize
 import collections
 import json
-import util
+
+import phpserialize
+
+from . import util
 
 
 def failjob(job, e=None):

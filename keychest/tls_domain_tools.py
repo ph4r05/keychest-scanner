@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import json
 import logging
 import random
 import re
 import socket
-import json
 
 import pkg_resources
 import requests
@@ -13,9 +13,9 @@ import tldextract
 from IPy import IP
 from six.moves.urllib.parse import urlparse
 
-import util
-from consts import IpType
-from cyclic_tools import CyclicTools
+from . import util
+from .consts import IpType
+from .cyclic_tools import CyclicTools
 
 logger = logging.getLogger(__name__)
 

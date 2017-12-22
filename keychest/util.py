@@ -39,7 +39,7 @@ from cryptography.hazmat.backends.openssl.backend import Backend as BackendOssl
 from cryptography.hazmat.backends.openssl import decode_asn1
 from cryptography import x509 as x509_c
 
-import errors
+from . import errors
 
 import dateutil
 import dateutil.parser
