@@ -191,44 +191,6 @@ class ManagementModule(ServerModule):
 
         logger.info('Test target sync terminated')
 
-    def worker_main(self, idx):
-        """
-        Worker main entry method - worker thread executes this.
-        Processes job_queue jobs, redis enqueued / email queue.
-
-        :param idx:
-        :return:
-        """
-        self.local_data.idx = idx
-        logger.info('Worker %02d started' % idx)
-
-        while self.is_running():
-            job = None
-            try:
-                job = self.job_queue.get(True, timeout=1.0)
-            except QEmpty:
-                time.sleep(0.1)
-                continue
-
-            try:
-                # Process job in try-catch so it does not break worker
-                logger.info('[%02d] Processing job' % (idx,))
-                jtype, jobj = job
-                # if jtype == 'redis':
-                #     self.process_redis_job(jobj)
-                # elif jtype == 'email':
-                #     self.process_email_job(jobj)
-                # else:
-                #     pass
-
-            except Exception as e:
-                logger.error('Exception in processing job %s: %s' % (e, job))
-                self.trace_logger.log(e)
-
-            finally:
-                self.job_queue.task_done()
-        logger.info('Worker %02d terminated' % idx)
-
     def load_active_tests(self, s, last_scan_margin=300, randomize=True):
         """
         Load test records to process
