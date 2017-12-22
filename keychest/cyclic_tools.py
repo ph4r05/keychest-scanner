@@ -142,7 +142,7 @@ class CyclicTools(object):
         """
         if fact is None:
             fact = list(set(CyclicTools.prime_factors(p-1)))
-        nps = [p / k for k in fact]
+        nps = [int(p // k) for k in fact]
         while True:
             g = random.randint(2, p - 1)
             fail = False
