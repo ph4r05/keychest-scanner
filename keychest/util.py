@@ -24,6 +24,7 @@ import logging
 import traceback
 import pkg_resources
 import phpserialize
+from functools import reduce
 
 import errno
 
@@ -1646,6 +1647,15 @@ def remove_trailing_char(x, s):
         return x[:-1]
     else:
         return x
+
+
+def join_buff(buff):
+    """
+    Joins array buffer
+    :param buff:
+    :return:
+    """
+    return reduce(lambda x,y: x+y, buff, b'')
 
 
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
