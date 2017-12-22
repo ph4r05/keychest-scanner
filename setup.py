@@ -20,7 +20,7 @@ install_requires = [
     'future',
     'SQLAlchemy>=1.1',
     'shellescape',
-    'flask',
+    'flask>=0.12',
     'lxml',
     'MarkupSafe>=0.23',  # problem with deps
     'redis',
