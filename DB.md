@@ -132,6 +132,17 @@ watched for the whole service and should be present on all hosts associated to t
 
 DbManagedCertIssue keeps track of certificate renewal process in more detail - some kind of logging.
 
+DbManagedCertificate sync options:
+ - Manual entry
+ - watch target sync
+ - crt.sh sync
+ - host check sync
+
+DbManagedCertificate can be created also by the test object:  If the active certificate set is empty
+the DbManagedTest s can create an active certificate set.
+- Certificate uniqueness can be determined by subject & issuer comparison (+ extensions). The meaning
+of the test is to detect renewed certificates and phase them out.
+
 ### Design use-cases, goals, objectives
 
 - Consider multiple different certificates for one (solution, service, host). E.g., RSA, ECC certs.
