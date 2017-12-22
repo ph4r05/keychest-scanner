@@ -21,7 +21,7 @@ from server_module import ServerModule
 from server_data import EmailArtifact, EmailArtifactTypes
 from dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
-    DbKeychestAgent, DbManagedCertificate, DbHelper
+    DbKeychestAgent, DbManagedCertificate, Certificate, DbHelper
 
 import time
 import json
@@ -232,7 +232,9 @@ class ManagementModule(ServerModule):
         :param randomize:
         :return:
         """
-        q = s.query(DbManagedCertificate, DbManagedSolution, DbManagedService, DbManagedTestProfile, DbKeychestAgent) \
+        q = s.query(DbManagedCertificate, Certificate, DbManagedSolution, DbManagedService, DbManagedTestProfile,
+                    DbKeychestAgent) \
+            .join(Certificate, Certificate.id == DbManagedCertificate.certificate_id) \
             .join(DbManagedSolution, DbManagedSolution.id == DbManagedCertificate.solution_id) \
             .join(DbManagedService, DbManagedService.id == DbManagedCertificate.service_id) \
             .outerjoin(DbManagedTestProfile, DbManagedTestProfile.id == DbManagedService.test_profile_id) \
