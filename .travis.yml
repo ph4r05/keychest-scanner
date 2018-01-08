@@ -7,15 +7,14 @@ cache:
 # container-based infrastructure
 sudo: false
 
-python:
- - '2.7'
-# - '3.4'
-# - '3.5'
-# - '3.6'
+matrix:
+  include:
+    - python: 2.7
+    - python: 3.6
 
 install:
  - 'python setup.py install'
+ - '(python3 --version 2>/dev/null && sh install-py3-scapy.sh) || true'
 
 script: 
  - './test.sh'
-
