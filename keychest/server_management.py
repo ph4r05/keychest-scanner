@@ -9,17 +9,17 @@ from past.builtins import basestring    # pip install future
 from past.builtins import cmp
 from future.utils import iteritems
 
-import util
-from config import Config
-from redis_queue import RedisQueue
-import redis_helper as rh
-from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
-from server_module import ServerModule
-from server_data import EmailArtifact, EmailArtifactTypes
-from dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
+from . import util
+from .config import Config
+from .redis_queue import RedisQueue
+from .import redis_helper as rh
+from .trace_logger import Tracelogger
+from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob
+from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
+from .server_module import ServerModule
+from .server_data import EmailArtifact, EmailArtifactTypes
+from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbHelper
 

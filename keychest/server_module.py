@@ -7,14 +7,14 @@ Basic server module skeleton
 
 from past.builtins import cmp
 
-import util
-from config import Config
-from redis_queue import RedisQueue
-import redis_helper as rh
-from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
+from . import util
+from .config import Config
+from .redis_queue import RedisQueue
+from . import redis_helper as rh
+from .trace_logger import Tracelogger
+from .errors import Error, InvalidHostname, ServerShuttingDown
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
+from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
 
 import time
 import json
