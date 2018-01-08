@@ -26,7 +26,6 @@ install_requires = [
     'redis',
     'hiredis',
     'phpserialize',
-    'scapy-ssl_tls',
     'pymysql',
     'tldextract',
     'ph4-python-whois>=0.6.8',
@@ -42,6 +41,11 @@ install_requires = [
     'socketIO-client',
     'roca-detect',
 ]
+
+if sys.version_info < (3,):
+    install_requires.append('scapy-ssl_tls')
+else:
+    install_requires.append('scapy-python3')
 
 # env markers in extras_require cause problems with older pip: #517
 # Keep in sync with conditional_requirements.py.

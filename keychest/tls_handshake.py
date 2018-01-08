@@ -6,13 +6,23 @@ import json
 import logging
 
 import coloredlogs
-from scapy.packet import NoPayload
-from scapy_ssl_tls.ssl_tls import *
 
-from . import errors
-from . import trace_logger
-from . import util
-from .tls_domain_tools import TlsDomainTools
+try:
+    import scapy.all as scapy
+except ImportError:
+    import scapy
+
+from scapy.packet import NoPayload
+
+try:
+    from scapy_ssl_tls.ssl_tls import *
+except ImportError:
+    from scapy.layers.ssl_tls import *
+
+from keychest import errors
+from keychest import trace_logger
+from keychest import util
+from keychest.tls_domain_tools import TlsDomainTools
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +132,18 @@ class TlsHandshakeResult(object):
                'dns_failure=%r, cipher_suite=%r, certificates_len=%r, ip=%r, socket=%r)>' \
                % (self.time_start, self.time_connected, self.time_sent, self.time_finished, self.handshake_failure,
                   self.dns_failure, self.cipher_suite, len(self.certificates), self.ip, self.socket_family)
+
+
+TLS_ELLIPTIC_CURVES = registry.SUPPORTED_GROUPS_REGISTRY
+TLSEllipticCurve = EnumStruct(TLS_ELLIPTIC_CURVES)
+
+
+class TLSSignatureHashAlgorithm(PacketNoPayload):
+    name = "TLS Signature Hash Algorithm Pair"
+    fields_desc = [
+                   ByteEnumField("hash_alg", None, TLS_HASH_ALGORITHMS),
+                   ByteEnumField("sig_alg", None, TLS_SIGNATURE_ALGORITHMS),
+                  ]
 
 
 class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
@@ -248,6 +270,17 @@ class TlsHandshaker(object):
             TLSSignatureHashAlgorithm(hash_alg=0x8, sig_alg=0x4)
         ])
 
+        curves = TLSExtEllipticCurves(named_group_list=[
+            TLSSupportedGroup.ECDH_X25519,
+            TLSSupportedGroup.SECP256R1,
+            TLSSupportedGroup.SECP384R1,
+            0x6a6a
+        ]) if util.is_py3() else TLSExtEllipticCurves(elliptic_curves=[
+            TLSEllipticCurve.ECDH_X25519,
+            TLSEllipticCurve.SECP256R1,
+            TLSEllipticCurve.SECP384R1
+        ])
+
         # SNI
         cl_hello.extensions = util.compact([
             TLSExtension() /
@@ -278,19 +311,17 @@ class TlsHandshaker(object):
             TLSExtECPointsFormat(ec_point_formats=[TLSEcPointFormat.UNCOMPRESSED])) if f_ecc else None,
 
             (TLSExtension() /
-            TLSExtEllipticCurves(elliptic_curves=[
-                TLSEllipticCurve.ECDH_X25519,
-                TLSEllipticCurve.SECP256R1,
-                TLSEllipticCurve.SECP384R1,
-                0x6a6a
-            ])) if f_ecc else None,
+            curves) if f_ecc else None,
 
             TLSExtension() /
             TLSExt2a2a(),
         ])
 
         # Complete record with handshake / client hello
-        p = TLSRecord(version=tls_ver) / TLSHandshake() / cl_hello
+        try:
+            p = TLSRecord() / TLSHandshakes(handshakes=[TLSHandshake() / cl_hello])
+        except NameError:
+            p = TLSRecord(content_type=TLSContentType.HANDSHAKE) / TLSHandshake() / cl_hello
         return p
 
     def try_handshake(self, host, port=443, attempts=None, sleep_fnc=None, **kwargs):
@@ -370,7 +401,8 @@ class TlsHandshaker(object):
             cl_hello = self._build_client_hello(domain_sni, tls_ver, **kwargs)
             return_obj.cl_hello = cl_hello
 
-            s.sendall(str(cl_hello))
+            hello_packet = bytes(cl_hello)
+            s.sendall(hello_packet)
             return_obj.time_sent = time.time()
 
             self._read_while_finished(return_obj, s, timeout)
@@ -447,9 +479,13 @@ class TlsHandshaker(object):
                     raise TlsTimeout('Could not read any data', scan_result=return_obj)
 
             resp_bin_acc.append(resp_bin)
-            resp_bin_tot = ''.join(resp_bin_acc)
+            # resp_bin_tot = util.join_buff(resp_bin_acc)
+            resp_bin_tot = b''.join(resp_bin_acc)
+            logger.info('Read.. %s: %s' % (len(resp_bin), resp_bin))
             try:
-                rec = SSL(resp_bin_tot)
+                # rec = SSL(resp_bin_tot)
+                rec = TLS(resp_bin_tot)
+                logger.info('rec...')
                 return_obj.resp_record = rec
 
                 alert_record = self._get_failure(rec)
@@ -529,20 +565,26 @@ class TlsHandshaker(object):
         if not isinstance(packet, SSL):
             raise ValueError('Incorrect packet')
 
+        ispy3 = util.is_py3()
         for srec in packet.records:
             if srec.content_type != TLSContentType.HANDSHAKE:
                 continue
 
-            if not isinstance(srec.payload, TLSHandshake):
-                raise TlsIncomplete('Handshake declared but no handshake found (hello)')
+            handshakes = [srec.payload]
+            if ispy3 and isinstance(srec.payload, TLSHandshakes):
+                handshakes = list(srec.payload.handshakes)
 
-            cur_payload = srec.payload
-            while self._search_payload(cur_payload):
-                if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
-                   return True
-                if not recursive_search:
-                    return False
-                cur_payload = cur_payload.payload
+            for handshake in handshakes:
+                if not isinstance(handshake, TLSHandshake):
+                    raise TlsIncomplete('Handshake declared but no handshake found (hello)')
+
+                cur_payload = handshake
+                while self._search_payload(cur_payload):
+                    if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.SERVER_HELLO_DONE:
+                        return True
+                    if not recursive_search:
+                        return False
+                    cur_payload = cur_payload.payload
 
         return False
 
@@ -558,23 +600,29 @@ class TlsHandshaker(object):
         if not isinstance(packet, SSL):
             raise ValueError('Incorrect packet')
 
+        ispy3 = util.is_py3()
         certificates = []
         for srec in packet.records:
             if srec.content_type != TLSContentType.HANDSHAKE:
                 continue
 
-            if not isinstance(srec.payload, TLSHandshake):
-                raise TlsIncomplete('Handshake declared but no handshake found (cert)')
+            handshakes = [srec.payload]
+            if ispy3 and isinstance(srec.payload, TLSHandshakes):
+                handshakes = list(srec.payload.handshakes)
 
-            cur_payload = srec.payload
-            while self._search_payload(cur_payload):
-                if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.CERTIFICATE:
-                    cert_list_rec = srec.payload.payload
-                    certificates_rec = cert_list_rec.certificates
-                    certificates += [str(x.data) for x in certificates_rec]
-                if not recursive_search:
-                    return False
-                cur_payload = cur_payload.payload
+            for handshake in handshakes:
+                if not isinstance(handshake, TLSHandshake):
+                    raise TlsIncomplete('Handshake declared but no handshake found (cert)')
+
+                cur_payload = handshake
+                while self._search_payload(cur_payload):
+                    if isinstance(cur_payload, TLSHandshake) and cur_payload.type == TLSHandshakeType.CERTIFICATE:
+                        cert_list_rec = cur_payload.payload
+                        certificates_rec = cert_list_rec.certificates
+                        certificates += [bytes(x.data) for x in certificates_rec]
+                    if not recursive_search:
+                        return False
+                    cur_payload = cur_payload.payload
 
         return certificates
 
@@ -611,7 +659,7 @@ class TlsHandshaker(object):
                     # change the beginning time for measurement
                     begin = time.time()
                     if single_read:
-                        return ''.join(total_data)
+                        return b''.join(total_data)
                 else:
                     # sleep for sometime to indicate a gap
                     time.sleep(0.1)
@@ -619,7 +667,7 @@ class TlsHandshaker(object):
                 pass
 
         # join all parts to make final string
-        return ''.join(total_data)
+        return b''.join(total_data)
 
 
 def handshake_main():

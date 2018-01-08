@@ -119,3 +119,20 @@ Solution:
     pip install scapy==2.3.2
     ./install.sh
 
+
+On MacOSX:
+
+::
+
+    brew install libdnet
+
+Python3
+
+::
+
+    https://github.com/tintinweb/scapy-ssl_tls/issues/39
+    git clone https://github.com/tintinweb/scapy-ssl_tls.git
+    git checkout remotes/origin/py3compat
+    python3 setup.py build
+    python3 setup.py install
+
