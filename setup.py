@@ -40,6 +40,7 @@ install_requires = [
     'sseclient-py',
     'socketIO-client',
     'roca-detect',
+    'events',
 ]
 
 if sys.version_info < (3,):

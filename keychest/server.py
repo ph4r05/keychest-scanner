@@ -80,6 +80,7 @@ from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse,
 import ph4whois
 import requests
 import dns.resolver
+from events import Events
 
 
 __author__ = 'dusanklinec'
@@ -155,6 +156,7 @@ class Server(object):
         self.tls_scanner = TlsScanner()
         self.test_timeout = 5
         self.api = None
+        self.events = Events()
 
         self.modules = []
         self.mod_api_proc = None  # type: ServerApiProc
