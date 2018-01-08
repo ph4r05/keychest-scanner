@@ -60,6 +60,7 @@ class JobTypes(object):
     API_PROC = 5  # API requests processing
     MGMT_TEST = 6  # Management testing
     MGMT_RENEW = 7  # Management renewal
+    MGMT_CERT_CHECK = 8  # Management cert check
 
     def __init__(self):
         pass
@@ -370,12 +371,32 @@ class PeriodicApiProcessJob(BaseJob):
                   self.target.processed_at, self.target.last_scan_at)
 
 
+class PeriodicMgmtCertCheckJob(BaseJob):
+    """
+    Job for managed certificate fetch & check.
+    Used if certificate is loaded by API, from the remote file system or a different non-local
+    non-direct method.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(PeriodicMgmtCertCheckJob, self).__init__(type=JobTypes.MGMT_CERT_CHECK)
+        self.service = kwargs.get('service')
+
+    def key(self):
+        return 'mgmt_cert_check_%s' % self.service.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.service.id
+
+
 class PeriodicMgmtRenewalJob(BaseJob):
     """
     Check if the renewal for the managed service is not needed, performs the renewal
     """
 
-    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+    def __init__(self, target=None, *args, **kwargs):
         """
         :param target:
         :type target: DbManagedService
@@ -388,8 +409,9 @@ class PeriodicMgmtRenewalJob(BaseJob):
         self.solution = kwargs.get('solution')  # type: DbManagedSolution
         self.test_profile = kwargs.get('test_profile')  # type: DbManagedTestProfile
         self.agent = kwargs.get('agent')  # type: DbKeychestAgent
+        self.managed_certificate = kwargs.get('managed_certificate')  # type: DbManagedCertificate
+        self.certificate = kwargs.get('certificate')  # type: Certificate
 
-        self.periodicity = periodicity
         self.results = ScanResults()
 
     def key(self):
@@ -419,7 +441,7 @@ class PeriodicMgmtTestJob(BaseJob):
     Represents periodic job loaded from the db for managed service testing
     """
 
-    def __init__(self, target=None, periodicity=None, type=None, *args, **kwargs):
+    def __init__(self, target=None, type=None, *args, **kwargs):
         """
         :param target:
         :type target: DbManagedTest
@@ -435,7 +457,6 @@ class PeriodicMgmtTestJob(BaseJob):
         self.test_profile = kwargs.get('test_profile')  # type: DbManagedTestProfile
         self.agent = kwargs.get('agent')  # type: DbKeychestAgent
 
-        self.periodicity = periodicity
         self.scan_test_results = ScanResults()
 
     def key(self):
