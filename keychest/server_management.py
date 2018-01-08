@@ -261,6 +261,7 @@ class ManagementModule(ServerModule):
         :return:
         """
         self.periodic_feeder_test(s)
+        self.periodic_feeder_renew_check(s)
 
     def periodic_feeder_test(self, s):
         """
@@ -281,6 +282,38 @@ class ManagementModule(ServerModule):
 
                 job = PeriodicMgmtTestJob(target=x[0], periodicity=None,
                                           solution=x[1], service=x[2], test_profile=x[3], host=x[4], agent=x[5])
+                self.server.periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
+
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
+
+    def periodic_feeder_renew_check(self, s):
+        """
+        Feed jobs - renew checking
+        Based on existing certificate record.
+        :param s:
+        :return:
+        """
+        if self.server.periodic_queue_is_full():
+            return
+
+        try:
+            min_scan_margin = self.server.min_scan_margin()
+            query = self.load_cert_checks(s, last_scan_margin=min_scan_margin)
+
+            for x in DbHelper.yield_limit(query, DbManagedCertificate.id, 100, primary_obj=lambda x: x[0]):
+                if self.server.periodic_queue_is_full():
+                    return
+
+                job = PeriodicMgmtRenewalJob(managed_certificate=x[0], certificate=x[1],
+                                             solution=x[2], target=x[3], test_profile=x[4], agent=x[5])
                 self.server.periodic_add_job(job)
 
         except QFull:
@@ -457,26 +490,52 @@ class ManagementModule(ServerModule):
     def process_renew_job_body(self, s, job):
         """
         Renew job processing
+        - Check if the renewal is needed for the certificate.
+        - If renewal is needed do the renewal process now.
+
         :param s:
         :param job:
+        :type job: PeriodicMgmtRenewalJob
         :return:
         """
+
+        # Is the certificate eligible for renewal?
+        # if LE then 1 month before expiration. CA: job.target.svc_ca
+        # For now all CAs will have 28 days before expiration renewal period.
+        renewal_period = datetime.timedelta(days=28)
+
+        if not job.certificate:
+            # Certificate not yet linked
+            job.results.ok()
+            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now())
+            return
+
+        if datetime.datetime.now() + renewal_period >= job.certificate.valid_to:
+            # No renewal needed here
+            job.results.ok()
+            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now())
+            return
+
+        # Attempt renewal now.
+        # For now support only simple use cases. E.g., LetsEncrypt renewal.
+        pass
 
     def process_test_job_body(self, s, job):
         """
         Process test job
+
+        Test certificate status / freshness on the given host. May be:
+          - classic watch_target TLS test, locked on particular IP address
+          - physical file test
+          - API call certificate test
+
+        When the certificate for the service is marked for renewal, start renewal and deployment process
+
         :param s:
         :param job:
         :type job: PeriodicMgmtTestJob
         :return:
         """
-
-        # Test certificate status / freshness on the given host. May be:
-        #  - classic watch_target TLS test, locked on particular IP address
-        #  - physical file test
-        #  - API call certificate test
-        #
-        # When the certificate for the service is marked for renewal, start renewal and deployment process
 
         pass
 
