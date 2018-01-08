@@ -1,35 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
-import util
-import errors
-import logging
-import copy
 import collections
-import errors
+import copy
+import logging
+import os
 import time
-import types
 
 import pymysql
 from pymysql.err import Warning as MySQLWarning
+
+from . import errors
+from . import util
+from .consts import DbScanType
+
 pymysql.install_as_MySQLdb()
 
 from sqlalchemy import create_engine, UniqueConstraint, ColumnDefault, Index
 from sqlalchemy import exc as sa_exc
-from sqlalchemy import case, literal_column, orm
+from sqlalchemy import orm
 from sqlalchemy.sql import expression
 from sqlalchemy.sql.elements import and_
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, BLOB, Text, BigInteger, SmallInteger, Float
-from sqlalchemy.orm import sessionmaker, scoped_session, relationship, query
-from sqlalchemy.orm.session import make_transient
+from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, Text, BigInteger, SmallInteger, Float
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import INTEGER
 import sqlalchemy as sa
 from warnings import filterwarnings
-import MySQLdb as MySQLDatabase
-from consts import DbScanType
 
 
 """
