@@ -7,9 +7,10 @@ Server job classes
 
 from past.builtins import cmp
 import collections
-from tls_domain_tools import TargetUrl
-from dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects, DbManagedTest, \
-    DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent, DbManagedCertIssue
+from .tls_domain_tools import TargetUrl
+from .dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects, DbManagedTest, \
+    DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent, DbManagedCertIssue, \
+    DbManagedCertificate, Certificate
 
 
 class ScanResults(object):
