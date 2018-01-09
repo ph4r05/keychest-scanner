@@ -196,4 +196,13 @@ class Config(object):
     def monitor_disabled(self):
         return self.get_config('monitor_disabled', False)
 
+    # Certbot base dir
+    @property
+    def certbot_base(self):
+        return self.get_config('certbot_base', None)
+
+    # Certbot base webroot dir for proxied domain validation
+    @property
+    def certbot_webroot(self):
+        return self.get_config('certbot_webroot', None)
 
