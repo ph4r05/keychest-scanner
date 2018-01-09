@@ -1621,12 +1621,14 @@ class DbManagedService(Base):
     svc_display = Column(String(255), default=None)  # human name
     svc_name = Column(String(255), default=None)  # unique key for the solution per owner
 
+    svc_ca = Column(String(255), default=None)  # certificate authority of the cert for the svc: LE / custom / ...
     svc_provider = Column(String(255), default=None)  # apache / nginx
     svc_deployment = Column(String(255), default=None)  # ansible / certificate-agent
     svc_domain_auth = Column(String(255), default=None)  # local-certbot
     svc_config = Column(String(255), default=None)  # manual
     svc_watch_id = Column(ForeignKey('watch_target.id', name='managed_services_svc_watch_id', ondelete='SET NULL'),
                           nullable=True, index=True)  # associated monitored counterpart, if reachable by the scanner.
+    svc_aux_names = Column(Text, nullable=True)  # aux domain names, secondary domains for the certificate
 
     svc_desc = Column(Text)  # text desc, informal, unstructured
     svc_data = Column(Text)  # aux json
@@ -1732,11 +1734,15 @@ class DbManagedTestProfile(Base):
     id = Column(BigInteger, primary_key=True)
 
     # Watch target - only if the target is reachable by standard monitoring part. Optional.
-    watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_profiles_watch_target_id',
-                                        ondelete='SET NULL'), nullable=True, index=True)
+    # watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_profiles_watch_target_id',
+    #                                     ondelete='SET NULL'), nullable=True, index=True)
 
     watch_target = relationship('DbWatchTarget')
     service = relationship('DbManagedService', back_populates='test_profile', uselist=False)
+
+    # cert renew configuration, deployment configuration
+    cert_renew_check_strategy = Column(String(255), nullable=True)  # watch_target, API, host check, passive, manual, ...
+    cert_renew_check_data = Column(Text, nullable=True)  # json with check configuration (API - config)
 
     # watch target scan fields
     scan_key = Column(String(255), nullable=True)
@@ -1764,7 +1770,7 @@ class DbManagedTestProfile(Base):
 class DbManagedTest(Base):
     """
     Particular watchdog test for managed services on given hosts.
-    Creates KeyChest scanner from (solutions, services, hostGroups, hosts) configuration.
+    Created by KeyChest scanner from (solutions, services, hostGroups, hosts) configuration.
     If a new host is added to the associated host group a new test record is added to watch a new host in the config.
     If a host is removed from the configuration the record is set as deleted (soft delete).
     """
