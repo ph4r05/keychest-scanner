@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+import pylru
 
 from . import util
 
@@ -40,6 +41,11 @@ class LetsEncrypt(object):
         self.staging = staging
         self.debug = debug
         self.config = config
+        self.cert_lru = pylru.lrucache(16)
+
+        self.cert_changed = False
+        self.certs_ready_before = False
+        self.certs_ready_after = False
 
         self.config_dir = kwargs.get('config_dir')
         self.work_dir = kwargs.get('work_dir')
@@ -99,10 +105,21 @@ class LetsEncrypt(object):
         cmd_exec = '%s %s' % (self.CERTBOT_PATH, cmd)
         log_obj = self.CERTBOT_LOG
 
+        self.cert_changed = False
+        self.certs_ready_before = self.is_certificate_ready(domain=self.domains[0])
+        cert_hash_before = None
+        if self.certs_ready_before == 0:
+            cert_hash_before = self.certificate_hash(domain=self.domains[0])
+
         ret, out, err = self.cli_cmd_sync(cmd_exec, log_obj=log_obj, write_dots=self.print_output)
         if ret != 0:
             self.print_error('\nCertbot command failed: %s\n' % cmd_exec)
             self.print_error('For more information please refer to the log file: %s' % log_obj)
+
+        self.certs_ready_after = self.is_certificate_ready(domain=self.domains[0])
+        if self.certs_ready_after == 0:
+            cert_hash_after = self.certificate_hash(domain=self.domains[0])
+            self.cert_changed = cert_hash_before != cert_hash_after
 
         return ret, out, err
 
@@ -160,6 +177,15 @@ class LetsEncrypt(object):
         cert_file = os.path.join(cert_dir, self.CERT)
         ca_file = os.path.join(cert_dir, self.CA)
         return priv_file, cert_file, ca_file
+
+    def certificate_hash(self, domain):
+        """
+        Computes the hash of the certificate for given domain
+        :param domain:
+        :return:
+        """
+        paths = self.get_cert_paths(domain=domain)
+        return util.sha256_file(paths[1], True)
 
     def is_certificate_ready(self, cert_dir=None, domain=None):
         """
