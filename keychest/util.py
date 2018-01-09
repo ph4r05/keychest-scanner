@@ -1658,6 +1658,25 @@ def join_buff(buff):
     return reduce(lambda x,y: x+y, buff, b'')
 
 
+def escape_shell(inp):
+    """
+    Shell-escapes input param
+    :param inp:
+    :return:
+    """
+    try:
+        import shellescape
+        return shellescape.quote(inp)
+    except:
+        pass
+
+    try:  # py3
+        from shlex import quote
+    except ImportError:  # py2
+        from pipes import quote
+    return quote(inp)
+
+
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
     """
     Runs command line task synchronously
