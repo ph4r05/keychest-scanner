@@ -41,6 +41,8 @@ install_requires = [
     'socketIO-client',
     'roca-detect',
     'events',
+    'certbot-external-auth>=0.0.5',
+    'pylru',
 ]
 
 if sys.version_info < (3,):
