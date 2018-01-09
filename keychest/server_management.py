@@ -10,6 +10,7 @@ from past.builtins import cmp
 from future.utils import iteritems
 
 from . import util
+from .letsencrypt import LetsEncrypt
 from .config import Config
 from .redis_queue import RedisQueue
 from .import redis_helper as rh
@@ -23,6 +24,7 @@ from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManaged
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbHelper
 
+import os
 import time
 import json
 import math
@@ -65,6 +67,7 @@ class ManagementModule(ServerModule):
         self.local_data = threading.local()
         self.job_queue = Queue(300)
         self.workers = []
+        self.le = None  # type: LetsEncrypt
 
     def init(self, server):
         """
@@ -77,6 +80,13 @@ class ManagementModule(ServerModule):
         self.redis_queue = RedisQueue(redis_client=server.redis,
                                       default_queue='queues:management',
                                       event_queue='queues:management-evt')
+
+        self.le = LetsEncrypt(config=self.config,
+                              config_dir=os.path.join(self.config.certbot_base, 'conf'),
+                              work_dir=os.path.join(self.config.certbot_base, 'work'),
+                              log_dir=os.path.join(self.config.certbot_base, 'log'),
+                              webroot_dir=self.config.certbot_webroot
+                              )
 
     def shutdown(self):
         """
