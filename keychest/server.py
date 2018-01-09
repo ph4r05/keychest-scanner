@@ -2958,6 +2958,37 @@ class Server(object):
         scan_db.new_results = num_new_results
         scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
 
+    def process_certificate_file(self, s, cert_file):
+        """
+        Loads the file from the file, fetches or adds to the certificate database.
+        :param s:
+        :param cert_file:
+        :return:
+        :rtype: tuple[Certificate, bool]
+        """
+        cert_pem = None
+        try:
+            with open(cert_file) as fh:
+                cert_pem = fh.read()
+
+            cert_db = Certificate()
+            cert = self.parse_certificate(cert_db, pem=cert_pem)
+
+            cert_existing = self.cert_load_fprints(s, [cert_db.fprint_sha1])
+            if cert_existing:
+                return cert_db, False
+
+            cert_db.created_at = salch.func.now()
+            cert_db.pem = util.strip_pem(cert_pem)
+            cert_db.source = 'renew'
+            cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
+            return cert_db, is_new_cert
+
+        except Exception as e:
+            logger.error('Exception when processing a certificate %s' % (e,))
+            self.trace_logger.log(e)
+        return None, False
+
     def tls_cert_validity_test(self, resp, scan_db):
         """
         Performs TLS certificate validity test
@@ -3805,6 +3836,7 @@ class Server(object):
         :param cert_db:
         :type cert_db: Certificate
         :return:
+        :rtype: tuple[Certificate, bool]
         """
         close_after_done = False
         if s is None:
