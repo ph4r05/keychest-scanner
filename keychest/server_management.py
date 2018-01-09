@@ -509,6 +509,11 @@ class ManagementModule(ServerModule):
         :return:
         """
 
+        def finish_task(**kwargs):
+            """Simple finish callback"""
+            job.results.ok()
+            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now(), **kwargs)
+
         # Is the certificate eligible for renewal?
         # if LE then 1 month before expiration. CA: job.target.svc_ca
         # For now all CAs will have 28 days before expiration renewal period.
@@ -516,19 +521,63 @@ class ManagementModule(ServerModule):
 
         if not job.certificate:
             # Certificate not yet linked
-            job.results.ok()
-            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now())
+            finish_task()
             return
 
         if datetime.datetime.now() + renewal_period >= job.certificate.valid_to:
             # No renewal needed here
-            job.results.ok()
-            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now())
+            finish_task()
             return
 
         # Attempt renewal now.
         # For now support only simple use cases. E.g., LetsEncrypt renewal.
-        pass
+        # LE Renewal: call Certbot, fetch new certificate from the cert store, deploy later.
+        # LE certbot should run on the agent. For now on the master directly.
+
+        if job.target.svc_ca != 'LE':
+            logger.info('CA not supported for renewal: %s' % job.target.svc_ca)
+            finish_task()
+            return
+
+        # Extract main domain name from the service configuration
+        domains = [job.target.svc_name]
+        if job.target.svc_aux_names:
+            domains += json.loads(job.target.svc_aux_names)
+
+        # Perform proxied domain validation with certbot, attempt renew / issue.
+        ret, out, err = self.le.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
+        if ret != 0:
+            logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
+            finish_task(last_check_status=-2)
+            return
+
+        # if certificate has changed, load certificate file to the database, update, signalize,...
+        if not self.le.cert_changed:
+            finish_task()
+            return
+
+        domain = domains[0]
+        priv_file, cert_file, ca_file = self.le.get_cert_paths(domain=domain)
+        cert, cert_is_new = self.server.process_certificate_file(s, cert_file)  # type: tuple[Certificate, bool]
+        if not cert_is_new:
+            finish_task()
+            return
+
+        # Deprecate current certificate from the job, create new managed cert entry.
+        job.managed_certificate = s.merge(job.managed_certificate)
+        job.managed_certificate.record_deprecated_at = salch.func.now()  # deprecate current record
+
+        new_managed_cert = DbHelper.clone_model(job.managed_certificate)  # type: DbManagedCertificate
+        new_managed_cert.certificate_id = cert.id
+        new_managed_cert.deprecated_certificate_id = job.managed_certificate.certificate_id
+        new_managed_cert.record_deprecated_at = None
+        new_managed_cert.last_check_at = salch.func.now()
+        new_managed_cert.created_at = salch.func.now()
+        new_managed_cert.updated_at = salch.func.now()
+        s.add(new_managed_cert)
+
+        # TODO: Signalize event - new certificate
+        # TODO: In the agent - signalize this event to the master, attach new certificate & privkey
 
     def process_test_job_body(self, s, job):
         """
