@@ -6,82 +6,68 @@ Server part of the script
 NOTE: this file will be refactored soon, pls any edits consult with maintainer
 """
 
-from past.builtins import cmp
+import argparse
+import base64
+import collections
+import json
+import logging
+import math
+import os
+import random
+import resource
+import signal
+import socket
+import sys
+import threading
+import time
+from datetime import datetime, timedelta
+from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
+from threading import RLock as RLock
 
-from daemon import Daemon
-from core import Core
-from config import Config
-from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
+import coloredlogs
+import dns.resolver
+import ph4whois
+import pid
+import sqlalchemy as salch
+from events import Events
+from sqlalchemy import case, literal_column
+from sqlalchemy.orm.query import Query as SaQuery
+
+from . import dbutil
+from . import redis_helper as rh
+from . import util
+from . import util_cert
+from .cert_path_validator import PathValidator, ValidationOsslException, ValidationResult
+from .config import Config
+from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
+from .core import Core
+from .crt_sh_processor import CrtProcessor, CrtShException, CrtShTimeoutException
+from .daemon import Daemon
+from .db_migrations import DbMigrationManager
+from .dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult, DbWatchTarget, DbWatchAssoc, DbBaseDomain, DbWhoisCheck, \
-    DbScanGaps, DbScanHistory, DbUser, DbSystemLastEvents, DbHelper, ColTransformWrapper, \
+    DbScanHistory, DbHelper, ColTransformWrapper, \
     DbDnsResolve, DbCrtShQueryInput, \
     DbSubdomainResultCache, DbSubdomainScanBlacklist, DbSubdomainWatchAssoc, DbSubdomainWatchTarget, \
-    DbSubdomainWatchResultEntry, DbDnsEntry, DbSubTlsScan, DbLastScanCache, DbWatchService, \
-    DbOrganization, DbOrganizationGroup, DbKeychestAgent, \
+    DbSubdomainWatchResultEntry, DbDnsEntry, DbLastScanCache, DbWatchService, \
     DbDomainName, DbIpAddress, DbTlsScanDesc, DbTlsScanParams, DbTlsScanDescExt, \
     DbIpScanRecord, DbIpScanRecordUser, DbIpScanResult, \
     ResultModelUpdater, ModelUpdater
-import dbutil
-from db_migrations import DbMigrationManager
-from stat_sem import StatSemaphore
-from agent import AgentResultPush
-
-from redis_client import RedisClient
-from redis_queue import RedisQueue
-import redis_helper as rh
-from trace_logger import Tracelogger
-from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsResolutionError, TlsException, TlsHandshakeErrors
-from cert_path_validator import PathValidator, ValidationException, ValidationOsslException, ValidationResult
-from tls_domain_tools import TlsDomainTools, TargetUrl, CnameCDNClassifier
-from tls_scanner import TlsScanner, TlsScanResult, RequestErrorCode, RequestErrorWrapper
-from errors import Error, InvalidHostname, ServerShuttingDown
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
-import util_cert
-from server_api import RestAPI
-from server_api_proc import ServerApiProc
-from server_key_tester import KeyTester
-from server_agent import ServerAgent
-from server_management import ManagementModule
-
-import threading
-import pid
-import socket
-import time
-import re
-import os
-import sys
-import copy
-import types
-import util
-import math
-import json
-import base64
-import itertools
-import argparse
-import calendar
-import random
-from threading import RLock as RLock
-import logging
-import coloredlogs
-import traceback
-import collections
-import signal
-import resource
-from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
-from datetime import datetime, timedelta
-
-import sqlalchemy as salch
-from sqlalchemy.orm.query import Query as SaQuery
-from sqlalchemy import case, literal_column
-from sqlalchemy.orm.session import make_transient
-
-from crt_sh_processor import CrtProcessor, CrtShIndexRecord, CrtShIndexResponse, CrtShException, CrtShTimeoutException
-import ph4whois
-import requests
-import dns.resolver
-from events import Events
-
+from .errors import Error, InvalidHostname, ServerShuttingDown
+from .redis_client import RedisClient
+from .redis_queue import RedisQueue
+from .server_agent import ServerAgent
+from .server_api import RestAPI
+from .server_api_proc import ServerApiProc
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
+from .server_key_tester import KeyTester
+from .server_management import ManagementModule
+from .stat_sem import StatSemaphore
+from .tls_domain_tools import TlsDomainTools, TargetUrl, CnameCDNClassifier
+from .tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsTimeout, TlsResolutionError, TlsException, \
+    TlsHandshakeErrors
+from .tls_scanner import TlsScanner, RequestErrorCode
+from .trace_logger import Tracelogger
 
 __author__ = 'dusanklinec'
 logger = logging.getLogger(__name__)
