@@ -1,0 +1,26 @@
+- hosts: webservers
+  tasks:
+   - name: Cert directory
+     file: path=/etc/letsencrypt/live/t1.enigmabridge.org state=directory
+
+   - name: Sync certs
+     synchronize:
+       src: /var/www/certbot/conf/live/test.deadcode.me/
+       dest: /etc/letsencrypt/live/t1.enigmabridge.org/
+       checksum: yes
+       rsync_opts:
+        - '-L'
+
+   - name: Copy certificates
+     copy:
+       src: /var/www/certbot/conf/live/test.deadcode.me/
+       dest: /etc/letsencrypt/live/t1.enigmabridge.org/
+
+   - name: Privkey privileges
+     file:
+       path: /etc/letsencrypt/live/t1.enigmabridge.org/privkey.pem
+       mode: 0600
+
+   - name: Reload webserver
+     service: name=nginx state=reloaded
+
