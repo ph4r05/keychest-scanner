@@ -1645,6 +1645,8 @@ class DbManagedService(Base):
     solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
     test_profile = relationship('DbManagedTestProfile', back_populates='service')
+    watch_target = relationship('DbWatchTarget', foreign_keys=svc_watch_id)
+
     managed_certificates = relationship('DbManagedCertificate', primaryjoin=lambda: and_(
         DbManagedService.id == DbManagedCertificate.service_id, DbManagedCertificate.record_deprecated_at == None))
 
@@ -1736,8 +1738,9 @@ class DbManagedTestProfile(Base):
     # Watch target - only if the target is reachable by standard monitoring part. Optional.
     # watch_target_id = Column(ForeignKey('watch_target.id', name='fk_managed_test_profiles_watch_target_id',
     #                                     ondelete='SET NULL'), nullable=True, index=True)
+    #
+    # watch_target = relationship('DbWatchTarget')
 
-    watch_target = relationship('DbWatchTarget')
     service = relationship('DbManagedService', back_populates='test_profile', uselist=False)
 
     # cert renew configuration, deployment configuration
