@@ -258,6 +258,15 @@ class ManagementModule(ServerModule):
                         mgmt_cert.service_id = svc.id
                         mgmt_cert.certificate_id = tls_scan.cert_id_leaf
                         s.add(mgmt_cert)
+
+                        # Load all alt names from the certificate if aux names are not filled in
+                        if svc.svc_aux_names is None:
+                            cert_db = s.query(Certificate)\
+                                .filter(Certificate.id == tls_scan.cert_id_leaf)\
+                                .first()  # type: Certificate
+
+                            svc.svc_aux_names = json.dumps(cert_db.alt_names_arr)
+
                         s.commit()
 
             except Exception as e:
