@@ -22,7 +22,7 @@ from .server_module import ServerModule
 from .server_data import EmailArtifact, EmailArtifactTypes
 from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
-    DbKeychestAgent, DbManagedCertificate, Certificate, DbHelper
+    DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbHelper
 
 import os
 import time
@@ -106,6 +106,10 @@ class ManagementModule(ServerModule):
         test_sync_thread = threading.Thread(target=self.main_test_sync, args=())
         test_sync_thread.setDaemon(True)
         test_sync_thread.start()
+
+        mgmt_cert_sync_thread = threading.Thread(target=self.managed_certificate_sync, args=())
+        mgmt_cert_sync_thread.setDaemon(True)
+        mgmt_cert_sync_thread.start()
 
     #
     # Running
@@ -202,6 +206,69 @@ class ManagementModule(ServerModule):
                 self.server.interruptible_sleep(10)
 
         logger.info('Test target sync terminated')
+
+    def managed_certificate_sync(self):
+        """
+        Syncs managed certificates from the watch targets.
+        Configuration task.
+        :return:
+        """
+        logger.info('Managed cert sync started')
+        while self.is_running():
+            self.server.interruptible_sleep(2)
+            try:
+                s = self.db.get_session()
+                q_sol = s.query(DbManagedSolution) \
+                    .filter(DbManagedSolution.deleted_at is not None) \
+                    .order_by(DbManagedSolution.id)
+
+                for sol in DbHelper.yield_limit(q_sol, DbManagedSolution.id):  # type: DbManagedSolution
+                    if sol.deleted_at is not None:
+                        continue
+
+                    for svc in [x.service for x in sol.services]:  # type: DbManagedService
+                        if svc.deleted_at is not None:
+                            continue
+                        if svc.svc_watch_id is None:
+                            continue
+
+                        # Fetch managed certificates. If present, continue to next record.
+                        mgmt_certs = s.query(DbManagedCertificate)\
+                            .filter(DbManagedCertificate.solution_id==sol.id)\
+                            .filter(DbManagedCertificate.service_id==svc.id)\
+                            .filter(DbManagedCertificate.record_deprecated_at==None)\
+                            .all()
+                        if len(mgmt_certs) > 0:
+                            continue
+
+                        # Load watch target, get the newest TLS scanned certificate.
+                        wtarget = svc.watch_target  # type: DbWatchTarget
+                        dns_scan = self.server.load_last_dns_scan_optim(s, wtarget.id)  # type: DbDnsResolve
+                        if dns_scan is None:
+                            continue
+
+                        ips = [x[1] for x in dns_scan.dns_res]
+                        prev_scans = self.server.load_last_tls_scan_last_dns(s, wtarget.id, ips)  # type: list[DbHandshakeScanJob]
+                        if len(prev_scans) == 0:
+                            continue
+
+                        tls_scan = prev_scans[0]
+                        mgmt_cert = DbManagedCertificate()
+                        mgmt_cert.solution_id = sol.id
+                        mgmt_cert.service_id = svc.id
+                        mgmt_cert.certificate_id = tls_scan.cert_id_leaf
+                        s.add(mgmt_cert)
+                        s.commit()
+
+            except Exception as e:
+                logger.error('Exception in processing job %s' % (e,))
+                self.trace_logger.log(e)
+
+            finally:
+                util.silent_close(s)
+                self.server.interruptible_sleep(10)
+
+        logger.info('Managed certs sync terminated')
 
     def load_active_tests(self, s, last_scan_margin=300, randomize=True):
         """
@@ -597,6 +664,7 @@ class ManagementModule(ServerModule):
         renew_record = self.create_renew_record(job, req_data=req_data)
 
         # Perform proxied domain validation with certbot, attempt renew / issue.
+        # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
         ret, out, err = self.le.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
