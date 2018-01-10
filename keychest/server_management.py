@@ -40,6 +40,7 @@ import datetime
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 import sqlalchemy as salch
+from events import Events
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class ManagementModule(ServerModule):
         self.job_queue = Queue(300)
         self.workers = []
         self.le = None  # type: LetsEncrypt
+        self.events = Events()
 
     def init(self, server):
         """
@@ -359,6 +361,51 @@ class ManagementModule(ServerModule):
 
         return True
 
+    def trigger_test_managed_tests(self, s, solution_id, service_id):
+        """
+        Triggers testing for managed tests by setting last scan at to null
+        :param s:
+        :param solution_id:
+        :param service_id:
+        :return:
+        """
+        s = self.db.get_session()
+        try:
+            stmt = DbManagedTest.__table__.update() \
+                .where(DbManagedTest.solution_id == solution_id) \
+                .where(DbManagedTest.service_id == service_id) \
+                .values(last_scan_at=None)
+            s.execute(stmt)
+            s.commit()
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
+    def create_renew_record(self, job, req_data=None, new_cert=None, status=None):
+        """
+        Stores renewal record
+        :param job:
+        :type job: PeriodicMgmtRenewalJob
+        :param req_data:
+        :param new_cert:
+        :type new_cert: Certificate
+        :return:
+        :rtype: DbManagedCertIssue
+        """
+        issue = DbManagedCertIssue()
+        issue.solution_id = job.solution.id
+        issue.service_id = job.target.id
+        issue.certificate_id = job.certificate.id if job.certificate else None
+        if new_cert:
+            issue.new_certificate_id = new_cert.id
+        issue.request_data = json.dumps(req_data)
+        issue.last_issue_at = salch.func.now()
+        issue.last_issue_status = status
+        return issue
+
     def update_object(self, s, target, **kwargs):
         """
         General object update method
@@ -544,16 +591,26 @@ class ManagementModule(ServerModule):
         if job.target.svc_aux_names:
             domains += json.loads(job.target.svc_aux_names)
 
+        req_data = collections.OrderedDict()
+        req_data['CA'] = job.target.svc_ca
+        req_data['domains'] = domains
+        renew_record = self.create_renew_record(job, req_data=req_data)
+
         # Perform proxied domain validation with certbot, attempt renew / issue.
         ret, out, err = self.le.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
             finish_task(last_check_status=-2)
+            renew_record.last_issue_status = -2
+            renew_record.last_issue_data = json.dumps({'ret': ret, 'out':out, 'err': err})
+            s.add(renew_record)
             return
 
         # if certificate has changed, load certificate file to the database, update, signalize,...
         if not self.le.cert_changed:
             finish_task()
+            renew_record.last_issue_status = 2
+            s.add(renew_record)
             return
 
         domain = domains[0]
@@ -561,6 +618,9 @@ class ManagementModule(ServerModule):
         cert, cert_is_new = self.server.process_certificate_file(s, cert_file)  # type: tuple[Certificate, bool]
         if not cert_is_new:
             finish_task()
+            renew_record.new_certificate_id = cert.id
+            renew_record.last_issue_status = 3
+            s.add(renew_record)
             return
 
         # Deprecate current certificate from the job, create new managed cert entry.
@@ -576,8 +636,19 @@ class ManagementModule(ServerModule):
         new_managed_cert.updated_at = salch.func.now()
         s.add(new_managed_cert)
 
-        # TODO: Signalize event - new certificate
+        # Cert issue record - store renewal happened
+        renew_record.last_issue_status = 1
+        renew_record.new_certificate_id = cert.id
+        s.add(renew_record)
+
+        # Signalize event - new certificate
+        self.events.on_renewed_certificate(cert, job, new_managed_cert)
+
         # TODO: In the agent - signalize this event to the master, attach new certificate & privkey
+        pass
+
+        # Trigger tests - set last scan to null
+        self.trigger_test_managed_tests(s, solution_id=job.solution.id, service_id=job.target.id)
 
     def process_test_job_body(self, s, job):
         """
