@@ -47,6 +47,7 @@ def upgrade():
                     sa.Column('solution_id', sa.BigInteger(), nullable=False),
                     sa.Column('service_id', sa.BigInteger(), nullable=False),
                     sa.Column('host_id', sa.BigInteger(), nullable=True),
+                    sa.Column('max_certificate_id_deployed', sa.BigInteger(), nullable=True),
                     sa.Column('scan_data', sa.Text(), nullable=True),
                     sa.Column('last_scan_at', sa.DateTime(), nullable=True),
                     sa.Column('last_scan_status', sa.SmallInteger(), nullable=True),
@@ -56,6 +57,8 @@ def upgrade():
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
                     sa.ForeignKeyConstraint(['host_id'], ['managed_hosts.id'], name='fk_managed_tests_managed_host_id',
                                             ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['max_certificate_id_deployed'], ['certificates.id'],
+                                            name='fk_managed_tests_max_certificate_id_deployed_id', ondelete='SET NULL'),
                     sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
                                             name='fk_managed_tests_managed_service_id', ondelete='CASCADE'),
                     sa.ForeignKeyConstraint(['solution_id'], ['managed_solutions.id'],
@@ -63,6 +66,7 @@ def upgrade():
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_index(op.f('ix_managed_tests_host_id'), 'managed_tests', ['host_id'], unique=False)
+    op.create_index(op.f('ix_managed_tests_max_certificate_id_deployed'), 'managed_tests', ['max_certificate_id_deployed'], unique=False)
     op.create_index(op.f('ix_managed_tests_service_id'), 'managed_tests', ['service_id'], unique=False)
     op.create_index(op.f('ix_managed_tests_solution_id'), 'managed_tests', ['solution_id'], unique=False)
 

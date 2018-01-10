@@ -1788,9 +1788,15 @@ class DbManagedTest(Base):
     host_id = Column(ForeignKey('managed_hosts.id', name='fk_managed_tests_managed_host_id',
                                 ondelete='CASCADE'), nullable=True, index=True)
 
+    # Maximal certificate ID deployed on this host
+    max_certificate_id_deployed = Column(
+        ForeignKey('certificates.id', name='fk_managed_tests_max_certificate_id_deployed_id', ondelete='SET NULL'),
+        nullable=True, index=True)
+
     solution = relationship('DbManagedSolution')
     service = relationship('DbManagedService')
     host = relationship('DbManagedHost')
+    certificate = relationship('Certificate', foreign_keys=max_certificate_id_deployed)
 
     # watch target scan fields
     scan_data = Column(Text, nullable=True)
