@@ -111,6 +111,7 @@ setup(
         'console_scripts': [
             'keychest-server = keychest.server:main',
             'keychest-setup = keychest.cmd_setup:main',
+            'keychest-ansible-inventory = keychest.ansible_inventory:main',
         ],
     }
 )
