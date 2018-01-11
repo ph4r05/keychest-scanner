@@ -1541,7 +1541,9 @@ class DbManagedHost(Base):
     host_os = Column(String(255), default=None)  # Centos / Ubuntu / ...
     host_os_ver = Column(String(255), default=None)  # OS semantic version
 
+    has_ansible = Column(SmallInteger, default=0)  # 1 if ansible is configured on this host
     ssh_port = Column(Integer, default=None)  # Ansible managed - SSH port
+    ssh_user = Column(String(255), default=None)  # Ansible managed - SSH user
     host_secret = Column(String(255), default=None)  # Secret key for comm for lightweight agent
 
     host_desc = Column(Text)  # human informal desc

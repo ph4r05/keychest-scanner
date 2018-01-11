@@ -160,6 +160,9 @@ def upgrade():
 
     op.add_column('managed_services', sa.Column('svc_aux_names', sa.Text(), nullable=True))
     op.add_column('managed_services', sa.Column('svc_ca', sa.String(length=255), nullable=True))
+
+    op.add_column('managed_hosts', sa.Column('has_ansible', sa.SmallInteger(), nullable=True))
+    op.add_column('managed_hosts', sa.Column('ssh_user', sa.String(length=255), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -202,4 +205,7 @@ def downgrade():
 
     op.drop_column('managed_services', 'svc_ca')
     op.drop_column('managed_services', 'svc_aux_names')
+
+    op.drop_column('managed_hosts', 'ssh_user')
+    op.drop_column('managed_hosts', 'has_ansible')
     # ### end Alembic commands ###
