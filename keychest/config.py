@@ -206,3 +206,18 @@ class Config(object):
     def certbot_webroot(self):
         return self.get_config('certbot_webroot', None)
 
+    # KeyChest App key - base64 encoded key
+    @property
+    def keychest_key(self):
+        return self.get_config('keychest_key', None)
+
+    # Ansible SSH key dir
+    @property
+    def ansible_sshkeys(self):
+        return self.get_config('ansible_ssh', None)
+
+    # Ansible cache dir
+    @property
+    def ansible_cache(self):
+        return self.get_config('ansible_cache', None)
+
