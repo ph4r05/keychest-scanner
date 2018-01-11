@@ -1739,6 +1739,16 @@ class SargeLogFilter(logging.Filter):
         return 1
 
 
+def install_sarge_filter():
+    """
+    Installs Sarge log filter to avoid long 1char debug dumps
+    :return:
+    """
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(SargeLogFilter('hnd'))
+    logging.getLogger().addFilter(SargeLogFilter('root'))
+
+
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
     """
     Runs command line task synchronously

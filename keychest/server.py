@@ -4736,10 +4736,7 @@ class Server(object):
         if self.args.debug:
             coloredlogs.install(level=logging.DEBUG)
 
-        for handler in logging.getLogger().handlers:
-            handler.addFilter(util.SargeLogFilter('hnd'))
-        logging.getLogger().addFilter(util.SargeLogFilter('root'))
-
+        util.install_sarge_filter()
         self.work_loop()
 
 
