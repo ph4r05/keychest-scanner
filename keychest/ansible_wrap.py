@@ -159,6 +159,7 @@ class AnsibleWrapper(object):
         playbook_data['certs_src'] = os.path.join(self.local_certbot_live, primary_domain)
         playbook_data['certs_dst'] = os.path.join('/etc/letsencrypt/live', primary_domain)
         playbook_data['privkey_path'] = os.path.join(playbook_data['certs_dst'], 'privkey.pem')
+        playbook_data['ansible_become'] = True  # root needed for server restart
 
         return playbook, playbook_data
 
