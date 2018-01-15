@@ -862,7 +862,7 @@ class ManagementModule(ServerModule):
         job.managed_certificate = s.merge(job.managed_certificate)
         job.managed_certificate.record_deprecated_at = salch.func.now()  # deprecate current record
 
-        new_managed_cert = DbHelper.clone_model(job.managed_certificate)  # type: DbManagedCertificate
+        new_managed_cert = DbHelper.clone_model(s, job.managed_certificate)  # type: DbManagedCertificate
         new_managed_cert.certificate_id = cert.id
         new_managed_cert.deprecated_certificate_id = job.managed_certificate.certificate_id
         new_managed_cert.record_deprecated_at = None
