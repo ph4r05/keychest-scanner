@@ -1749,6 +1749,43 @@ def install_sarge_filter():
     logging.getLogger().addFilter(SargeLogFilter('root'))
 
 
+def strip_leading_slash(x):
+    """
+    Strips leading slash
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+    return re.sub(r'/\s*$', '', x)
+
+
+def strip_ending_slash(x):
+    """
+    Strips last slash from the path if there is any
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+    if x.endswith('/'):
+        return x[:-1]
+    return x
+
+
+def add_ending_slash(x):
+    """
+    Adds ending slash if not present
+    :param x:
+    :return:
+    """
+    if x is None:
+        return None
+    if x.endswith('/'):
+        return x
+    return '%s/' % x
+
+
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
     """
     Runs command line task synchronously
