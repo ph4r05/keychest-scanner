@@ -932,13 +932,18 @@ class ManagementModule(ServerModule):
         try:
             ret = ansible.get_facts(job.target.host_addr)
             host = job.target
-            facts_json = json.dumps(ret[1])
+            out = ret[1]
+            out_task = ansible.get_ansible_tasks_by_host(out)
+            if not util.is_empty(out_task):
+                out_task = out_task[out_task.keys()[0]]
 
+            facts_json = json.dumps(out_task)
             host = self.update_object(s, host, ansible_last_status=ret[0], host_ansible_facts=facts_json)
+
             finish_task(host=host)
             s.commit()
 
-            logger.info('Ansible check finished: %s' % ret[0])
+            logger.info('Ansible check finished: %s' % (ret[0], ))
 
         except Exception as e:
             logger.error('Exception on Ansible check', e)

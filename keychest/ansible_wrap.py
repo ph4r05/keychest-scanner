@@ -197,6 +197,26 @@ class AnsibleWrapper(object):
         js = util.try_load_json(out)
         return js
 
+    def get_ansible_tasks_by_host(self, js):
+        """
+        Extracts plays[i].tasks[i].hosts
+        Fetches the first play only
+        :param js:
+        :return:
+        """
+        if js is None or 'plays' not in js or len(js['plays']) == 0:
+            return None
+
+        play = js['plays'][0]
+        if 'tasks' not in play or len(play['tasks']) == 0:
+            return None
+
+        task = play['tasks'][0]
+        if 'hosts' not in task or len(task['hosts']) == 0:
+            return {}
+
+        return task['hosts']
+
     def deploy_certs(self, host, service, primary_domain):
         """
         Deploys certs to the host by running Ansible and returning the result.
