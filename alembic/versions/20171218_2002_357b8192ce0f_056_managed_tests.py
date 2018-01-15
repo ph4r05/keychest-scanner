@@ -158,8 +158,25 @@ def upgrade():
                     existing_type=mysql.BIGINT(display_width=20),
                     nullable=False)
 
+    op.create_table('pki_issuer',
+                    sa.Column('id', sa.BigInteger(), nullable=False),
+                    sa.Column('name', sa.String(length=255), nullable=False),
+                    sa.Column('pki_type', sa.String(length=255), nullable=True),
+                    sa.Column('owner_id', sa.BigInteger(), nullable=True),
+                    sa.Column('config_data', sa.Text(), nullable=True),
+                    sa.Column('created_at', sa.DateTime(), nullable=True),
+                    sa.Column('updated_at', sa.DateTime(), nullable=True),
+                    sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], name='fk_pki_issuer_owner_id',
+                                            ondelete='CASCADE'),
+                    sa.PrimaryKeyConstraint('id')
+                    )
+    op.create_index(op.f('ix_pki_issuer_owner_id'), 'pki_issuer', ['owner_id'], unique=False)
+
+    op.add_column('managed_services', sa.Column('svc_ca_id', sa.BigInteger(), nullable=True))
+    op.create_index(op.f('ix_managed_services_svc_ca_id'), 'managed_services', ['svc_ca_id'], unique=False)
+    op.create_foreign_key('managed_services_pki_issuer_id', 'managed_services', 'pki_issuer', ['svc_ca_id'], ['id'],
+                          ondelete='SET NULL')
     op.add_column('managed_services', sa.Column('svc_aux_names', sa.Text(), nullable=True))
-    op.add_column('managed_services', sa.Column('svc_ca', sa.String(length=255), nullable=True))
 
     op.add_column('managed_hosts', sa.Column('has_ansible', sa.SmallInteger(), nullable=True))
     op.add_column('managed_hosts', sa.Column('ssh_user', sa.String(length=255), nullable=True))
@@ -206,12 +223,14 @@ def downgrade():
     op.drop_table('managed_certificates')
     op.drop_table('managed_test_profiles')
 
-    op.drop_column('managed_services', 'svc_ca')
-    op.drop_column('managed_services', 'svc_aux_names')
-
     op.drop_column('managed_hosts', 'ssh_user')
     op.drop_column('managed_hosts', 'has_ansible')
     op.drop_column('managed_hosts', 'host_ansible_facts')
     op.drop_column('managed_hosts', 'ansible_last_status')
     op.drop_column('managed_hosts', 'ansible_last_ping')
+
+    op.drop_column('managed_services', 'svc_aux_names')
+    op.drop_constraint('managed_services_pki_issuer_id', 'managed_services', type_='foreignkey')
+    op.drop_column('managed_services', 'svc_ca_id')
+    op.drop_table('pki_issuer')
     # ### end Alembic commands ###

@@ -1626,7 +1626,9 @@ class DbManagedService(Base):
     svc_display = Column(String(255), default=None)  # human name
     svc_name = Column(String(255), default=None)  # unique key for the solution per owner
 
-    svc_ca = Column(String(255), default=None)  # certificate authority of the cert for the svc: LE / custom / ...
+    svc_ca_id = Column(ForeignKey('pki_issuer.id', name='managed_services_pki_issuer_id', ondelete='SET NULL'),
+                       nullable=True, index=True)  # certificate authority of the cert for the svc: LE / custom / ...
+
     svc_provider = Column(String(255), default=None)  # apache / nginx
     svc_deployment = Column(String(255), default=None)  # ansible / certificate-agent
     svc_domain_auth = Column(String(255), default=None)  # local-certbot
@@ -1651,6 +1653,7 @@ class DbManagedService(Base):
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
     test_profile = relationship('DbManagedTestProfile', back_populates='service')
     watch_target = relationship('DbWatchTarget', foreign_keys=svc_watch_id)
+    svc_ca = relationship('DbPkiIssuer', foreign_keys=svc_ca_id)
 
     managed_certificates = relationship('DbManagedCertificate', primaryjoin=lambda: and_(
         DbManagedService.id == DbManagedCertificate.service_id, DbManagedCertificate.record_deprecated_at == None))
@@ -1895,6 +1898,29 @@ class DbManagedCertIssue(Base):
     last_issue_at = Column(DateTime, default=None)  # last issue timestamp
     last_issue_status = Column(SmallInteger, default=None)  # last issue status (success / fail)
     last_issue_data = Column(Text, nullable=True)  # last issue/renew json data. The issue log / aux info
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbPkiIssuer(Base):
+    """
+    PKI issuer record
+    """
+    __tablename__ = 'pki_issuer'
+    __table_args__ = ()
+    id = Column(BigInteger, primary_key=True)
+
+    name = Column(String(255), default=None, nullable=False)  # per owner unique pki issuer code
+    pki_type = Column(String(255), default=None, nullable=True)  # PKI base type, e.g., LE,
+
+    # Owner is optional. This enables to define system wide issuers
+    owner_id = Column(ForeignKey('owners.id', name='fk_pki_issuer_owner_id',
+                                 ondelete='CASCADE'), nullable=True, index=True)
+    owner = relationship('DbOwner')
+
+    # config JSON, if any
+    config_data = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
