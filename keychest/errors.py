@@ -118,3 +118,17 @@ class InvalidInputData(Error):
     """Invalid test input data"""
     def __init__(self, message=None, cause=None):
         super(InvalidInputData, self).__init__(message=message, cause=cause)
+
+
+class AnsibleError(Error):
+    """Root for ansible errors"""
+    def __init__(self, message=None, cause=None):
+        super(AnsibleError, self).__init__(message=message, cause=cause)
+
+
+class PkiNotSupported(AnsibleError):
+    """Root for ansible errors"""
+    def __init__(self, message=None, cause=None):
+        super(PkiNotSupported, self).__init__(message=message, cause=cause)
+
+
