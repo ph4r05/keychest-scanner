@@ -483,7 +483,7 @@ class PeriodicMgmtTestJob(BaseJob):
         self.test_profile = kwargs.get('test_profile')  # type: DbManagedTestProfile
         self.agent = kwargs.get('agent')  # type: DbKeychestAgent
 
-        self.scan_test_results = ScanResults()
+        self.results = ScanResults()
 
     def key(self):
         return 'mgmt_test_%s' % self.target.id

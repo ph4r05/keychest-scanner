@@ -622,8 +622,8 @@ class ManagementModule(ServerModule):
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
-            if job.scan_test_results.is_failed():
-                logger.info('Test scan job failed: %s' % (job.scan_test_results.is_failed()))
+            if job.results.is_failed():
+                logger.info('Test scan job failed: %s' % (job.results.is_failed()))
                 job.attempts += 1
                 job.success_scan = False
 
