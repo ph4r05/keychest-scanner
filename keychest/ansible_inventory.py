@@ -189,61 +189,69 @@ class AnsibleInventory(object):
 
         s = self.db.get_session()
         try:
-            hosts = s.query(DbManagedHost)\
-                .filter(DbManagedHost.deleted_at==None)\
-                .filter(DbManagedHost.has_ansible==1)\
-                .all()
-
-            all_hostnames = []
-            for host in hosts:  # type: DbManagedHost
-                sshkey_path = None
-                all_hostnames.append(host.host_addr)
-
-                # SSH key sync, extract to a file
-                if host.ssh_key is not None:
-                    sshkey_path = self.get_sshkey_fname(host.ssh_key)
-
-                    # Dump SSH key if does not exist.
-                    if not os.path.exists(sshkey_path):
-                        with util.safe_open(sshkey_path, 'w', chmod=0o600) as fh:
-                            fh.write(self.decryptor.decrypt(host.ssh_key.priv_key))
-
-                # Host data
-                host_obj = collections.OrderedDict()
-                host_obj['hostname'] = host.host_name
-                host_obj['owner'] = host.owner_id
-                host_obj['host_os'] = host.host_os
-                host_obj['host_os_ver'] = host.host_os_ver
-
-                host_obj['ansible_connection'] = 'ssh'
-                if host.ssh_user:
-                    host_obj['ansible_user'] = host.ssh_user
-                if sshkey_path:
-                    host_obj['ansible_ssh_private_key_file'] = sshkey_path
-
-                self.cache[host.host_addr] = host_obj
-
-            self.inventory['all'] = all_hostnames
-            groups = s.query(DbHostGroup)\
-                .filter(DbHostGroup.deleted_at==None)\
-                .all()
-
-            for group in groups:  # type: DbHostGroup
-                host_names = []
-                for host_assoc in group.hosts:  # type: DbHostToGroupAssoc
-                    host = host_assoc.host
-                    if host.has_ansible:
-                        host_names.append(host.host_addr)
-
-                if len(host_names) > 0:
-                    self.inventory[group.group_name] = host_names
-
+            self.load_inventory(s)
+            
         finally:
             util.silent_expunge_all(s)
             util.silent_close(s)
 
         self.write_to_cache(self.cache, self.cache_path_cache)
         self.write_to_cache(self.inventory, self.cache_path_inventory)
+
+    def load_inventory(self, s):
+        """
+        Loads inventory to the internal state
+        :param s:
+        :return:
+        """
+        hosts = s.query(DbManagedHost) \
+            .filter(DbManagedHost.deleted_at == None) \
+            .filter(DbManagedHost.has_ansible == 1) \
+            .all()
+
+        all_hostnames = []
+        for host in hosts:  # type: DbManagedHost
+            sshkey_path = None
+            all_hostnames.append(host.host_addr)
+
+            # SSH key sync, extract to a file
+            if host.ssh_key is not None:
+                sshkey_path = self.get_sshkey_fname(host.ssh_key)
+
+                # Dump SSH key if does not exist.
+                if not os.path.exists(sshkey_path):
+                    with util.safe_open(sshkey_path, 'w', chmod=0o600) as fh:
+                        fh.write(self.decryptor.decrypt(host.ssh_key.priv_key))
+
+            # Host data
+            host_obj = collections.OrderedDict()
+            host_obj['hostname'] = host.host_name
+            host_obj['owner'] = host.owner_id
+            host_obj['host_os'] = host.host_os
+            host_obj['host_os_ver'] = host.host_os_ver
+
+            host_obj['ansible_connection'] = 'ssh'
+            if host.ssh_user:
+                host_obj['ansible_user'] = host.ssh_user
+            if sshkey_path:
+                host_obj['ansible_ssh_private_key_file'] = sshkey_path
+
+            self.cache[host.host_addr] = host_obj
+
+        self.inventory['all'] = all_hostnames
+        groups = s.query(DbHostGroup) \
+            .filter(DbHostGroup.deleted_at == None) \
+            .all()
+
+        for group in groups:  # type: DbHostGroup
+            host_names = []
+            for host_assoc in group.hosts:  # type: DbHostToGroupAssoc
+                host = host_assoc.host
+                if host.has_ansible:
+                    host_names.append(host.host_addr)
+
+            if len(host_names) > 0:
+                self.inventory[group.group_name] = host_names
 
     def get_host_info(self):
         """
