@@ -657,8 +657,8 @@ class ManagementModule(ServerModule):
         # LE Renewal: call Certbot, fetch new certificate from the cert store, deploy later.
         # LE certbot should run on the agent. For now on the master directly.
 
-        if job.target.svc_ca != 'LE':
-            logger.info('CA not supported for renewal: %s' % job.target.svc_ca)
+        if job.target.svc_ca.pki_type != 'LE':
+            logger.info('CA not supported for renewal: %s' % job.target.svc_ca.pki_type)
             finish_task()
             return
 
@@ -668,7 +668,8 @@ class ManagementModule(ServerModule):
             domains += json.loads(job.target.svc_aux_names)
 
         req_data = collections.OrderedDict()
-        req_data['CA'] = job.target.svc_ca
+        req_data['CA'] = job.target.svc_ca.id
+        req_data['CA_type'] = job.target.svc_ca.pki_type
         req_data['domains'] = domains
         renew_record = self.create_renew_record(job, req_data=req_data)
 
@@ -743,8 +744,8 @@ class ManagementModule(ServerModule):
         :type job: PeriodicMgmtTestJob
         :return:
         """
-
         pass
+        
 
 
 
