@@ -51,7 +51,7 @@ ansible -m ping all -i /etc/ansible/hosts.py
 ansible all -m setup --tree /tmp/facts
 
 # Output to JSON
-ANSIBLE_STDOUT_CALLBACK=json sudo -E -H ansible all -m ping -i /etc/ansible/hosts.py
+ANSIBLE_LOAD_CALLBACK_PLUGINS=1 ANSIBLE_STDOUT_CALLBACK=json sudo -E -H ansible all -m ping -i /etc/ansible/hosts.py
 ```
 
 ## Resources:
@@ -62,6 +62,8 @@ ANSIBLE_STDOUT_CALLBACK=json sudo -E -H ansible all -m ping -i /etc/ansible/host
 - https://raymii.org/s/tutorials/Ansible_-_Only_if_on_specific_distribution_or_distribution_version.html
 - https://www.digitalocean.com/community/tutorials/how-to-create-ansible-playbooks-to-automate-system-configuration-on-ubuntu
 - https://docs.ansible.com/ansible/latest/playbooks_variables.html#passing-variables-on-the-command-line
+- https://docs.ansible.com/ansible/latest/playbooks_conditionals.html
+
 
 
 
