@@ -16,7 +16,8 @@ from .redis_queue import RedisQueue
 from .import redis_helper as rh
 from .trace_logger import Tracelogger
 from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
-from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob, \
+    PeriodicMgmtHostCheckJob
 from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from .server_module import ServerModule
 from .audit import AuditManager
@@ -25,7 +26,8 @@ from .ansible_wrap import AnsibleWrapper
 from .server_data import EmailArtifact, EmailArtifactTypes
 from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
-    DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbHelper
+    DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
+    DbHelper
 
 import os
 import time
@@ -375,6 +377,32 @@ class ManagementModule(ServerModule):
 
         return q.order_by(DbManagedCertificate.last_check_at)  # select the oldest scanned first
 
+    def load_host_checks(self, s, last_scan_margin=60*60*4, randomize=True):
+        """
+        Loads host to check
+        :param s:
+        :param last_scan_margin:
+        :param randomize:
+        :return:
+        """
+        q = s.query(DbManagedHost, DbOwner) \
+            .outerjoin(DbOwner, DbOwner.id == DbManagedHost.owner_id) \
+            .filter(DbManagedHost.deleted_at == None)\
+            .filter(DbManagedHost.has_ansible == 1)
+
+        if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, float) else self.server.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
+            cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
+
+            q = q.filter(salch.or_(
+                DbManagedHost.ansible_last_ping < cur_margin,
+                DbManagedHost.ansible_last_ping == None
+            ))
+
+        return q.order_by(DbManagedHost.ansible_last_ping)  # select the oldest scanned first
+
     def periodic_feeder(self, s):
         """
         Feed jobs for processing to the queue
@@ -383,6 +411,7 @@ class ManagementModule(ServerModule):
         """
         self.periodic_feeder_test(s)
         self.periodic_feeder_renew_check(s)
+        self.periodic_feeder_host_check(s)
 
     def periodic_feeder_test(self, s):
         """
@@ -444,6 +473,37 @@ class ManagementModule(ServerModule):
         except Exception as e:
             s.rollback()
             logger.error('Exception loading watch jobs %s' % e)
+            self.trace_logger.log(e)
+            raise
+
+    def periodic_feeder_host_check(self, s):
+        """
+        Feed jobs - host checking
+
+        :param s:
+        :return:
+        """
+        if self.server.periodic_queue_is_full():
+            return
+
+        try:
+            min_scan_margin = self.server.min_scan_margin()
+            query = self.load_host_checks(s, last_scan_margin=min_scan_margin)
+
+            for x in DbHelper.yield_limit(query, DbManagedHost.id, 100, primary_obj=lambda x: x[0]):
+                if self.server.periodic_queue_is_full():
+                    return
+
+                job = PeriodicMgmtHostCheckJob(target=x[0], agent=x[1])
+                self.server.periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
+
+        except Exception as e:
+            s.rollback()
+            logger.error('Exception loading host check jobs %s' % e)
             self.trace_logger.log(e)
             raise
 
@@ -541,15 +601,17 @@ class ManagementModule(ServerModule):
 
         return s.merge(target)
 
-    def finish_test_object(self, s, target, **kwargs):
+    def finish_test_object(self, s, target, last_scan=True, **kwargs):
         """
         Updates test job
         :param target:
         :type target: DbManagedTest
+        :param last_scan:
         :param kwargs:
         :return:
         """
-        target.last_scan_at = salch.func.now()
+        if last_scan:
+            target.last_scan_at = salch.func.now()
         for key, value in iteritems(kwargs):
             setattr(target, key, value)
 
@@ -568,6 +630,9 @@ class ManagementModule(ServerModule):
 
         if isinstance(job, PeriodicMgmtRenewalJob):
             return self.process_periodic_job_renew(job)
+
+        if isinstance(job, PeriodicMgmtHostCheckJob):
+            return self.process_periodic_job_host_check(job)
 
         return False
 
@@ -654,6 +719,52 @@ class ManagementModule(ServerModule):
             logger.debug('Invalid host')
             job.success_scan = True  # TODO: back-off / disable, fatal error
             self.finish_test_object(s, job.target, last_scan_status=-2)
+
+        except Exception as e:
+            logger.debug('Exception when processing the mgmt process job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
+    def process_periodic_job_host_check(self, job):
+        """
+        Process my jobs in the worker thread.
+        :param job:
+        :type job: PeriodicMgmtHostCheckJob
+        :return:
+        """
+        if not isinstance(job, PeriodicMgmtHostCheckJob):
+            return False
+
+        logger.debug('Processing Mgmt host check job: %s, qsize: %s, sems: %s'
+                     % (job, self.server.watcher_job_queue.qsize(), self.server.periodic_semaphores()))
+
+        s = None
+        try:
+            s = self.db.get_session()
+
+            self.process_host_check_job_body(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.results.is_failed():
+                logger.info('Test scan job failed: %s' % (job.results.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidInputData as id:
+            logger.debug('Invalid test input')
+            job.success_scan = True  # job is deemed processed
+            self.finish_test_object(s, job.target, last_scan=False,
+                                    ansible_last_ping=salch.func.now(), ansible_last_status=-1)
 
         except Exception as e:
             logger.debug('Exception when processing the mgmt process job: %s' % e)
@@ -790,8 +901,47 @@ class ManagementModule(ServerModule):
         :type job: PeriodicMgmtTestJob
         :return:
         """
-        pass
-        
 
+        def finish_task(**kwargs):
+            """Simple finish callback"""
+            job.results.ok()
+            self.finish_test_object(s, job.target, last_scan_at=salch.func.now(), **kwargs)
+
+        pass
+
+    def process_host_check_job_body(self, s, job):
+        """
+        Check host with Ansible, gets facts
+
+        :param s:
+        :param job:
+        :type job: PeriodicMgmtHostCheckJob
+        :return:
+        """
+        def finish_task(host=None, **kwargs):
+            """Simple finish callback"""
+            job.results.ok()
+            self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(), **kwargs)
+
+        if not job.target.has_ansible:
+            logger.warning('Host check of non-Ansible host %s' % job.target.id)
+            finish_task(ansible_last_status=-1)
+            return
+
+        ansible = self.get_thread_ansible_wrapper()
+        try:
+            ret = ansible.get_facts(job.target.host_addr)
+            host = job.target
+            facts_json = json.dumps(ret[1])
+
+            host = self.update_object(s, host, ansible_last_status=ret[0], host_ansible_facts=facts_json)
+            finish_task(host=host)
+            s.commit()
+
+            logger.info('Ansible check finished: %s' % ret[0])
+
+        except Exception as e:
+            logger.error('Exception on Ansible check', e)
+            finish_task(ansible_last_status=-1)
 
 
