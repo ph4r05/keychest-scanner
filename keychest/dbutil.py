@@ -22,10 +22,10 @@ from sqlalchemy import orm
 from sqlalchemy.sql import expression
 from sqlalchemy.sql.elements import and_
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, Text, BigInteger, SmallInteger, Float
+from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, func, Text, BigInteger, SmallInteger, Float, UnicodeText
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.dialects.mysql import INTEGER
+from sqlalchemy.dialects.mysql import INTEGER, LONGTEXT
 import sqlalchemy as sa
 from warnings import filterwarnings
 
@@ -1548,6 +1548,9 @@ class DbManagedHost(Base):
 
     host_desc = Column(Text)  # human informal desc
     host_data = Column(Text)
+    host_ansible_facts = Column(LONGTEXT)
+    ansible_last_ping = Column(DateTime, default=None)
+    ansible_last_status = Column(SmallInteger, default=0, nullable=False)
 
     owner_id = Column(ForeignKey('owners.id', name='managed_hosts_owner_id', ondelete='CASCADE'),
                       nullable=True, index=True)

@@ -163,6 +163,9 @@ def upgrade():
 
     op.add_column('managed_hosts', sa.Column('has_ansible', sa.SmallInteger(), nullable=True))
     op.add_column('managed_hosts', sa.Column('ssh_user', sa.String(length=255), nullable=True))
+    op.add_column('managed_hosts', sa.Column('ansible_last_ping', sa.DateTime(), nullable=True))
+    op.add_column('managed_hosts', sa.Column('ansible_last_status', sa.SmallInteger(), nullable=False))
+    op.add_column('managed_hosts', sa.Column('host_ansible_facts', mysql.LONGTEXT(), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -208,4 +211,7 @@ def downgrade():
 
     op.drop_column('managed_hosts', 'ssh_user')
     op.drop_column('managed_hosts', 'has_ansible')
+    op.drop_column('managed_hosts', 'host_ansible_facts')
+    op.drop_column('managed_hosts', 'ansible_last_status')
+    op.drop_column('managed_hosts', 'ansible_last_ping')
     # ### end Alembic commands ###
