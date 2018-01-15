@@ -171,10 +171,12 @@ class AnsibleWrapper(object):
         :return:
         :rtype: tuple[int, string, string]
         """
-        sudo_prefix = '' if self.ansible_as_user else 'sudo -E -H -u %s' % util.escape_shell(self.ansible_as_user)
+        sudo_prefix = '' if util.is_empty(self.ansible_as_user) else \
+            'sudo -E -H -u %s ' % util.escape_shell(self.ansible_as_user)
+
         cmds = ' '.join(cmds) if isinstance(cmds, list) else cmds
 
-        cmd = '%s %s %s -i %s' % (sudo_prefix, ansible_cmd, cmds, util.escape_shell(self.ansible_host_file))
+        cmd = '%s%s %s -i %s' % (sudo_prefix, ansible_cmd, cmds, util.escape_shell(self.ansible_host_file))
         ret = self.syscfg.cli_cmd_sync(cmd=cmd, cwd=cwd, env={'ANSIBLE_STDOUT_CALLBACK': 'json'})
         return ret
 
