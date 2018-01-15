@@ -902,12 +902,52 @@ class ManagementModule(ServerModule):
         :return:
         """
 
-        def finish_task(**kwargs):
+        def finish_task(test=None, **kwargs):
             """Simple finish callback"""
             job.results.ok()
-            self.finish_test_object(s, job.target, last_scan_at=salch.func.now(), **kwargs)
+            self.finish_test_object(s, test if test else job.target, last_scan_at=salch.func.now(), **kwargs)
 
-        pass
+        if job.host is None:
+            logger.info('Unsupported check without host ID')
+            finish_task()
+            return
+
+        # Get all managed certificates associated to the service
+        mgmt_certs = list(s.query(DbManagedCertificate) \
+            .filter(DbManagedCertificate.solution_id == job.solution.id) \
+            .filter(DbManagedCertificate.service_id == job.service.id) \
+            .filter(DbManagedCertificate.record_deprecated_at == None) \
+            .all())
+
+        if len(mgmt_certs) == 0:
+            logger.debug('Nothing to sync for svc %d' % job.service.id)
+            finish_task()
+            return
+
+        max_cert_id = max([x.id for x in mgmt_certs])
+        if job.target.max_certificate_id_deployed >= max_cert_id:
+            logger.debug('All certs up to date on host %s' % job.host.id)
+            finish_task()
+            return
+
+        # Currently only one certificate per service is supported.
+        # Later we will need to locate the certificate somehow for the sync.
+        try:
+            ansible = self.get_thread_ansible_wrapper()
+            ret = ansible.deploy_certs(host=job.host, service=job.service, primary_domain=job.service.svc_name)
+            test = job.target
+
+            out = ret[1]
+            out_json = json.dumps(out)
+            test = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json)
+
+            finish_task(test=test)
+            s.commit()
+
+        except Exception as e:
+            logger.warning('Exception in cert sync %s for test %s', (e, job.target.id))
+            finish_task(last_scan_status=-2, last_scan_data='%s' % e)
+            return
 
     def process_host_check_job_body(self, s, job):
         """
