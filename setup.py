@@ -43,6 +43,7 @@ install_requires = [
     'events',
     'certbot-external-auth>=0.0.5',
     'pylru',
+    'PyYAML',
 ]
 
 if sys.version_info < (3,):
