@@ -1786,7 +1786,8 @@ def add_ending_slash(x):
     return '%s/' % x
 
 
-def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True, readlines=True):
+def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True,
+                 readlines=True, env=None, **kwargs):
     """
     Runs command line task synchronously
     :return: return code, out_acc, err_acc
@@ -1801,7 +1802,9 @@ def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, 
             stdout=Capture(buffer_size=1),
             stderr=Capture(buffer_size=1),
             cwd=cwd,
-            shell=shell)
+            shell=shell,
+            env=env,
+            **kwargs)
 
     out_acc = []
     err_acc = []
