@@ -99,6 +99,7 @@ class ManagementModule(ServerModule):
                               )
 
         self.ansible = self.new_ansible_wrapper()
+        self.local_data.ansible = None
 
     def new_ansible_wrapper(self):
         """
@@ -109,6 +110,7 @@ class ManagementModule(ServerModule):
         return AnsibleWrapper(
             local_certbot_live=os.path.join(self.le.config_dir, 'live'),
             ansible_as_user='root',
+            syscfg=self.syscfg
         )
 
     def get_thread_ansible_wrapper(self):
@@ -117,7 +119,7 @@ class ManagementModule(ServerModule):
         :return:
         :rtype: AnsibleWrapper
         """
-        if self.local_data.ansible is None:
+        if not hasattr(self.local_data, 'ansible') or self.local_data.ansible is None:
             self.local_data.ansible = self.new_ansible_wrapper()
         return self.local_data.ansible
 
