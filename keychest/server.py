@@ -2542,6 +2542,7 @@ class Server(object):
         :param watch_id:
         :param ips:
         :return:
+        :rtype: list[DbHandshakeScanJob]
         """
         if not isinstance(ips, list):
             ips = [ips]

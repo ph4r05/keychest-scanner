@@ -431,6 +431,7 @@ def unique_file(path, mode=0o777):
     :param int mode: File mode
 
     :returns: tuple of file object and file name
+    :rtype: tuple[object, string]
 
     """
     path, tail = os.path.split(path)
