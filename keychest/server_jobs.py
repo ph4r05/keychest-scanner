@@ -451,10 +451,15 @@ class PeriodicMgmtRenewalJob(BaseJob):
         return self.target.id
 
     def __repr__(self):
-        return '<PeriodicMgmtRenewalJob(target=<DbManagedService(id=%r, self=%r)>, attempts=%r, later=%r,' \
-               'svc_name=%r)>' \
-               % (self.target.id, self.target, self.attempts, self.later,
-                  self.target.svc_name)
+        try:
+            return '<PeriodicMgmtRenewalJob(target=<DbManagedService(id=%r, self=%r)>, attempts=%r, later=%r,' \
+                   'svc_name=%r)>' \
+                   % (self.target.id, self.target, self.attempts, self.later,
+                      self.target.svc_name)
+
+        except Exception as e:
+            logger.error('Exception in repr: %s' % e)
+            return 'PeriodicMgmtRenewalJob(?)'
 
 
 class PeriodicMgmtTestJob(BaseJob):
@@ -497,7 +502,12 @@ class PeriodicMgmtTestJob(BaseJob):
         return self.target.id
 
     def __repr__(self):
-        return '<PeriodicMgmtTestJob(target=<DbManagedTest(id=%r, self=%r)>, attempts=%r, later=%r,' \
-               'host_id=%r, last_scan_at=%r)>' \
-               % (self.target.id, self.target, self.attempts, self.later,
-                  self.target.host_id, self.target.last_scan_at)
+        try:
+            return '<PeriodicMgmtTestJob(target=<DbManagedTest(id=%r, self=%r)>, attempts=%r, later=%r,' \
+                   'host_id=%r, last_scan_at=%r)>' \
+                   % (self.target.id, self.target, self.attempts, self.later,
+                      self.target.host_id, self.target.last_scan_at)
+
+        except Exception as e:
+            logger.error('Exception in repr: %s' % e)
+            return 'PeriodicMgmtTestJob(?)'
