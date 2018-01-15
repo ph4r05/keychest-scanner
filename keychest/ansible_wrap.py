@@ -103,6 +103,10 @@ class AnsibleWrapper(object):
         self.ansible_host_file = kwargs.get('ansible_host_file', '/etc/ansible/hosts.py')
         self.tmp_dir = kwargs.get('tmp_dir', '/tmp')
 
+        # Last executed playbook
+        self.last_playbook = None
+        self.last_playbook_data = None
+
     @staticmethod
     def obj2yml(obj, **kwargs):
         """
@@ -188,6 +192,8 @@ class AnsibleWrapper(object):
         """
         play_data = self.generate_cert_deploy_playbook(host=host, service=service, primary_domain=primary_domain)
         playbook, playbook_data = play_data
+        self.last_playbook = playbook
+        self.last_playbook_data = play_data
 
         # Generate playbook data to temp dir
         playbook_yml = AnsibleWrapper.obj2yml(playbook)
