@@ -81,7 +81,7 @@ class SysConfig(object):
         return ret[0]
 
     def cli_cmd_sync(self, cmd, log_obj=None, write_dots=None, on_out=None, on_err=None, cwd=None, shell=True,
-                     sensitive=None, readlines=True, env=None, **kwargs):
+                     readlines=True, env=None, **kwargs):
         """
         Runs command line task synchronously
         :return: ret_code, stdout, stderr
