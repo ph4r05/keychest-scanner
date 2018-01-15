@@ -19,6 +19,9 @@ from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob
 from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from .server_module import ServerModule
+from .audit import AuditManager
+from .ebsysconfig import SysConfig
+from .ansible_wrap import AnsibleWrapper
 from .server_data import EmailArtifact, EmailArtifactTypes
 from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
@@ -66,10 +69,15 @@ class ManagementModule(ServerModule):
         self.mod_agent = None
 
         self.local_data = threading.local()
+        self.events = Events()
+
         self.job_queue = Queue(300)
         self.workers = []
         self.le = None  # type: LetsEncrypt
-        self.events = Events()
+
+        self.audit = AuditManager(disabled=True)
+        self.syscfg = SysConfig(audit=self.audit)
+        self.ansible = None  # type: AnsibleWrapper
 
     def init(self, server):
         """
@@ -89,6 +97,29 @@ class ManagementModule(ServerModule):
                               log_dir=os.path.join(self.config.certbot_base, 'log'),
                               webroot_dir=self.config.certbot_webroot
                               )
+
+        self.ansible = self.new_ansible_wrapper()
+
+    def new_ansible_wrapper(self):
+        """
+        Constructs new Ansible wrapper
+        :return:
+        :rtype: AnsibleWrapper
+        """
+        return AnsibleWrapper(
+            local_certbot_live=os.path.join(self.le.config_dir, 'live'),
+            ansible_as_user='root',
+        )
+
+    def get_thread_ansible_wrapper(self):
+        """
+        Thread local ansible wrapper
+        :return:
+        :rtype: AnsibleWrapper
+        """
+        if self.local_data.ansible is None:
+            self.local_data.ansible = self.new_ansible_wrapper()
+        return self.local_data.ansible
 
     def shutdown(self):
         """
