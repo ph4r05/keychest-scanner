@@ -61,6 +61,7 @@ ANSIBLE_LOAD_CALLBACK_PLUGINS=1 ANSIBLE_STDOUT_CALLBACK=json sudo -E -H ansible 
 - https://github.com/BlueAcornInc/ansible-dbinventory
 - https://raymii.org/s/tutorials/Ansible_-_Only_if_on_specific_distribution_or_distribution_version.html
 - https://www.digitalocean.com/community/tutorials/how-to-create-ansible-playbooks-to-automate-system-configuration-on-ubuntu
+- http://www.myteneo.net/blog/-/blogs/listing-iterating-and-loading-json-in-ansible-playbooks/
 - https://docs.ansible.com/ansible/latest/playbooks_variables.html#passing-variables-on-the-command-line
 - https://docs.ansible.com/ansible/latest/playbooks_conditionals.html
 
