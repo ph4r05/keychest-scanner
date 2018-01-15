@@ -453,14 +453,27 @@ class ManagementModule(ServerModule):
         :param job:
         :return: True if job was consumed
         """
-        if not isinstance(job, PeriodicMgmtTestJob):
+        if not isinstance(job, (PeriodicMgmtRenewalJob, PeriodicMgmtTestJob, PeriodicMgmtHostCheckJob)):
             return False
 
         s = self.db.get_session()
         try:
-            stmt = DbManagedTest.__table__.update() \
-                .where(DbManagedTest.id == job.target.id) \
-                .values(last_scan_at=salch.func.now())
+            if isinstance(job, PeriodicMgmtTestJob):
+                stmt = DbManagedTest.__table__.update() \
+                    .where(DbManagedTest.id == job.target.id) \
+                    .values(last_scan_at=salch.func.now())
+
+            elif isinstance(job, PeriodicMgmtRenewalJob):
+                stmt = DbManagedCertificate.__table__.update() \
+                    .where(DbManagedCertificate.id == job.managed_certificate.id) \
+                    .values(last_check_at=salch.func.now())
+
+            elif isinstance(job, PeriodicMgmtHostCheckJob):
+                return True
+
+            else:
+                return False
+
             s.execute(stmt)
             s.commit()
 
