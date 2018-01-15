@@ -177,8 +177,24 @@ class AnsibleWrapper(object):
         cmds = ' '.join(cmds) if isinstance(cmds, list) else cmds
 
         cmd = '%s%s %s -i %s' % (sudo_prefix, ansible_cmd, cmds, util.escape_shell(self.ansible_host_file))
-        ret = self.syscfg.cli_cmd_sync(cmd=cmd, cwd=cwd, env={'ANSIBLE_STDOUT_CALLBACK': 'json'})
+        ret = self.syscfg.cli_cmd_sync(cmd=cmd, cwd=cwd, env={
+            'ANSIBLE_STDOUT_CALLBACK': 'json',
+            'ANSIBLE_LOAD_CALLBACK_PLUGINS': '1'
+        })
         return ret
+
+    def get_ansible_out_json(self, ret):
+        """
+        Convert ansible out to json
+        :param ret:
+        :return:
+        """
+        out = ret[1]
+        if isinstance(out, list):
+            out = ''.join(out)
+
+        js = util.try_load_json(out)
+        return js
 
     def deploy_certs(self, host, service, primary_domain):
         """
@@ -228,7 +244,7 @@ class AnsibleWrapper(object):
 
         cmds = '%s -m setup' % host_id
         ret = self.run_ansible(cmds=cmds, ansible_cmd='ansible', cwd=self.tmp_dir)
-        out = util.try_load_json(ret[1])
+        out = self.get_ansible_out_json(ret)
         return ret[0], out, ret[2]
 
     def ping(self, host_id):
