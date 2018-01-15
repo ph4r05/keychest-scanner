@@ -67,6 +67,7 @@ class JobTypes(object):
     MGMT_TEST = 6  # Management testing
     MGMT_RENEW = 7  # Management renewal
     MGMT_CERT_CHECK = 8  # Management cert check
+    MGMT_HOST_CHECK = 9  # Management host check
 
     def __init__(self):
         pass
@@ -511,3 +512,52 @@ class PeriodicMgmtTestJob(BaseJob):
         except Exception as e:
             logger.error('Exception in repr: %s' % e)
             return 'PeriodicMgmtTestJob(?)'
+
+
+class PeriodicMgmtHostCheckJob(BaseJob):
+    """
+    Host check job
+    """
+
+    def __init__(self, target=None, **kwargs):
+        """
+        :param target:
+        :type target: DbManagedTest
+        :param args:
+        :param kwargs:
+        """
+        super(PeriodicMgmtHostCheckJob, self).__init__(type=JobTypes.MGMT_HOST_CHECK)
+
+        self.target = target  # type: DbManagedHost
+        self.agent = kwargs.get('agent')  # type: DbKeychestAgent
+        self.owner = kwargs.get('owner')
+
+        self.results = ScanResults()
+
+    def key(self):
+        return 'mgmt_host_check_%s' % self.target.id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self.target.ansible_last_ping is None, \
+               self.target.ansible_last_ping
+
+    def record_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self.target.id
+
+    def __repr__(self):
+        try:
+            return '<PeriodicMgmtHostCheckJob(target=<DbManagedHost(id=%r, self=%r)>, attempts=%r, later=%r,' \
+                   'last_scan_at=%r)>' \
+                   % (self.target.id, self.target, self.attempts, self.later,
+                      self.target.ansible_last_ping)
+
+        except Exception as e:
+            logger.error('Exception in repr: %s' % e)
+            return 'PeriodicMgmtHostCheckJob(?)'
+
