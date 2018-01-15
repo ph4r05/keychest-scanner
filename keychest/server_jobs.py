@@ -7,10 +7,16 @@ Server job classes
 
 from past.builtins import cmp
 import collections
+import logging
+
 from .tls_domain_tools import TargetUrl
 from .dbutil import DbWatchService, DbWatchTarget, DbIpScanRecord, DbApiWaitingObjects, DbManagedTest, \
     DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTestProfile, DbKeychestAgent, DbManagedCertIssue, \
     DbManagedCertificate, Certificate
+from . import util
+
+
+logger = logging.getLogger(__name__)
 
 
 class ScanResults(object):
@@ -80,6 +86,7 @@ class BaseJob(object):
         self.attempts = 0
         self.later = 0
         self.success_scan = False
+        self.s = None  # session
 
     def reset_later(self):
         """
@@ -136,6 +143,20 @@ class BaseJob(object):
 
     def __repr__(self):
         return '<BaseJob(type=%r, attempts=%r, later=%r)>' % (self.type, self.attempts, self.later)
+
+    def close(self):
+        """
+        Destructor, free resources
+        :return:
+        """
+        util.silent_close(self.s)
+        util.silent_expunge_all(self.s)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 class RedisJob(BaseJob):
