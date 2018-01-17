@@ -193,8 +193,7 @@ class AnsibleWrapper(object):
         out = ret[1]
         if isinstance(out, list):
             out = ''.join(out)
-
-        js = util.try_load_json(out)
+        js = util.try_load_json(out, quiet=False)
         return js
 
     def get_ansible_tasks_by_host(self, js):
