@@ -18,6 +18,7 @@ from .trace_logger import Tracelogger
 from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob, \
     PeriodicMgmtHostCheckJob
+
 from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from .server_module import ServerModule
 from .audit import AuditManager
@@ -30,7 +31,9 @@ from .database_manager import DatabaseManager
 from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
-    DbHelper
+    DbManagedCertChain, DbManagedPrivate, DbHelper
+from .util_keychest import Encryptor
+
 
 import os
 import time
@@ -86,6 +89,7 @@ class ManagementModule(ServerModule):
         self.audit = AuditManager(disabled=True)
         self.syscfg = SysConfig(audit=self.audit)
         self.ansible = None  # type: AnsibleWrapper
+        self.encryptor = None  # type: Encryptor
 
     def init(self, server):
         """
@@ -112,6 +116,7 @@ class ManagementModule(ServerModule):
         self.db_manager = server.db_manager
         self.cert_manager = server.cert_manager
         self.pki_manager = server.pki_manager
+        self.encryptor = Encryptor(app_key=base64.b64decode(util.to_bytes(self.config.keychest_key)))
 
     def new_ansible_wrapper(self):
         """
@@ -842,6 +847,7 @@ class ManagementModule(ServerModule):
 
         # Perform proxied domain validation with certbot, attempt renew / issue.
         # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
+        # Move to the pki_manager
         ret, out, err = self.le.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
@@ -860,40 +866,93 @@ class ManagementModule(ServerModule):
 
         domain = domains[0]
         priv_file, cert_file, ca_file = self.le.get_cert_paths(domain=domain)
-        cert, cert_is_new = self.cert_manager.process_certificate_file(s, cert_file)  # type: tuple[Certificate, bool]
-        if not cert_is_new:
-            finish_task()
-            renew_record.new_certificate_id = cert.id
-            renew_record.last_issue_status = 3
-            s.add(renew_record)
+        pki_files = []
+
+        # Load given files to memory
+        for fname in [priv_file, cert_file, ca_file]:
+            with open(fname, 'r') as fh:
+                pki_files.append(fh.read())
+
+        # Load the full cert chain, with the newest issued cert in the first entry
+        chain_arr = CertificateManager.pem_chain_to_array(pki_files[2])
+        res = self.cert_manager.process_full_chain(s, cert_chain=chain_arr, is_der=False)
+
+        all_certs = res[0]
+        cert_existing = res[1]
+        if len(all_certs) == 0:
+            logger.warning('LE Chain is empty')
             return
 
-        # Deprecate current certificate from the job, create new managed cert entry.
-        job.managed_certificate = s.merge(job.managed_certificate)
-        job.managed_certificate.record_deprecated_at = salch.func.now()  # deprecate current record
+        leaf_cert = all_certs[0]
+        chain_certs = all_certs[1:]
 
-        new_managed_cert = DbHelper.clone_model(s, job.managed_certificate)  # type: DbManagedCertificate
-        new_managed_cert.certificate_id = cert.id
-        new_managed_cert.deprecated_certificate_id = job.managed_certificate.certificate_id
-        new_managed_cert.record_deprecated_at = None
-        new_managed_cert.last_check_at = salch.func.now()
-        new_managed_cert.created_at = salch.func.now()
-        new_managed_cert.updated_at = salch.func.now()
-        s.add(new_managed_cert)
+        # All base model certificates are in the DB now
+        # Check existence of the chaining records and private key records.
+        privkey_hash = CertificateManager.get_privkey_hash(pem=pki_files[0])
+        priv_db = s.query(DbManagedPrivate)\
+            .filter(DbManagedPrivate.private_hash == privkey_hash)\
+            .first()
+
+        if priv_db is None:
+            priv_db = DbManagedPrivate()
+            priv_db.private_hash = privkey_hash
+            priv_db.certificate_id = leaf_cert.id
+            priv_db.private_data = self.encryptor.encrypt(util.to_string(pki_files[0]))
+            priv_db.created_at = priv_db.updated_at = salch.func.now()
+            s.add(priv_db)
+
+        renew_record.new_certificate_id = leaf_cert.id
+        new_leaf_cert = True
+        new_managed_cert = None
+
+        # Did managed cert change?
+        if renew_record.certificate_id == leaf_cert.id:
+            new_leaf_cert = False
+            renew_record.last_issue_status = 3
+            s.add(renew_record)
+
+        else:
+            # Deprecate current certificate from the job, create new managed cert entry.
+            job.managed_certificate = s.merge(job.managed_certificate)
+            job.managed_certificate.record_deprecated_at = salch.func.now()  # deprecate current record
+
+            new_managed_cert = DbHelper.clone_model(s, job.managed_certificate)  # type: DbManagedCertificate
+            new_managed_cert.certificate_id = leaf_cert.id
+            new_managed_cert.deprecated_certificate_id = job.managed_certificate.certificate_id
+            new_managed_cert.record_deprecated_at = None
+            new_managed_cert.last_check_at = salch.func.now()
+            new_managed_cert.created_at = new_managed_cert.updated_at = salch.func.now()
+            s.add(new_managed_cert)
+
+        # Chain process - clear the previous chains, set new ones
+        stmt = salch.delete(DbManagedCertChain)\
+            .where(DbManagedCertChain.certificate_id == leaf_cert.id)
+        s.execute(stmt)
+
+        for idx, cert in enumerate(chain_certs):
+            cur_chain = DbManagedCertChain()
+            cur_chain.certificate_id = leaf_cert.id
+            cur_chain.chain_certificate_id = cert.id
+            cur_chain.created_at = cur_chain.updated_at = salch.func.now()
+
+        if not new_leaf_cert:
+            finish_task()
+            return
 
         # Cert issue record - store renewal happened
         renew_record.last_issue_status = 1
-        renew_record.new_certificate_id = cert.id
+        renew_record.new_certificate_id = leaf_cert.id
         s.add(renew_record)
 
         # Signalize event - new certificate
-        self.events.on_renewed_certificate(cert, job, new_managed_cert)
+        self.events.on_renewed_certificate(leaf_cert, job, new_managed_cert)
 
         # TODO: In the agent - signalize this event to the master, attach new certificate & privkey
         pass
 
         # Trigger tests - set last scan to null
         self.trigger_test_managed_tests(s, solution_id=job.solution.id, service_id=job.target.id)
+        finish_task()
 
     def process_test_job_body(self, s, job):
         """
