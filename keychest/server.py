@@ -264,7 +264,7 @@ class Server(object):
         self.crt_validator.init()
         self.cname_cdn_classif.init()
         self.db_manager.init(db=self.db, config=self.config)
-        self.cert_manager.init(db=self.db, config=self.config)
+        self.cert_manager.init(db=self.db, config=self.config, db_manager=self.db_manager)
         self.pki_manager.init(db=self.db, config=self.config)
         signal.signal(signal.SIGINT, self.signal_handler)
 
@@ -662,7 +662,7 @@ class Server(object):
 
         # existing certificates - have pem
         all_crt_ids = set([int(x.id) for x in crt_sh.results if x is not None and x.id is not None])
-        existing_ids = self.cert_load_existing(s, list(all_crt_ids))  # type: dict[int -> int]  # crtsh id -> db id
+        existing_ids = self.cert_manager.cert_load_existing(s, list(all_crt_ids))  # type: dict[int -> int]  # crtsh id -> db id
         existing_ids_set = set(existing_ids.keys())
         new_ids = all_crt_ids - existing_ids_set
 
@@ -678,7 +678,7 @@ class Server(object):
         crtsh_query_db.new_results = len(new_ids)
 
         # input
-        db_input, inp_is_new = self.get_crtsh_input(s, query)
+        db_input, inp_is_new = self.db_manager.get_crtsh_input(s, query)
         if db_input is not None:
             crtsh_query_db.input_id = db_input.id
 
@@ -743,7 +743,7 @@ class Server(object):
 
         try:
             top_domain = TlsDomainTools.get_top_domain(domain)
-            top_domain_db, domain_new = self.load_top_domain(s, top_domain=top_domain)
+            top_domain_db, domain_new = self.db_manager.load_top_domain(s, top_domain=top_domain)
 
             last_scan = self.load_last_whois_scan(s, top_domain_db) if not domain_new else None
             if last_scan is not None \
@@ -1657,7 +1657,7 @@ class Server(object):
             return  # has IP address only, no whois check
 
         top_domain = TlsDomainTools.get_top_domain(url.host)
-        top_domain, is_new = self.load_top_domain(s, top_domain)
+        top_domain, is_new = self.db_manager.load_top_domain(s, top_domain)
         last_scan = self.load_last_whois_scan(s, top_domain) if not is_new else None
         if last_scan is not None \
                 and last_scan.last_scan_at \
@@ -1685,7 +1685,7 @@ class Server(object):
         job_scan = job.scan_crtsh_wildcard  # type: ScanResults
 
         # last scan determined by special wildcard query for the watch host
-        query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
+        query, is_new = self.db_manager.get_crtsh_input(s, job.target.scan_host, 2)
         last_scan = self.load_last_crtsh_wildcard_scan(s, watch_id=job.watch_id(), input_id=query.id)
         if last_scan is not None \
                 and last_scan.last_scan_at \
@@ -1856,8 +1856,8 @@ class Server(object):
             s.commit()
 
             # update cached last dns scan id
-            self.update_last_dns_scan_id(s, cur_scan)
-            self.update_watch_ip_type(s, job.target)
+            self.db_manager.update_last_dns_scan_id(s, cur_scan)
+            self.db_manager.update_watch_ip_type(s, job.target)
             
             job_scan.aux = cur_scan
 
@@ -2057,8 +2057,8 @@ class Server(object):
             return
 
         # define wildcard & base scan input
-        query, is_new = self.get_crtsh_input(s, job.target.scan_host, 2)
-        query_base, is_new = self.get_crtsh_input(s, job.target.scan_host, 0)
+        query, is_new = self.db_manager.get_crtsh_input(s, job.target.scan_host, 2)
+        query_base, is_new = self.db_manager.get_crtsh_input(s, job.target.scan_host, 0)
 
         # perform crtsh queries, result management
         is_same_as_before_sc, crtsh_query_db, sub_res_list, crtsh_query_db_base, sub_res_list_base = \
@@ -2078,7 +2078,7 @@ class Server(object):
             sub_lists = list(sub_res_list) + list(sub_res_list_base)
             certs_to_load = list(set([x.crt_id for x in sub_lists
                                       if x is not None and x.crt_sh_id is not None and x.cert_db is None]))
-            certs_loaded = list(self.cert_load_by_id(s, certs_to_load).values())
+            certs_loaded = list(self.cert_manager.cert_load_by_id(s, certs_to_load).values())
             certs_downloaded = [x.cert_db for x in sub_lists
                                 if x is not None and x.cert_db is not None]
 
@@ -2281,7 +2281,7 @@ class Server(object):
         # service id filled in?
         refresh_target = False
         if job.target.service_id is None:
-            db_svc, db_svc_new = self.load_watch_service(s, job.target.service_name)
+            db_svc, db_svc_new = self.db_manager.load_watch_service(s, job.target.service_name)
             if db_svc is not None:
                 job.target.service_id = db_svc.id
                 refresh_target = True
@@ -2370,7 +2370,7 @@ class Server(object):
             if db_scan.err_code:
                 continue
 
-            db_ip, db_ip_new = self.load_ip_address(s, ip)
+            db_ip, db_ip_new = self.db_manager.load_ip_address(s, ip)
             live_ips_ids.append(db_ip.id)
 
             if db_scan.valid_hostname:
@@ -2678,7 +2678,7 @@ class Server(object):
         :rtype DbWhoisCheck
         """
         if not isinstance(top_domain, DbBaseDomain):
-            top_domain, is_new = self.load_top_domain(s, top_domain)
+            top_domain, is_new = self.db_manager.load_top_domain(s, top_domain)
             if is_new:
                 return None  # non-existing top domain, no result then
 
@@ -2864,7 +2864,7 @@ class Server(object):
                 self.trace_logger.log(e)
 
         # load existing certificates
-        cert_existing = self.cert_load_fprints(s, list(fprints_handshake))
+        cert_existing = self.cert_manager.cert_load_fprints(s, list(fprints_handshake))
         leaf_cert_id = None
         all_cert_ids = set()
         num_new_results = 0
@@ -2885,7 +2885,7 @@ class Server(object):
                 # new certificate - add
                 # lockfree - add, if exception on add, try fetch, then again add,
                 if fprint not in cert_existing:
-                    cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
+                    cert_db, is_new_cert = self.cert_manager.add_cert_or_fetch(s, cert_db, add_alts=True)
                     if is_new_cert:
                         num_new_results += 1
                 else:
@@ -2922,37 +2922,6 @@ class Server(object):
         scan_db.cert_id_leaf = leaf_cert_id
         scan_db.new_results = num_new_results
         scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
-
-    def process_certificate_file(self, s, cert_file):
-        """
-        Loads the file from the file, fetches or adds to the certificate database.
-        :param s:
-        :param cert_file:
-        :return:
-        :rtype: tuple[Certificate, bool]
-        """
-        cert_pem = None
-        try:
-            with open(cert_file) as fh:
-                cert_pem = fh.read()
-
-            cert_db = Certificate()
-            cert = self.parse_certificate(cert_db, pem=cert_pem)
-
-            cert_existing = self.cert_load_fprints(s, [cert_db.fprint_sha1])
-            if cert_existing:
-                return cert_db, False
-
-            cert_db.created_at = salch.func.now()
-            cert_db.pem = util.strip_pem(cert_pem)
-            cert_db.source = 'renew'
-            cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
-            return cert_db, is_new_cert
-
-        except Exception as e:
-            logger.error('Exception when processing a certificate %s' % (e,))
-            self.trace_logger.log(e)
-        return None, False
 
     def tls_cert_validity_test(self, resp, scan_db):
         """
@@ -3155,7 +3124,7 @@ class Server(object):
                 self.trace_logger.log(e)
 
             new_cert = cert_db
-            cert_db, is_new = self.add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
+            cert_db, is_new = self.cert_manager.add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
             if not is_new:   # cert exists, fill in missing fields if empty
                 mm = Certificate
                 changes = DbHelper.update_model_null_values(cert_db, new_cert, [
@@ -3318,28 +3287,6 @@ class Server(object):
         else:
             raise ValueError('Unknown CRTSH query type %s, input %s' % (query_type, query_input))
 
-    def get_crtsh_input(self, s, query, query_type=None):
-        """
-        CRTSH loads input
-        :param s:
-        :param query:
-        :param query_type:
-        :return: Tuple[DbCrtShQueryInput, Boolean]
-        """
-        if isinstance(query, DbCrtShQueryInput):
-            return query, 0
-
-        query_input = None
-        if isinstance(query, tuple):
-            query_input, query_type = query[0], query[1]
-
-        else:
-            query_input = query
-        if query_type is None:
-            query_type = 0
-
-        return self.load_crtsh_input(s, query_input, query_type)
-
     def fix_sub_watch_target_domain(self, s, model):
         """
         If top domain id is not filled in, this fixes it
@@ -3355,7 +3302,7 @@ class Server(object):
             return
 
         # top domain
-        top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(model.scan_host))
+        top_domain_obj, is_new = self.db_manager.try_load_top_domain(s, TlsDomainTools.parse_fqdn(model.scan_host))
         if top_domain_obj is not None:
             model.top_domain_id = top_domain_obj.id
         s.merge(model)
@@ -3428,7 +3375,7 @@ class Server(object):
         chunks = util.chunk(db_sub.trans_result, 50)
         for chunk in chunks:
             # Load all subdomains
-            subs = self.load_subdomains(s, db_sub.watch_id, chunk)
+            subs = self.db_manager.load_subdomains(s, db_sub.watch_id, chunk)
             existing_domains = set(subs.keys())
             new_domains = set(chunk) - existing_domains
 
@@ -3512,7 +3459,7 @@ class Server(object):
 
         # number of already active hosts
         # TODO: either use PHP rest API for this or somehow get common constant config
-        num_hosts = self.load_num_active_hosts(s, owner_id=assoc.owner_id)
+        num_hosts = self.db_manager.load_num_active_hosts(s, owner_id=assoc.owner_id)
         max_hosts = self.config.keychest_max_servers
         if num_hosts >= max_hosts:
             return
@@ -3569,7 +3516,7 @@ class Server(object):
             if new_host in default_new_watches:
                 wtarget = default_new_watches[new_host]
             else:
-                wtarget, wis_new = self.load_default_watch_target(s, new_host)
+                wtarget, wis_new = self.db_manager.load_default_watch_target(s, new_host)
                 default_new_watches[new_host] = wtarget
                 s.commit()  # if add fails the rollback removes the watch
                 if wis_new:
@@ -3687,7 +3634,7 @@ class Server(object):
         """
         # number of already active hosts
         # TODO: either use PHP rest API for this or somehow get common constant config
-        num_hosts = self.load_num_active_hosts(s, owner_id=assoc.owner_id)
+        num_hosts = self.db_manager.load_num_active_hosts(s, owner_id=assoc.owner_id)
         max_hosts = self.config.keychest_max_servers
         if num_hosts >= max_hosts:
             return
@@ -3723,193 +3670,6 @@ class Server(object):
     # DB tools
     #
 
-    def cert_load_existing(self, s, certs_id):
-        """
-        Loads existing certificates with cert id from the set
-        :param s: 
-        :param certs_id: 
-        :return: 
-        """
-        ret = {}
-
-        int_list = [int(x) for x in certs_id]
-        res = s.query(Certificate.id, Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
-        for cur in res:
-            ret[int(cur.crt_sh_id)] = int(cur.id)
-
-        return ret
-
-    def cert_load_by_id(self, s, certs_id):
-        """
-        Loads certificates by IDs
-        :param s:
-        :param certs_id:
-        :return:
-        """
-        was_array = True
-        if not isinstance(certs_id, list):
-            certs_id = [certs_id]
-            was_array = False
-
-        certs_id = [int(x) for x in util.compact(certs_id)]
-        ret = {}
-
-        res = s.query(Certificate) \
-            .filter(Certificate.id.in_(list(certs_id))).all()
-
-        for cur in res:
-            if not was_array:
-                return cur
-
-            ret[cur.id] = cur
-
-        return ret if was_array else None
-
-    def cert_load_fprints(self, s, fprints):
-        """
-        Load certificate by sha1 fprint
-        :param s: 
-        :param fprints: 
-        :return: 
-        """
-        was_array = True
-        if not isinstance(fprints, list):
-            fprints = [fprints]
-            was_array = False
-
-        fprints = util.lower(util.strip(fprints))
-        ret = {}
-
-        res = s.query(Certificate) \
-            .filter(Certificate.fprint_sha1.in_(list(fprints))).all()
-
-        for cur in res:
-            if not was_array:
-                return cur
-
-            ret[util.lower(cur.fprint_sha1)] = cur
-
-        return ret if was_array else None
-
-    def add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
-        """
-        Tries to insert new certificate to the DB.
-        If fails due to constraint violation (somebody preempted), it tries to load
-        certificate with the same fingerprint. If fails, repeats X times.
-        Automatically commits the transaction before inserting - could fail under high load.
-        :param s:
-        :param cert_db:
-        :type cert_db: Certificate
-        :return:
-        :rtype: tuple[Certificate, bool]
-        """
-        close_after_done = False
-        if s is None:
-            s = self.db.get_session()
-            close_after_done = True
-
-        def _close_s():
-            if s is None:
-                return
-            if close_after_done:
-                util.silent_close(s)
-
-        for attempt in range(5):
-            done = False
-            if not fetch_first or attempt > 0:
-                if not attempt == 0:  # insert first, then commit transaction before it may fail.
-                    s.commit()
-                try:
-                    s.add(cert_db)
-                    s.commit()
-                    done = True
-
-                    # Insert all alt names for the certificate
-                    if add_alts and not util.is_empty(cert_db.alt_names_arr):
-                        uniq_sorted_alt_names = util.stable_uniq(util.compact(cert_db.alt_names_arr))
-                        for alt_name in uniq_sorted_alt_names:
-                            c_alt = CertificateAltName()
-                            c_alt.cert_id = cert_db.id
-                            c_alt.alt_name = alt_name
-                            c_alt.is_wildcard = TlsDomainTools.has_wildcard(alt_name)
-                            s.add(c_alt)
-                        s.commit()
-
-                        # Live migration to domain database
-                        for alt_name in uniq_sorted_alt_names:
-                            if TlsDomainTools.has_wildcard(alt_name):
-                                continue
-                            self.load_domain_name(s, domain_name=alt_name, pre_commit=False, fetch_first=True)
-                        s.commit()
-
-                except Exception as e:
-                    self.trace_logger.log(e, custom_msg='Probably constraint violation')
-                    s.rollback()
-
-            if done:
-                _close_s()
-                return cert_db, 1
-
-            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
-            if cert is not None:
-                _close_s()
-                return cert, 0
-
-            time.sleep(0.01)
-        _close_s()
-        raise Error('Could not store / load certificate')
-
-    def load_top_domain(self, s, top_domain, attempts=5):
-        """
-        Loads or creates a new top domain record.
-        :param s:
-        :param top_domain:
-        :return:
-        :rtype Tuple[DbBaseDomain, is_new]
-        """
-        obj = DbBaseDomain()
-        obj.domain_name = top_domain
-
-        ret = dbutil.ModelUpdater\
-            .load_or_insert(s, obj=obj, select_cols=[DbBaseDomain.domain_name],
-                            pre_commit=True, fetch_first=True, fail_sleep=0.01,
-                            trace_logger=self.trace_logger, log_message='top domain fetch/save error')
-        return ret
-
-    def load_crtsh_input(self, s, domain, query_type=0, attempts=5, **kwargs):
-        """
-        Loads CRTSH query type from DB or creates a new record
-        :param s:
-        :param domain:
-        :param query_type:
-        :param attempts:
-        :return
-        :rtype tuple[DbCrtShQueryInput, bool]
-        """
-        obj = DbCrtShQueryInput()
-        obj.iquery = domain
-        obj.itype = query_type
-        obj.created_at = salch.func.now()
-
-        def pre_add(obj):
-            if obj.sld_id is not None:
-                return
-
-            # top domain load
-            top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain))
-            if top_domain_obj is not None:
-                obj.sld_id = top_domain_obj.id
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s=s, obj=obj, select_cols=[DbCrtShQueryInput.iquery, DbCrtShQueryInput.itype],
-                            pre_add_fnc=pre_add,
-                            pre_commit=True,
-                            fetch_first=True,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='crtsh input fetch/save error: %s' % domain)
-        return ret
-
     def try_get_top_domain(self, domain):
         """
         try-catched top domain load
@@ -3920,324 +3680,6 @@ class Server(object):
             return TlsDomainTools.get_top_domain(domain)
         except:
             pass
-
-    def try_load_top_domain(self, s, domain):
-        """
-        Determines top domain & loads / inserts it to the DB
-        :param s:
-        :param domain:
-        :return:
-        """
-        try:
-            if util.is_empty(domain):
-                return None, None
-
-            top_domain = TlsDomainTools.get_top_domain(domain)
-            if util.is_empty(top_domain):
-                return None, None
-
-            top_domain, is_new = self.load_top_domain(s, top_domain)
-            return top_domain, is_new
-
-        except:
-            return None, None
-
-    def load_default_watch_target(self, s, host, attempts=5):
-        """
-        Tries to load default watch target (https, 443) or creates a new if does not found
-        :param s:
-        :param host:
-        :param attempts:
-        :return:
-        """
-        for attempt in range(attempts):
-            try:
-                ret = s.query(DbWatchTarget)\
-                    .filter(DbWatchTarget.scan_host == host)\
-                    .filter(DbWatchTarget.scan_port == '443')\
-                    .filter(DbWatchTarget.scan_scheme == 'https')\
-                    .first()
-                if ret is not None:
-                    return ret, 0
-
-            except Exception as e:
-                logger.error('Error fetching DbWatchTarget from DB: %s : %s' % (host, e))
-                self.trace_logger.log(e, custom_msg='DbWatchTarget fetch error')
-
-            # insert attempt now
-            try:
-                ret = DbWatchTarget()
-                ret.scan_scheme = 'https'
-                ret.scan_port = '443'
-                ret.scan_host = host
-                ret.created_at = salch.func.now()
-                ret.updated_at = salch.func.now()
-
-                # top domain
-                top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(host))
-                if top_domain_obj is not None:
-                    ret.top_domain_id = top_domain_obj.id
-
-                s.add(ret)
-                s.flush()
-                return ret, 1
-
-            except Exception as e:
-                s.rollback()
-                logger.error('Error inserting DbWatchTarget to DB: %s : %s' % (host, e))
-                self.trace_logger.log(e, custom_msg='DbWatchTarget fetch error')
-
-            time.sleep(0.01)
-        raise Error('Could not store / load DbWatchTarget')
-
-    def load_subdomains(self, s, watch_id, subs):
-        """
-        Tries to load all subdomains with given domain name
-        :param s:
-        :param watch_id:
-        :param subs:
-        :return:
-        """
-        was_array = True
-        if subs is not None and not isinstance(subs, list):
-            subs = [subs]
-            was_array = False
-
-        q = s.query(DbSubdomainWatchResultEntry)
-
-        if watch_id is not None:
-            q = q.filter(DbSubdomainWatchResultEntry.watch_id == watch_id)
-
-        if subs is not None:
-            q = q.filter(DbSubdomainWatchResultEntry.name.in_(list(subs)))
-
-        ret = {}
-        res = q.all()
-        for cur in res:
-            if not was_array:
-                return cur
-
-            ret[cur.name] = cur
-
-        return ret if was_array else None
-
-    def load_num_active_hosts(self, s, owner_id):
-        """
-        Loads number of active user hosts
-        :param s:
-        :param owner_id:
-        :return:
-        """
-        return DbHelper.get_count(
-            s.query(DbWatchAssoc)\
-            .filter(DbWatchAssoc.owner_id == owner_id)\
-            .filter(DbWatchAssoc.deleted_at == None)\
-            .filter(DbWatchAssoc.disabled_at == None))
-
-    def update_last_dns_scan_id(self, s, db_dns):
-        """
-        Update cached last dns scan id in the watch_target.
-        Optimistic locking on the last_dns_scan_id - updates only with newer values (sequentially higher)
-        :param s:
-        :param db_dns:
-        :return:
-        """
-        stmt = salch.update(DbWatchTarget) \
-            .where(DbWatchTarget.id == db_dns.watch_id) \
-            .where(salch.or_(
-            DbWatchTarget.last_dns_scan_id == None,
-            DbWatchTarget.last_dns_scan_id < db_dns.id)
-        ).values(last_dns_scan_id=db_dns.id)
-        s.execute(stmt)
-
-    def update_watch_last_scan_at(self, s, watch_id):
-        """
-        Updates last scan for the watch to now
-        :param s:
-        :param watch_id:
-        :return:
-        """
-        stmt = salch.update(DbWatchTarget) \
-            .where(DbWatchTarget.id == watch_id) \
-            .values(last_scan_at=salch.func.now())
-        s.execute(stmt)
-
-    def update_watch_ip_type(self, s, target, domain=None):
-        """
-        Fixes IP type for new watches
-        :param s:
-        :param target:
-        :type target: DbWatchTarget
-        :param domain:
-        :return:
-        """
-        if target is not None:
-            ip_type = TlsDomainTools.get_ip_type(target.scan_host)
-            if ip_type == target.is_ip_host:
-                return
-
-            target.is_ip_host = ip_type
-            stmt = salch.update(DbWatchTarget) \
-                .where(DbWatchTarget.id == target.id) \
-                .values(is_ip_host=target.is_ip_host)
-            s.execute(stmt)
-
-    def load_domain_name(self, s, domain_name, fetch_first=True, pre_commit=True):
-        """
-        Arbitrary domain name
-        :param s:
-        :param domain_name:
-        :param fetch_first:
-        :param pre_commit:
-        :return:
-        """
-        obj = DbDomainName()
-        obj.domain_name = domain_name
-
-        def pre_add(obj):
-            if obj.top_domain_id is not None:
-                return
-
-            # top domain load
-            top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(domain_name))
-            if top_domain_obj is not None:
-                obj.top_domain_id = top_domain_obj.id
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s, obj=obj, select_cols=[DbDomainName.domain_name],
-                            pre_add_fnc=pre_add,
-                            pre_commit=pre_commit,
-                            fetch_first=fetch_first,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='domain name fetch/save error: %s' % domain_name)
-        return ret
-
-    def load_ip_address(self, s, ip):
-        """
-        IP address load/save
-        :param s:
-        :param ip:
-        :return:
-        """
-        obj = DbIpAddress()
-        obj.ip_addr = ip
-
-        def pre_add(obj):
-            if obj.ip_type is not None:
-                return
-            obj.ip_type = TlsDomainTools.get_ip_family(ip)
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s, obj=obj, select_cols=[DbIpAddress.ip_addr],
-                            pre_add_fnc=pre_add,
-                            pre_commit=True,
-                            fetch_first=True,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='IP fetch/save error: %s' % ip)
-        return ret
-
-    def load_tls_desc(self, s, ip_id, svc_id, port=443):
-        """
-        TLS descriptor
-        :param s:
-        :param ip_id:
-        :param svc_id:
-        :param port:
-        :return:
-        """
-        obj = DbTlsScanDesc()
-        obj.ip_id = ip_id
-        obj.sni_id = svc_id
-        obj.port = port
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s, obj=obj,
-                            select_cols=[DbTlsScanDesc.ip_id, DbTlsScanDesc.sni_id, DbTlsScanDesc.scan_port],
-                            pre_commit=True,
-                            fetch_first=True,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='TLS desc fetch/save error: %s:%s %s' % (ip_id, svc_id, port))
-        return ret
-
-    def load_tls_params(self, s, tls_ver=1, key_type=1, ciphers=None):
-        """
-        TLS scan parameters
-        :param s:
-        :param tls_ver:
-        :param key_type:
-        :param ciphers:
-        :return:
-        """
-        obj = DbTlsScanParams()
-        obj.tls_ver = tls_ver
-        obj.key_type = key_type
-        obj.cipersuite_set = ciphers
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s, obj=obj,
-                            select_cols=[DbTlsScanParams.tls_ver, DbTlsScanParams.key_type, DbTlsScanParams.ciphers],
-                            pre_commit=True,
-                            fetch_first=True,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='TLS param fetch/save error: %s %s %s' % (tls_ver, key_type, ciphers))
-        return ret
-
-    def load_tls_desc_ex(self, s, desc_id, param_id):
-        """
-        Desc & param load
-        :param s:
-        :param desc_id:
-        :param param_id:
-        :return:
-        """
-        obj = DbTlsScanDescExt()
-        obj.tls_desc_id = desc_id
-        obj.tls_params_id = param_id
-
-        ret = dbutil.ModelUpdater \
-            .load_or_insert(s, obj=obj,
-                            select_cols=[DbTlsScanDescExt.tls_desc_id, DbTlsScanDescExt.tls_params_id],
-                            pre_commit=True,
-                            fetch_first=True,
-                            fail_sleep=0.01,
-                            trace_logger=self.trace_logger,
-                            log_message='TLS desc ext fetch/save error: %s %s' % (desc_id, param_id))
-        return ret
-
-    def load_watch_service(self, s, svc_name):
-        """
-        Creates a new service record if does not exist or load existing one
-        :param s:
-        :param svc_name:
-        :return:
-        :rtype: (DbWatchService, bool)
-        """
-        svc = DbWatchService()
-        svc.service_name = svc_name
-        db_svc, is_new = ModelUpdater.load_or_insert(s, svc, [DbWatchService.service_name])
-        if not is_new:
-            return db_svc, is_new
-
-        # Augment with dates, top domain & crtsh input fields
-        db_svc.created_at = salch.func.now()
-        db_svc.updated_at = salch.func.now()
-
-        # top domain
-        top_domain_obj, is_new = self.try_load_top_domain(s, TlsDomainTools.parse_fqdn(svc_name))
-        if top_domain_obj is not None:
-            db_svc.top_domain_id = top_domain_obj.id
-
-        # crtsh input
-        db_input, inp_is_new = self.get_crtsh_input(s, svc_name)
-        if db_input is not None:
-            db_svc.crtsh_input_id = db_input.id
-
-        s.merge(db_svc)
-        return db_svc, is_new
 
     def ip_scan_to_dns(self, scan):
         """

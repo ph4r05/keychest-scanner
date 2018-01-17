@@ -860,7 +860,7 @@ class ManagementModule(ServerModule):
 
         domain = domains[0]
         priv_file, cert_file, ca_file = self.le.get_cert_paths(domain=domain)
-        cert, cert_is_new = self.server.process_certificate_file(s, cert_file)  # type: tuple[Certificate, bool]
+        cert, cert_is_new = self.cert_manager.process_certificate_file(s, cert_file)  # type: tuple[Certificate, bool]
         if not cert_is_new:
             finish_task()
             renew_record.new_certificate_id = cert.id

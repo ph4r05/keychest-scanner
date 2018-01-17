@@ -593,7 +593,7 @@ class ServerAgent(ServerModule):
             return {}
 
         fprints = list(certs.keys())
-        loaded_fprints = self.server.cert_load_fprints(s, fprints)
+        loaded_fprints = self.server.cert_manager.cert_load_fprints(s, fprints)
         missing_fprints = set(fprints) - set(loaded_fprints.keys())
 
         for fprint in missing_fprints:
@@ -604,7 +604,7 @@ class ServerAgent(ServerModule):
             db_crt.id = None
             db_crt.parent_id = None
 
-            db_crt_new, is_new = self.server.add_cert_or_fetch(s, db_crt)
+            db_crt_new, is_new = self.server.cert_manager.add_cert_or_fetch(s, db_crt)
             loaded_fprints[db_crt_new.fprint_sha1] = db_crt_new
             logger.debug('Added agent certificate: %s - %s' % (db_crt.id, db_crt.fprint_sha1))
 
@@ -649,8 +649,8 @@ class ServerAgent(ServerModule):
             s.add(entry)
 
         # update cached last dns scan id
-        self.server.update_last_dns_scan_id(s, db_dns)
-        self.server.update_watch_last_scan_at(s, db_dns.watch_id)
+        self.server.db_manager.update_last_dns_scan_id(s, db_dns)
+        self.server.db_manager.update_watch_last_scan_at(s, db_dns.watch_id)
 
         ResultModelUpdater.update_cache(s, db_dns_orig, cache_type=DbLastScanCacheType.AGENT_SCAN)
         ResultModelUpdater.update_cache(s, db_dns, cache_type=DbLastScanCacheType.LOCAL_SCAN)

@@ -4,17 +4,23 @@
 """
 Certificate managers and processors
 """
-
 from past.builtins import basestring  # pip install future
 from past.builtins import cmp
 from future.utils import iteritems
 
 import json
 import logging
+import time
+
 from cryptography.x509 import Certificate as X509Certificate
+import sqlalchemy as salch
 
 from . import util, util_cert
+from .errors import Error
+from .tls_domain_tools import TlsDomainTools
 from .consts import CertSigAlg
+from .dbutil import Certificate, CertificateAltName
+from .database_manager import DatabaseManager
 from .trace_logger import Tracelogger
 
 
@@ -29,6 +35,7 @@ class CertificateManager(object):
     def __init__(self):
         self.db = None
         self.config = None
+        self.db_manager = None  # type: DatabaseManager
         self.trace_logger = Tracelogger(logger)
 
     def init(self, **kwargs):
@@ -43,6 +50,12 @@ class CertificateManager(object):
             self.config = kwargs.get('config')
         if 'trace_logger' in kwargs:
             self.trace_logger = kwargs.get('trace_logger')
+        if 'db_manager' in kwargs:
+            self.db_manager = kwargs.get('db_manager')
+
+    #
+    # Base certificate processing
+    #
 
     def parse_certificate(self, cert_db, pem=None, der=None, **kwargs):
         """
@@ -102,3 +115,187 @@ class CertificateManager(object):
 
         return cert
 
+    #
+    # Certificate load / save
+    #
+
+    def cert_load_existing(self, s, certs_id):
+        """
+        Loads existing certificates with cert id from the set
+        :param s:
+        :param certs_id:
+        :return:
+        :rtype: dict[int -> int]
+        """
+        ret = {}
+
+        int_list = [int(x) for x in certs_id]
+        res = s.query(Certificate.id, Certificate.crt_sh_id).filter(Certificate.crt_sh_id.in_(int_list)).all()
+        for cur in res:
+            ret[int(cur.crt_sh_id)] = int(cur.id)
+
+        return ret
+
+    def cert_load_by_id(self, s, certs_id):
+        """
+        Loads certificates by IDs
+        :param s:
+        :param certs_id:
+        :return:
+        """
+        was_array = True
+        if not isinstance(certs_id, list):
+            certs_id = [certs_id]
+            was_array = False
+
+        certs_id = [int(x) for x in util.compact(certs_id)]
+        ret = {}
+
+        res = s.query(Certificate) \
+            .filter(Certificate.id.in_(list(certs_id))).all()
+
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[cur.id] = cur
+
+        return ret if was_array else None
+
+    def cert_load_fprints(self, s, fprints):
+        """
+        Load certificate by sha1 fprint
+        :param s:
+        :param fprints:
+        :return:
+        """
+        was_array = True
+        if not isinstance(fprints, list):
+            fprints = [fprints]
+            was_array = False
+
+        fprints = util.lower(util.strip(fprints))
+        ret = {}
+
+        res = s.query(Certificate) \
+            .filter(Certificate.fprint_sha1.in_(list(fprints))).all()
+
+        for cur in res:
+            if not was_array:
+                return cur
+
+            ret[util.lower(cur.fprint_sha1)] = cur
+
+        return ret if was_array else None
+
+    def add_cert_or_fetch(self, s=None, cert_db=None, fetch_first=False, add_alts=True):
+        """
+        Tries to insert new certificate to the DB.
+        If fails due to constraint violation (somebody preempted), it tries to load
+        certificate with the same fingerprint. If fails, repeats X times.
+        Automatically commits the transaction before inserting - could fail under high load.
+        :param s:
+        :param cert_db:
+        :type cert_db: Certificate
+        :return:
+        :rtype: tuple[Certificate, bool]
+        """
+        close_after_done = False
+        if s is None:
+            s = self.db.get_session()
+            close_after_done = True
+
+        def _close_s():
+            if s is None:
+                return
+            if close_after_done:
+                util.silent_close(s)
+
+        for attempt in range(5):
+            done = False
+            if not fetch_first or attempt > 0:
+                if not attempt == 0:  # insert first, then commit transaction before it may fail.
+                    s.commit()
+                try:
+                    s.add(cert_db)
+                    s.commit()
+                    done = True
+
+                    # Insert all alt names for the certificate
+                    if add_alts and not util.is_empty(cert_db.alt_names_arr):
+                        uniq_sorted_alt_names = util.stable_uniq(util.compact(cert_db.alt_names_arr))
+                        for alt_name in uniq_sorted_alt_names:
+                            c_alt = CertificateAltName()
+                            c_alt.cert_id = cert_db.id
+                            c_alt.alt_name = alt_name
+                            c_alt.is_wildcard = TlsDomainTools.has_wildcard(alt_name)
+                            s.add(c_alt)
+                        s.commit()
+
+                        # Live migration to domain database
+                        for alt_name in uniq_sorted_alt_names:
+                            if TlsDomainTools.has_wildcard(alt_name):
+                                continue
+                            self.db_manager.load_domain_name(s, domain_name=alt_name, pre_commit=False, fetch_first=True)
+                        s.commit()
+
+                except Exception as e:
+                    self.trace_logger.log(e, custom_msg='Probably constraint violation')
+                    s.rollback()
+
+            if done:
+                _close_s()
+                return cert_db, 1
+
+            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
+            if cert is not None:
+                _close_s()
+                return cert, 0
+
+            time.sleep(0.01)
+        _close_s()
+        raise Error('Could not store / load certificate')
+
+    #
+    # Cert processing
+    #
+
+    def process_certificate_file(self, s, cert_file, **kwargs):
+        """
+        Loads the file from the file, fetches or adds to the certificate database.
+        :param s:
+        :param cert_file:
+        :return:
+        :rtype: tuple[Certificate, bool]
+        """
+        cert_pem = None
+        with open(cert_file) as fh:
+            cert_pem = fh.read()
+        return self.process_certificate(s, cert_pem,  **kwargs)
+
+    def process_certificate(self, s, cert_pem, **kwargs):
+        """
+        Loads the file from the file, fetches or adds to the certificate database.
+        :param s:
+        :param cert_pem:
+        :return:
+        :rtype: tuple[Certificate, bool]
+        """
+        try:
+            cert_db = Certificate()
+            cert = self.parse_certificate(cert_db, pem=cert_pem)
+
+            cert_existing = self.cert_load_fprints(s, [cert_db.fprint_sha1])
+            if cert_existing:
+                return cert_db, False
+
+            cert_db.created_at = salch.func.now()
+            cert_db.pem = util.strip_pem(cert_pem)
+            cert_db.source = kwargs.get('source', 'renew')
+            cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
+            return cert_db, is_new_cert
+
+        except Exception as e:
+            logger.error('Exception when processing a certificate %s' % (e,))
+            self.trace_logger.log(e)
+        return None, False

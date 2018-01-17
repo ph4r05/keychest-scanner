@@ -296,7 +296,7 @@ class ServerApiProc(ServerModule):
             s.commit()
 
         else:
-            cert_db = self.server.cert_load_by_id(s, target.certificate_id)
+            cert_db = self.server.cert_manager.cert_load_by_id(s, target.certificate_id)
 
         # CT scan
         scan_kwargs = dict()
@@ -373,7 +373,7 @@ class ServerApiProc(ServerModule):
             raise InvalidInputData('Certificate invalid')
 
         new_cert = cert_db
-        cert_db, is_new = self.server.add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
+        cert_db, is_new = self.server.cert_manager.add_cert_or_fetch(s, cert_db, fetch_first=True, add_alts=True)
 
         # Cert exists, fill in missing fields if empty
         if not is_new:
