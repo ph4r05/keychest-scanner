@@ -169,6 +169,7 @@ class CertificateManager(object):
         :param s:
         :param fprints:
         :return:
+        :rtype: union[dict[string -> Certificate], Certificate]
         """
         was_array = True
         if not isinstance(fprints, list):
@@ -244,13 +245,15 @@ class CertificateManager(object):
                     self.trace_logger.log(e, custom_msg='Probably constraint violation')
                     s.rollback()
 
+            cert_db.trans_is_new = 1
             if done:
                 _close_s()
                 return cert_db, 1
 
-            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)
+            cert = self.cert_load_fprints(s, cert_db.fprint_sha1)  # type: Certificate
             if cert is not None:
                 _close_s()
+                cert.trans_is_new = 0
                 return cert, 0
 
             time.sleep(0.01)
@@ -352,7 +355,7 @@ class CertificateManager(object):
                 # new certificate - add
                 # lockfree - add, if exception on add, try fetch, then again add,
                 if fprint not in cert_existing:
-                    cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
+                    cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)  # type: tuple[Certificate, bool]
                     if is_new_cert:
                         num_new_results += 1
                 else:

@@ -134,6 +134,7 @@ class Certificate(Base):
 
     def __init__(self):
         self.alt_names_arr = []
+        self.trans_is_new = False
 
     @orm.reconstructor
     def init_on_load(self):
@@ -145,6 +146,7 @@ class Certificate(Base):
 
     def visit_fnc(self, fnc):
         self.alt_names_arr = fnc(self.alt_names_arr)
+        self.trans_is_new = fnc(self.trans_is_new)
         return self
 
 
