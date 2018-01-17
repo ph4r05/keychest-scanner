@@ -10,10 +10,15 @@ from past.builtins import cmp
 from future.utils import iteritems
 
 import json
+import logging
 from cryptography.x509 import Certificate as X509Certificate
 
 from . import util, util_cert
 from .consts import CertSigAlg
+from .trace_logger import Tracelogger
+
+
+logger = logging.getLogger(__name__)
 
 
 class PkiManager(object):
@@ -24,6 +29,7 @@ class PkiManager(object):
     def __init__(self):
         self.db = None
         self.config = None
+        self.trace_logger = Tracelogger(logger)
 
     def init(self, **kwargs):
         """
@@ -35,4 +41,6 @@ class PkiManager(object):
             self.db = kwargs.get('db')
         if 'config' in kwargs:
             self.config = kwargs.get('config')
+        if 'trace_logger' in kwargs:
+            self.trace_logger = kwargs.get('trace_logger')
 
