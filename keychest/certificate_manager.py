@@ -116,6 +116,21 @@ class CertificateManager(object):
 
         return cert
 
+    @staticmethod
+    def pem_chain_to_array(pem_file):
+        """
+        Transforms PEM file with certificates to array of pem files
+        :param pem_file:
+        :return: array of PEM encoded certificates
+        :rtype: list[string]
+        """
+        sep = '-----BEGIN CERTIFICATE-----'
+        pem_file = util.to_string(pem_file)
+        chunks = pem_file.split(sep)
+        chunks = [util.strip(chunk) for chunk in chunks if chunk is not None]
+        chunks = [chunk for chunk in chunks if len(chunk) > 0]
+        return '\n'.join([sep + '\n' + x for x in chunks]) + '\n'
+
     #
     # Certificate load / save
     #
