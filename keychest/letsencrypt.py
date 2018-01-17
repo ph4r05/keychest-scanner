@@ -166,7 +166,8 @@ class LetsEncrypt(object):
         Returns files for the given domain
         :param cert_dir: 
         :param domain: 
-        :return: privkey_file, cert_file, ca_file
+        :return: privkey_file, cert_file, fullchain_file
+        :rtype: tuple[string, string, string]
         """
         if domain is not None:
             cert_dir = self.get_certificate_dir(domain)
