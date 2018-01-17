@@ -1030,7 +1030,8 @@ class ManagementModule(ServerModule):
         def finish_task(host=None, **kwargs):
             """Simple finish callback"""
             job.results.ok()
-            self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(), **kwargs)
+            self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(),
+                                    last_scan=False, **kwargs)
 
         if not job.target.has_ansible:
             logger.warning('Host check of non-Ansible host %s' % job.target.id)
