@@ -365,7 +365,7 @@ class ServerApiProc(ServerModule):
         cert_db.source = 'api'
 
         try:
-            x509_cert = self.server.parse_certificate(cert_db, pem=str(cert_db.pem))
+            x509_cert = self.server.cert_manager.parse_certificate(cert_db, pem=str(cert_db.pem))
 
         except Exception as e:
             logger.error('Unable to parse API certificate job id %s: %s' % (job.target.id, e))

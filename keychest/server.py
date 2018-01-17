@@ -2824,16 +2824,6 @@ class Server(object):
         else:
             return TlsDomainTools.urlize(obj)
 
-    def parse_certificate(self, cert_db, pem=None, der=None, **kwargs):
-        """
-        Parses the certificate, returns the parsed cert
-        :param cert_db: 
-        :param pem: 
-        :param der: 
-        :return: (cryptography cert, list of alt names)
-        """
-        return self.cert_manager.parse_certificate(cert_db, pem=pem, der=der, **kwargs)
-
     def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """
         Processes certificates from the handshake
@@ -2854,7 +2844,7 @@ class Server(object):
         for der in resp.certificates:
             try:
                 cert_db = Certificate()
-                cert = self.parse_certificate(cert_db, der=der)
+                cert = self.cert_manager.parse_certificate(cert_db, der=der)
 
                 local_db.append((cert_db, cert, cert_db.alt_names_arr, der))
                 fprints_handshake.add(cert_db.fprint_sha1)
@@ -3115,7 +3105,7 @@ class Server(object):
             alt_names = []
 
             try:
-                cert = self.parse_certificate(cert_db, pem=str(cert_db.pem))
+                cert = self.cert_manager.parse_certificate(cert_db, pem=str(cert_db.pem))
                 alt_names = cert_db.alt_names_arr
 
             except Exception as e:
