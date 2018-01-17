@@ -10,6 +10,7 @@ from future.utils import iteritems
 
 import base64
 import json
+import hashlib
 import logging
 import time
 
@@ -130,6 +131,24 @@ class CertificateManager(object):
         chunks = [util.strip(chunk) for chunk in chunks if chunk is not None]
         chunks = [chunk for chunk in chunks if len(chunk) > 0]
         return '\n'.join([sep + '\n' + x for x in chunks]) + '\n'
+
+    @staticmethod
+    def get_privkey_hash(pem=None, der=None):
+        """
+        Computes privkey hash for the db check
+        :param pem:
+        :param der:
+        :return: sha256 hash in hex
+        """
+        if pem is None and der is None:
+            return None
+
+        if der is None:
+            der = util.pem_to_der(pem)
+
+        m = hashlib.sha256()
+        m.update(util.to_bytes(der))
+        return m.hexdigest()
 
     #
     # Certificate load / save
