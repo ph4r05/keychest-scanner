@@ -533,8 +533,10 @@ class Server(object):
         port = int(util.defvalkey(job_data, 'scan_port', 443, take_none=False))
         scheme = util.defvalkey(job_data, 'scan_scheme', None, take_none=False)
         do_connect_analysis = util.defvalkey(job_data, 'dns_ok', True, take_none=False)
-        if kwargs.has_key('do_connect_analysis'):  # can only disable, if DNS failed, cannot perform
+
+        if 'do_connect_analysis' in kwargs:  # can only disable, if DNS failed, cannot perform
             do_connect_analysis &= kwargs.get('do_connect_analysis')
+
         do_process_certificates = kwargs.get('do_process_certificates', True)
 
         # Simple TLS handshake to the given host.
