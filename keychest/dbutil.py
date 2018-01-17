@@ -1862,6 +1862,56 @@ class DbManagedCertificate(Base):
     updated_at = Column(DateTime, default=func.now())
 
 
+class DbManagedCertChain(Base):
+    """
+    Holds cert chains to the managed certificates
+    """
+    __tablename__ = 'managed_cert_chains'
+    __table_args__ = (
+        UniqueConstraint('certificate_id', 'chain_certificate_id', name='uk_managed_cert_chains_cert_rel'),
+        UniqueConstraint('certificate_id', 'chain_certificate_id', 'order_num', name='uk_managed_cert_chains_cert_order_rel'),
+    )
+
+    id = Column(BigInteger, primary_key=True)
+
+    # leaf certificate this chain is for
+    certificate_id = Column(
+        ForeignKey('certificates.id', name='fk_managed_cert_chains_certificate_id', ondelete='CASCADE'),
+        nullable=False, index=True)
+
+    # certificate chained to the original one
+    chain_certificate_id = Column(
+        ForeignKey('certificates.id', name='fk_managed_cert_chains_chain_certificate_id', ondelete='CASCADE'),
+        nullable=False, index=True)
+
+    # ordering in the chain
+    order_num = Column(SmallInteger, default=0, nullable=False)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class DbManagedPrivate(Base):
+    """
+    Managed certificate private key, encrypted
+    """
+    __tablename__ = 'managed_cert_privates'
+    __table_args__ = ()
+
+    id = Column(BigInteger, primary_key=True)
+
+    # leaf certificate this chain is for
+    certificate_id = Column(
+        ForeignKey('certificates.id', name='fk_managed_cert_privates_certificate_id', ondelete='CASCADE'),
+        nullable=False, index=True)
+
+    # encrypted field with private data
+    private_data = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+
+
 class DbManagedCertIssue(Base):
     """
     Cert issue/renewal record.
