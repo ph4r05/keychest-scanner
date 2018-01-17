@@ -25,6 +25,8 @@ from .ebsysconfig import SysConfig
 from .ansible_wrap import AnsibleWrapper
 from .server_data import EmailArtifact, EmailArtifactTypes
 from .pki_manager import PkiManager
+from .certificate_manager import CertificateManager
+from .database_manager import DatabaseManager
 from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
@@ -78,7 +80,9 @@ class ManagementModule(ServerModule):
         self.workers = []
         self.le = None  # type: LetsEncrypt
 
-        self.pki_manager = PkiManager()
+        self.db_manager = None  # type: DatabaseManager
+        self.cert_manager = None  # type: CertificateManager
+        self.pki_manager = None  # type: DatabaseManager
         self.audit = AuditManager(disabled=True)
         self.syscfg = SysConfig(audit=self.audit)
         self.ansible = None  # type: AnsibleWrapper
@@ -105,7 +109,9 @@ class ManagementModule(ServerModule):
         self.ansible = self.new_ansible_wrapper()
         self.local_data.ansible = None
 
-        self.pki_manager.init(db=self.db, config=self.config)
+        self.db_manager = server.db_manager
+        self.cert_manager = server.cert_manager
+        self.pki_manager = server.pki_manager
 
     def new_ansible_wrapper(self):
         """

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-PKI, certificate managers and processors
+Database manager
 """
 
 from past.builtins import basestring  # pip install future
@@ -10,15 +10,13 @@ from past.builtins import cmp
 from future.utils import iteritems
 
 import json
-from cryptography.x509 import Certificate as X509Certificate
 
 from . import util, util_cert
-from .consts import CertSigAlg
 
 
-class PkiManager(object):
+class DatabaseManager(object):
     """
-    Base PKI manager for certificate related tasks
+    Base DB manager for certificate related tasks
     """
 
     def __init__(self):
@@ -27,7 +25,7 @@ class PkiManager(object):
 
     def init(self, **kwargs):
         """
-        Initializes the PKI manager
+        Initializes the Db manager
         :param kwargs:
         :return:
         """
@@ -35,4 +33,3 @@ class PkiManager(object):
             self.db = kwargs.get('db')
         if 'config' in kwargs:
             self.config = kwargs.get('config')
-

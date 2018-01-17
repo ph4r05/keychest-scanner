@@ -69,6 +69,8 @@ from .tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsTimeout, TlsRes
 from .tls_scanner import TlsScanner, RequestErrorCode
 from .trace_logger import Tracelogger
 from .pki_manager import PkiManager
+from .certificate_manager import CertificateManager
+from .database_manager import DatabaseManager
 
 __author__ = 'dusanklinec'
 logger = logging.getLogger(__name__)
@@ -142,6 +144,8 @@ class Server(object):
         self.cname_cdn_classif = CnameCDNClassifier()
         self.tls_scanner = TlsScanner()
         self.pki_manager = PkiManager()
+        self.cert_manager = CertificateManager()
+        self.db_manager = DatabaseManager()
         self.test_timeout = 5
         self.api = None
         self.events = Events()
@@ -259,6 +263,8 @@ class Server(object):
         """
         self.crt_validator.init()
         self.cname_cdn_classif.init()
+        self.db_manager.init(db=self.db, config=self.config)
+        self.cert_manager.init(db=self.db, config=self.config)
         self.pki_manager.init(db=self.db, config=self.config)
         signal.signal(signal.SIGINT, self.signal_handler)
 
@@ -2826,7 +2832,7 @@ class Server(object):
         :param der: 
         :return: (cryptography cert, list of alt names)
         """
-        return self.pki_manager.parse_certificate(cert_db, pem=pem, der=der, **kwargs)
+        return self.cert_manager.parse_certificate(cert_db, pem=pem, der=der, **kwargs)
 
     def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """
