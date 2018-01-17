@@ -1909,6 +1909,7 @@ class DbManagedPrivate(Base):
 
     # encrypted field with private data
     private_data = Column(Text, nullable=True)
+    private_hash = Column(String(64), nullable=False, index=True)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())

@@ -38,10 +38,12 @@ def upgrade():
                     unique=False)
     op.create_index(op.f('ix_managed_cert_chains_chain_certificate_id'), 'managed_cert_chains',
                     ['chain_certificate_id'], unique=False)
+
     op.create_table('managed_cert_privates',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('certificate_id', sa.BigInteger(), nullable=False),
                     sa.Column('private_data', sa.Text(), nullable=True),
+                    sa.Column('private_hash', sa.String(length=64), nullable=True),
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.ForeignKeyConstraint(['certificate_id'], ['certificates.id'],
@@ -49,6 +51,8 @@ def upgrade():
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_index(op.f('ix_managed_cert_privates_certificate_id'), 'managed_cert_privates', ['certificate_id'],
+                    unique=False)
+    op.create_index(op.f('ix_managed_cert_privates_private_hash'), 'managed_cert_privates', ['private_hash'],
                     unique=False)
 
 
