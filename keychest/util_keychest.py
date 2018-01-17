@@ -81,7 +81,7 @@ def encrypt_field_aes_cbc(app_key, field, serialize=True):
 
     js_base = collections.OrderedDict()
     js_base['scheme'] = 'base'
-    js_base['val'] = util.to_string(base64.b64encode(json.dumps(js)))
+    js_base['val'] = util.to_string(base64.b64encode(util.to_bytes(json.dumps(js))))
     return json.dumps(js_base)
 
 
