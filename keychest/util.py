@@ -1374,17 +1374,19 @@ def try_sha1_pem(x):
         return hashlib.sha1(x).hexdigest()
 
 
-def try_load_json(x, **kwargs):
+def try_load_json(x, quiet=True, **kwargs):
     """
     Tries to load JSON object
     :param x:
+    :param quiet:
     :param kwargs:
     :return:
     """
     try:
         return json.loads(x, **kwargs)
     except Exception as e:
-        pass
+        if not quiet:
+            logger.error('Json decode error: %s' % e)
     return None
 
 
