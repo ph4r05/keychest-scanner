@@ -2838,51 +2838,18 @@ class Server(object):
         if util.is_empty(resp.certificates):
             return
 
-        # pre-parsing, get fprints for later load
-        local_db = []
-        fprints_handshake = set()
-        for der in resp.certificates:
-            try:
-                cert_db = Certificate()
-                cert = self.cert_manager.parse_certificate(cert_db, der=der)
-
-                local_db.append((cert_db, cert, cert_db.alt_names_arr, der))
-                fprints_handshake.add(cert_db.fprint_sha1)
-
-            except Exception as e:
-                logger.error('Exception when downloading a certificate %s' % (e, ))
-                self.trace_logger.log(e)
-
-        # load existing certificates
-        cert_existing = self.cert_manager.cert_load_fprints(s, list(fprints_handshake))
-        leaf_cert_id = None
-        all_cert_ids = set()
-        num_new_results = 0
-        prev_id = None
+        res = self.cert_manager.process_full_chain(s, resp.certificates, is_der=True, source='handshake')
+        all_certs = res[0]
+        cert_existing = res[1]
+        leaf_cert_id = res[2]
+        num_new_results = res[3]
+        all_cert_ids = [x.id for x in all_certs]
 
         # store non-existing certificates from the TLS scan to the database
-        for endb in reversed(local_db):
-            cert_db, cert, alt_names, der = endb
+        for cert_db in all_certs:
             fprint = cert_db.fprint_sha1
 
             try:
-                cert_db.created_at = salch.func.now()
-                cert_db.pem = base64.b64encode(der)
-                cert_db.source = 'handshake'
-                if cert_db.parent_id is None:
-                    cert_db.parent_id = prev_id
-
-                # new certificate - add
-                # lockfree - add, if exception on add, try fetch, then again add,
-                if fprint not in cert_existing:
-                    cert_db, is_new_cert = self.cert_manager.add_cert_or_fetch(s, cert_db, add_alts=True)
-                    if is_new_cert:
-                        num_new_results += 1
-                else:
-                    cert_db = cert_existing[fprint]
-
-                all_cert_ids.add(cert_db.id)
-
                 # crt.sh scan info
                 sub_res_db = DbHandshakeScanJobResult()
                 sub_res_db.scan_id = scan_db.id
@@ -2899,8 +2866,6 @@ class Server(object):
                 if not cert_db.is_ca:
                     leaf_cert_id = cert_db.id
 
-                prev_id = cert_db.id
-
                 scan_db.trans_sub_res.append(sub_res_db)
                 scan_db.trans_certs[cert_db.fprint_sha1] = cert_db
 
@@ -2911,7 +2876,7 @@ class Server(object):
         # Scan updates with stored certs
         scan_db.cert_id_leaf = leaf_cert_id
         scan_db.new_results = num_new_results
-        scan_db.certs_ids = json.dumps(sorted(util.try_list(all_cert_ids)))
+        scan_db.certs_ids = json.dumps(sorted(all_cert_ids))
 
     def tls_cert_validity_test(self, resp, scan_db):
         """

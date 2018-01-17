@@ -8,6 +8,7 @@ from past.builtins import basestring  # pip install future
 from past.builtins import cmp
 from future.utils import iteritems
 
+import base64
 import json
 import logging
 import time
@@ -19,7 +20,7 @@ from . import util, util_cert
 from .errors import Error
 from .tls_domain_tools import TlsDomainTools
 from .consts import CertSigAlg
-from .dbutil import Certificate, CertificateAltName
+from .dbutil import Certificate, CertificateAltName, DbHandshakeScanJobResult
 from .database_manager import DatabaseManager
 from .trace_logger import Tracelogger
 
@@ -299,3 +300,77 @@ class CertificateManager(object):
             logger.error('Exception when processing a certificate %s' % (e,))
             self.trace_logger.log(e)
         return None, False
+
+    def process_full_chain(self, s, cert_chain, is_der=True, **kwargs):
+        """
+        Processes full chain certificate list - add all to the database
+        :param s: session
+        :param cert_chain: tls scan response
+        :type cert_chain: list[string]
+        :param is_der:
+        :return:
+        :rtype: tuple[list[Certificate], list[string], int, int]
+        """
+        if util.is_empty(cert_chain):
+            return
+
+        # pre-parsing, get fprints for later load
+        local_db = []
+        fprints_handshake = set()
+        for cert_obj in cert_chain:
+            try:
+                cert_db = Certificate()
+
+                der = cert_obj if is_der else util.pem_to_der(util.to_string(str(cert_db.pem)))
+                cert = self.parse_certificate(cert_db, der=der)
+
+                local_db.append((cert_db, cert, cert_db.alt_names_arr, der))
+                fprints_handshake.add(cert_db.fprint_sha1)
+
+            except Exception as e:
+                logger.error('Exception when processing a certificate %s' % (e,))
+                self.trace_logger.log(e)
+
+        # load existing certificates by fingerprints
+        cert_existing = self.cert_load_fprints(s, list(fprints_handshake))
+        leaf_cert_id = None
+        all_cert_ids = set()
+        num_new_results = 0
+        prev_id = None
+        all_certs = []
+
+        # store non-existing certificates from the chain to the database
+        for endb in reversed(local_db):
+            cert_db, cert, alt_names, der = endb
+            fprint = cert_db.fprint_sha1
+
+            try:
+                cert_db.created_at = salch.func.now()
+                cert_db.pem = base64.b64encode(der)
+                cert_db.source = kwargs.get('source', 'handshake')
+                if cert_db.parent_id is None:
+                    cert_db.parent_id = prev_id
+
+                # new certificate - add
+                # lockfree - add, if exception on add, try fetch, then again add,
+                if fprint not in cert_existing:
+                    cert_db, is_new_cert = self.add_cert_or_fetch(s, cert_db, add_alts=True)
+                    if is_new_cert:
+                        num_new_results += 1
+                else:
+                    cert_db = cert_existing[fprint]
+
+                all_cert_ids.add(cert_db.id)
+
+                if not cert_db.is_ca:
+                    leaf_cert_id = cert_db.id
+
+                prev_id = cert_db.id
+                all_certs.append(cert_db)
+
+            except Exception as e:
+                logger.error('Exception when processing a handshake certificate %s' % (e,))
+                self.trace_logger.log(e)
+
+        return all_certs, cert_existing.keys(), leaf_cert_id, num_new_results
+
