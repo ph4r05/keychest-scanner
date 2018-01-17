@@ -2818,7 +2818,7 @@ class Server(object):
         else:
             return TlsDomainTools.urlize(obj)
 
-    def parse_certificate(self, cert_db, pem=None, der=None):
+    def parse_certificate(self, cert_db, pem=None, der=None, **kwargs):
         """
         Parses the certificate, returns the parsed cert
         :param cert_db: 
@@ -2826,7 +2826,7 @@ class Server(object):
         :param der: 
         :return: (cryptography cert, list of alt names)
         """
-        return self.pki_manager.parse_certificate(cert_db, pem=None, der=None)
+        return self.pki_manager.parse_certificate(cert_db, pem=pem, der=der, **kwargs)
 
     def process_handshake_certs(self, s, resp, scan_db, do_job_subres=True):
         """

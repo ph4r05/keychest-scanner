@@ -36,7 +36,7 @@ class PkiManager(object):
         if 'config' in kwargs:
             self.config = kwargs.get('config')
 
-    def parse_certificate(self, cert_db, pem=None, der=None):
+    def parse_certificate(self, cert_db, pem=None, der=None, **kwargs):
         """
         Parses the certificate, returns the parsed cert
         :param cert_db:
