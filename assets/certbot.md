@@ -6,9 +6,9 @@ has to be configured in a way it proxies `.well-known` directory to the local Ke
 ## Nginx
 
 ```
-location / {
-    proxy_pass       https://agent.keychest.net/_le/$host/.well-known/;
-    proxy_set_header Host      $host;
+location /.well-known {
+    resolver         8.8.8.8;
+    proxy_pass       https://agent.keychest.net/_le/${host}${uri};
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $remote_addr;
 }
