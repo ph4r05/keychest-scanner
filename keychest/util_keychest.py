@@ -75,13 +75,13 @@ def encrypt_field_aes_cbc(app_key, field, serialize=True):
 
     mac_hex = compute_mac(app_key, iv=iv_base, value=ciphertext_base)
     js = collections.OrderedDict()
-    js['iv'] = iv_base
-    js['value'] = ciphertext_base
-    js['mac'] = mac_hex
+    js['iv'] = util.to_string(iv_base)
+    js['value'] = util.to_string(ciphertext_base)
+    js['mac'] = util.to_string(mac_hex)
 
     js_base = collections.OrderedDict()
     js_base['scheme'] = 'base'
-    js_base['val'] = base64.b64encode(json.dumps(js))
+    js_base['val'] = util.to_string(base64.b64encode(json.dumps(js)))
     return json.dumps(js_base)
 
 
@@ -97,12 +97,12 @@ def decrypt_field_aes_cbc(app_key, field, unserialize=True):
     :return:
     """
     js_base = json.loads(util.to_string(field))
-    enc_scheme = util.defvalkey(js_base, 'scheme')
+    enc_scheme = util.to_bytes(util.defvalkey(js_base, 'scheme'))
 
-    if enc_scheme != 'base':
+    if enc_scheme != b'base':
         raise ValueError('Unknown encryption scheme: %s' % enc_scheme)
 
-    payload = base64.b64decode(js_base['val'])
+    payload = base64.b64decode(util.to_bytes(js_base['val']))
     js = json.loads(payload)
 
     if 'iv' not in js or 'mac' not in js or 'value' not in js:
