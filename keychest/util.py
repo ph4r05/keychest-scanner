@@ -1804,8 +1804,8 @@ def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, 
     feeder = Feeder()
     p = run(cmd,
             input=feeder, async=True,
-            stdout=Capture(buffer_size=1),
-            stderr=Capture(buffer_size=1),
+            stdout=Capture(timeout=7, buffer_size=1),
+            stderr=Capture(timeout=7, buffer_size=1),
             cwd=cwd,
             shell=shell,
             env=env,
@@ -1872,6 +1872,7 @@ def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, 
             time.sleep(0.01)
 
         ret_code = p.commands[0].returncode
+        logger.debug('Command terminated with code: %s' % ret_code)
 
         # Collect output to accumulator
         rest_out = p.stdout.readlines()
