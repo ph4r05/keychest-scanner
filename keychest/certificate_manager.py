@@ -348,8 +348,6 @@ class CertificateManager(object):
                 cert_db.created_at = salch.func.now()
                 cert_db.pem = base64.b64encode(der)
                 cert_db.source = kwargs.get('source', 'handshake')
-                if cert_db.parent_id is None:
-                    cert_db.parent_id = prev_id
 
                 # new certificate - add
                 # lockfree - add, if exception on add, try fetch, then again add,
@@ -359,6 +357,9 @@ class CertificateManager(object):
                         num_new_results += 1
                 else:
                     cert_db = cert_existing[fprint]
+
+                if cert_db.parent_id is None:
+                    cert_db.parent_id = prev_id
 
                 all_cert_ids.add(cert_db.id)
 
@@ -372,5 +373,6 @@ class CertificateManager(object):
                 logger.error('Exception when processing a handshake certificate %s' % (e,))
                 self.trace_logger.log(e)
 
+        all_certs = list(reversed(all_certs))
         return all_certs, cert_existing.keys(), leaf_cert_id, num_new_results
 
