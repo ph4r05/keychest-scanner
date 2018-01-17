@@ -743,6 +743,8 @@ def strip_pem(x):
 
     pem = to_string(x).replace('-----BEGIN CERTIFICATE-----', '')
     pem = pem.replace('-----END CERTIFICATE-----', '')
+    pem = pem.replace('-----BEGIN PRIVATE KEY-----', '')
+    pem = pem.replace('-----END PRIVATE KEY-----', '')
     pem = pem.replace(' ', '')
     pem = pem.replace('\t', '')
     pem = pem.replace('\r', '')
