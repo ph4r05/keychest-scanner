@@ -876,6 +876,9 @@ class Server(object):
         except dns.resolver.NoAnswer:
             pass  # no cname
 
+        except dns.resolver.NXDOMAIN:
+            pass  # no CNAME
+
         except Exception as e:
             logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
             self.trace_logger.log(e)
