@@ -630,6 +630,7 @@ class ManagementModule(ServerModule):
         if new_cert:
             issue.new_certificate_id = new_cert.id
         issue.request_data = json.dumps(req_data)
+        issue.created_at = salch.func.now()
         issue.last_issue_at = salch.func.now()
         issue.last_issue_status = status
         return issue
@@ -888,17 +889,18 @@ class ManagementModule(ServerModule):
         ret, out, err = le_ins.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
-            finish_task(last_check_status=-2)
             renew_record.last_issue_status = -2
             renew_record.last_issue_data = json.dumps({'ret': ret, 'out':out, 'err': err})
             s.add(renew_record)
+            finish_task(last_check_status=-2)
             return
 
         # if certificate has changed, load certificate file to the database, update, signalize,...
-            finish_task()
         if not le_ins.cert_changed:
+            logger.debug('Certificate did not change for mgmt cert: %s, domain: %s' % (job.target.id, domains[0]))
             renew_record.last_issue_status = 2
             s.add(renew_record)
+            finish_task()
             return
 
         domain = domains[0]
