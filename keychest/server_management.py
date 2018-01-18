@@ -1099,7 +1099,7 @@ class ManagementModule(ServerModule):
             logger.info('Ansible check finished: %s for host %s, len(fact): %s' % (ret[0], host.id, len(facts_json)))
 
         except Exception as e:
-            logger.error('Exception on Ansible check', e)
+            logger.error('Exception on Ansible check %s' % e, exc_info=e)
             finish_task(ansible_last_status=-1)
 
 
