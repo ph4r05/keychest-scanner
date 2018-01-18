@@ -893,6 +893,7 @@ class ManagementModule(ServerModule):
             renew_record.last_issue_data = json.dumps({'ret': ret, 'out':out, 'err': err})
             s.add(renew_record)
             finish_task(last_check_status=-2)
+            self.events.on_renew_cerbot_fail(job, (ret, out, err))
             return
 
         # if certificate has changed, load certificate file to the database, update, signalize,...
@@ -1060,10 +1061,14 @@ class ManagementModule(ServerModule):
             out_json = json.dumps(out)
 
             new_max_deployed_id = max_cert_id if ret_code == 0 else test.max_certificate_id_deployed
-            job.target = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json,
+            job.target = self.update_object(s, test,
+                                            last_scan_status=ret[0],
+                                            last_scan_data=out_json,
                                             max_certificate_id_deployed=new_max_deployed_id)
 
             finish_task(test=job.target, last_scan_status=ret_code)
+
+            self.events.on_cert_deploy_finished(ret[0] == 0, job, ret)
 
         except Exception as e:
             util.silent_rollback(s)
@@ -1106,6 +1111,8 @@ class ManagementModule(ServerModule):
 
             finish_task(host=host)
             logger.info('Ansible check finished: %s for host %s, len(fact): %s' % (ret[0], host.id, len(facts_json)))
+
+            self.events.on_host_check_finished(ret[0] == 0, job, ret)
 
         except Exception as e:
             util.silent_rollback(s)
