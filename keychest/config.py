@@ -196,6 +196,11 @@ class Config(object):
     def monitor_disabled(self):
         return self.get_config('monitor_disabled', False)
 
+    # KC management disabled status
+    @property
+    def management_disabled(self):
+        return self.get_config('management_disabled', False)
+
     # Certbot base dir
     @property
     def certbot_base(self):

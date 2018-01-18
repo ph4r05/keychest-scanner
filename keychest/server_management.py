@@ -173,6 +173,10 @@ class ManagementModule(ServerModule):
         logger.info('Test target sync started')
         while self.is_running():
             self.server.interruptible_sleep(2)
+
+            if self.config.management_disabled:
+                continue
+
             try:
                 s = self.db.get_session()
                 q_sol = s.query(DbManagedSolution) \
@@ -266,6 +270,10 @@ class ManagementModule(ServerModule):
         logger.info('Managed cert sync started')
         while self.is_running():
             self.server.interruptible_sleep(2)
+
+            if self.config.management_disabled:
+                continue
+
             try:
                 s = self.db.get_session()
                 q_sol = s.query(DbManagedSolution) \
@@ -425,6 +433,9 @@ class ManagementModule(ServerModule):
         :param s:
         :return:
         """
+        if self.config.management_disabled:
+            return
+
         self.periodic_feeder_test(s)
         self.periodic_feeder_renew_check(s)
         self.periodic_feeder_host_check(s)
