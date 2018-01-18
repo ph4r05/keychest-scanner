@@ -1372,7 +1372,7 @@ class Server(object):
         """
         Updates last scan time for the job
         :param job:
-        :type job: PeriodicJob
+        :type job: BaseJob
         :return:
         """
         if job.type == JobTypes.TARGET:
