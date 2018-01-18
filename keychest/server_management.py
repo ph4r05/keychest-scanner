@@ -271,7 +271,7 @@ class ManagementModule(ServerModule):
                         s.commit()
 
             except Exception as e:
-                logger.error('Exception in processing job %s' % (e,))
+                logger.error('Exception in processing job %s' % e, exc_info=e)
                 self.trace_logger.log(e)
 
             finally:
@@ -348,7 +348,7 @@ class ManagementModule(ServerModule):
                         s.commit()
 
             except Exception as e:
-                logger.error('Exception in processing job %s' % (e,))
+                logger.error('Exception in processing job %s' % e, exc_info=e)
                 self.trace_logger.log(e)
 
             finally:
@@ -486,7 +486,7 @@ class ManagementModule(ServerModule):
 
         except Exception as e:
             util.silent_rollback(s, False)
-            logger.error('Exception loading watch jobs %s' % e)
+            logger.error('Exception loading watch jobs %s' % e, exc_info=e)
             self.trace_logger.log(e)
             raise
 
@@ -518,7 +518,7 @@ class ManagementModule(ServerModule):
 
         except Exception as e:
             util.silent_rollback(s, False)
-            logger.error('Exception loading watch jobs %s' % e)
+            logger.error('Exception loading watch jobs %s' % e, exc_info=e)
             self.trace_logger.log(e)
             raise
 
@@ -549,7 +549,7 @@ class ManagementModule(ServerModule):
 
         except Exception as e:
             util.silent_rollback(s, False)
-            logger.error('Exception loading host check jobs %s' % e)
+            logger.error('Exception loading host check jobs %s' % e, exc_info=e)
             self.trace_logger.log(e)
             raise
 
@@ -1058,7 +1058,7 @@ class ManagementModule(ServerModule):
             finish_task(test=test)
 
         except Exception as e:
-            logger.warning('Exception in cert sync %s for test %s', (e, job.target.id))
+            logger.warning('Exception in cert sync %s for test %s' % (e, job.target.id), exc_info=e)
             finish_task(last_scan_status=-2, last_scan_data='%s' % e)
             return
 
