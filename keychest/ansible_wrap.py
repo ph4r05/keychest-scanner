@@ -259,7 +259,8 @@ class AnsibleWrapper(object):
         ret = self.run_ansible(cmds=cmds, ansible_cmd='ansible-playbook', cwd=self.tmp_dir)
         out = util.try_load_json(ret[1])
 
-        # TODO: remove files fname_pl, fname_pld
+        util.try_delete_file(fname_pl)
+        util.try_delete_file(fname_pld)
 
         return ret[0], out, ret[2]
 
