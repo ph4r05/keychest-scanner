@@ -1026,6 +1026,11 @@ class ManagementModule(ServerModule):
             finish_task()
             return
 
+        # Refresh in job session
+        job.target = s.merge(job.target)
+        job.service = s.merge(job.service)
+        job.host = s.merge(job.host)
+
         # Get all managed certificates associated to the service
         mgmt_certs = list(s.query(DbManagedCertificate) \
                           .filter(DbManagedCertificate.solution_id == job.solution.id) \
@@ -1036,13 +1041,13 @@ class ManagementModule(ServerModule):
 
         if len(mgmt_certs) == 0:
             logger.debug('Nothing to sync for svc %d' % job.service.id)
-            finish_task()
+            finish_task(last_scan_status=-1)
             return
 
         max_cert_id = max([x.certificate_id for x in mgmt_certs])
         if job.target.max_certificate_id_deployed >= max_cert_id:
             logger.debug('All certs up to date on host %s' % job.host.id)
-            finish_task()
+            finish_task(last_scan_status=-2)
             return
 
         # Currently only one certificate per service is supported.
@@ -1057,14 +1062,15 @@ class ManagementModule(ServerModule):
             out_json = json.dumps(out)
 
             new_max_deployed_id = max_cert_id if ret_code == 0 else test.max_certificate_id_deployed
-            test = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json,
-                                      max_certificate_id_deployed=new_max_deployed_id)
+            job.target = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json,
+                                            max_certificate_id_deployed=new_max_deployed_id)
 
-            finish_task(test=test)
+            finish_task(test=job.target, last_scan_status=ret_code)
 
         except Exception as e:
+            util.silent_rollback(s)
             logger.warning('Exception in cert sync %s for test %s' % (e, job.target.id), exc_info=e)
-            finish_task(last_scan_status=-2, last_scan_data='%s' % e)
+            finish_task(last_scan_status=-10, last_scan_data='%s' % e)
             return
 
     def process_host_check_job_body(self, s, job):
@@ -1104,6 +1110,7 @@ class ManagementModule(ServerModule):
             logger.info('Ansible check finished: %s for host %s, len(fact): %s' % (ret[0], host.id, len(facts_json)))
 
         except Exception as e:
+            util.silent_rollback(s)
             logger.error('Exception on Ansible check %s' % e, exc_info=e)
             finish_task(ansible_last_status=-1)
 
