@@ -565,11 +565,13 @@ class ManagementModule(ServerModule):
         s = self.db.get_session()
         try:
             if isinstance(job, PeriodicMgmtTestJob):
+                job.target = s.merge(job.target)
                 stmt = DbManagedTest.__table__.update() \
                     .where(DbManagedTest.id == job.target.id) \
                     .values(last_scan_at=salch.func.now())
 
             elif isinstance(job, PeriodicMgmtRenewalJob):
+                job.managed_certificate = s.merge(job.managed_certificate)
                 stmt = DbManagedCertificate.__table__.update() \
                     .where(DbManagedCertificate.id == job.managed_certificate.id) \
                     .values(last_check_at=salch.func.now())
