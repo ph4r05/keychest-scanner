@@ -400,17 +400,29 @@ class PeriodicMgmtCertCheckJob(BaseJob):
     non-direct method.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super(PeriodicMgmtCertCheckJob, self).__init__(type=JobTypes.MGMT_CERT_CHECK)
+        self._id = None
+        self._service = None
         self.service = kwargs.get('service')
 
+    @property
+    def service(self):
+        return self._service
+
+    @service.setter
+    def service(self, val):
+        self._service = val
+        if val:
+            self._id = val.id
+
     def key(self):
-        return 'mgmt_cert_check_%s' % self.service.id
+        return 'mgmt_cert_check_%s' % self._id
 
     def cmpval(self):
         return self.attempts, \
                self.later, \
-               self.service.id
+               self._id
 
 
 class PeriodicMgmtRenewalJob(BaseJob):
@@ -418,7 +430,7 @@ class PeriodicMgmtRenewalJob(BaseJob):
     Check if the renewal for the managed service is not needed, performs the renewal
     """
 
-    def __init__(self, target=None, *args, **kwargs):
+    def __init__(self, target=None, **kwargs):
         """
         :param target:
         :type target: DbManagedService
@@ -426,6 +438,10 @@ class PeriodicMgmtRenewalJob(BaseJob):
         :param kwargs:
         """
         super(PeriodicMgmtRenewalJob, self).__init__(type=JobTypes.MGMT_RENEW)
+
+        self._id = None
+        self._svc_name = None
+        self._target = None
 
         self.target = target  # type: DbManagedService
         self.solution = kwargs.get('solution')  # type: DbManagedSolution
@@ -436,27 +452,38 @@ class PeriodicMgmtRenewalJob(BaseJob):
 
         self.results = ScanResults()
 
+    @property
+    def target(self):
+        return self._target
+
+    @target.setter
+    def target(self, val):
+        self._target = val
+        if val:
+            self._id = val.id
+            self._svc_name = val.svc_name
+
     def key(self):
-        return 'mgmt_renew_%s' % self.target.id
+        return 'mgmt_renew_%s' % self._id
 
     def cmpval(self):
         return self.attempts, \
                self.later, \
-               self.target.id
+               self._id
 
     def record_id(self):
         """
         Returns watch target id
         :return:
         """
-        return self.target.id
+        return self._id
 
     def __repr__(self):
         try:
             return '<PeriodicMgmtRenewalJob(target=<DbManagedService(id=%r, self=%r)>, attempts=%r, later=%r,' \
                    'svc_name=%r)>' \
-                   % (self.target.id, self.target, self.attempts, self.later,
-                      self.target.svc_name)
+                   % (self._id, self.target, self.attempts, self.later,
+                      self._svc_name)
 
         except Exception as e:
             logger.error('Exception in repr: %s' % e)
@@ -468,7 +495,7 @@ class PeriodicMgmtTestJob(BaseJob):
     Represents periodic job loaded from the db for managed service testing
     """
 
-    def __init__(self, target=None, type=None, *args, **kwargs):
+    def __init__(self, target=None, **kwargs):
         """
         :param target:
         :type target: DbManagedTest
@@ -476,6 +503,11 @@ class PeriodicMgmtTestJob(BaseJob):
         :param kwargs:
         """
         super(PeriodicMgmtTestJob, self).__init__(type=JobTypes.MGMT_TEST)
+
+        self._id = None
+        self._host_id = None
+        self._last_scan_at = None
+        self._target = None
 
         self.target = target  # type: DbManagedTest
         self.solution = kwargs.get('solution')  # type: DbManagedSolution
@@ -486,28 +518,40 @@ class PeriodicMgmtTestJob(BaseJob):
 
         self.results = ScanResults()
 
+    @property
+    def target(self):
+        return self._target
+
+    @target.setter
+    def target(self, val):
+        self._target = val
+        if val:
+            self._id = val.id
+            self._host_id = val.host_id
+            self._last_scan_at = val.last_scan_at
+
     def key(self):
-        return 'mgmt_test_%s' % self.target.id
+        return 'mgmt_test_%s' % self._id
 
     def cmpval(self):
         return self.attempts, \
                self.later, \
-               self.target.last_scan_at is None, \
-               self.target.last_scan_at
+               self._last_scan_at is None, \
+               self._last_scan_at
 
     def record_id(self):
         """
         Returns watch target id
         :return:
         """
-        return self.target.id
+        return self._id
 
     def __repr__(self):
         try:
             return '<PeriodicMgmtTestJob(target=<DbManagedTest(id=%r, self=%r)>, attempts=%r, later=%r,' \
                    'host_id=%r, last_scan_at=%r)>' \
-                   % (self.target.id, self.target, self.attempts, self.later,
-                      self.target.host_id, self.target.last_scan_at)
+                   % (self._id, self.target, self.attempts, self.later,
+                      self._host_id, self._last_scan_at)
 
         except Exception as e:
             logger.error('Exception in repr: %s' % e)
@@ -528,34 +572,49 @@ class PeriodicMgmtHostCheckJob(BaseJob):
         """
         super(PeriodicMgmtHostCheckJob, self).__init__(type=JobTypes.MGMT_HOST_CHECK)
 
+        self._id = None
+        self._ansible_last_ping = None
+        self._target = None
+
         self.target = target  # type: DbManagedHost
         self.agent = kwargs.get('agent')  # type: DbKeychestAgent
         self.owner = kwargs.get('owner')
 
         self.results = ScanResults()
 
+    @property
+    def target(self):
+        return self._target
+
+    @target.setter
+    def target(self, val):
+        self._target = val
+        if val:
+            self._id = val.id
+            self._ansible_last_ping = val.ansible_last_ping
+
     def key(self):
-        return 'mgmt_host_check_%s' % self.target.id
+        return 'mgmt_host_check_%s' % self._id
 
     def cmpval(self):
         return self.attempts, \
                self.later, \
-               self.target.ansible_last_ping is None, \
-               self.target.ansible_last_ping
+               self._ansible_last_ping is None, \
+               self._ansible_last_ping
 
     def record_id(self):
         """
         Returns watch target id
         :return:
         """
-        return self.target.id
+        return self._id
 
     def __repr__(self):
         try:
             return '<PeriodicMgmtHostCheckJob(target=<DbManagedHost(id=%r, self=%r)>, attempts=%r, later=%r,' \
                    'last_scan_at=%r)>' \
-                   % (self.target.id, self.target, self.attempts, self.later,
-                      self.target.ansible_last_ping)
+                   % (self._id, self.target, self.attempts, self.later,
+                      self._ansible_last_ping)
 
         except Exception as e:
             logger.error('Exception in repr: %s' % e)
