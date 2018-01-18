@@ -130,7 +130,7 @@ class CertificateManager(object):
         chunks = pem_file.split(sep)
         chunks = [util.strip(chunk) for chunk in chunks if chunk is not None]
         chunks = [chunk for chunk in chunks if len(chunk) > 0]
-        return '\n'.join([sep + '\n' + x for x in chunks]) + '\n'
+        return [sep + '\n' + x for x in chunks]
 
     @staticmethod
     def get_privkey_hash(pem=None, der=None):
