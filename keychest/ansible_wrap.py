@@ -117,6 +117,16 @@ class AnsibleWrapper(object):
         kwargs.setdefault('default_flow_style', False)
         return yaml.dump(obj, **kwargs)
 
+    @staticmethod
+    def obj2json(obj, **kwargs):
+        """
+        Transforms python object hierarchy to JSON
+        :param obj:
+        :return:
+        """
+        kwargs.setdefault('indent', 2)
+        return json.dumps(obj, cls=util.AutoJSONEncoder, **kwargs)
+
     def generate_cert_deploy_playbook(self, host, service, primary_domain):
         """
         Generates Ansible playbook for the certificate deployment
@@ -234,11 +244,11 @@ class AnsibleWrapper(object):
         self.last_playbook_data = play_data
 
         # Generate playbook data to temp dir
-        playbook_yml = AnsibleWrapper.obj2yml(playbook)
-        fh_pl, fname_pl = util.unique_file(path=os.path.join(self.tmp_dir, 'cert_playbook.yml'), mode=0o600)
+        playbook_txt = AnsibleWrapper.obj2json(playbook)
+        fh_pl, fname_pl = util.unique_file(path=os.path.join(self.tmp_dir, 'cert_playbook.json'), mode=0o600)
         fh_pld, fname_pld = util.unique_file(path=os.path.join(self.tmp_dir, 'cert_playbook_data.json'), mode=0o600)
         with fh_pl, fh_pld:
-            fh_pl.write(playbook_yml)
+            fh_pl.write(playbook_txt)
             fh_pld.write(json.dumps(playbook_data, indent=2, cls=util.AutoJSONEncoder))
 
         cmds = '-l %s --extra-vars %s %s ' % (
@@ -248,6 +258,8 @@ class AnsibleWrapper(object):
         )
         ret = self.run_ansible(cmds=cmds, ansible_cmd='ansible-playbook', cwd=self.tmp_dir)
         out = util.try_load_json(ret[1])
+
+        # TODO: remove files fname_pl, fname_pld
 
         return ret[0], out, ret[2]
 
