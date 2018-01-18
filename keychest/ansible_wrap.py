@@ -39,7 +39,7 @@ class AnsiblePlaybooks(object):
     def apache_reload():
         return {
             'name': 'Reload webserver',
-            'service': 'name=apache state=reloaded'
+            'service': 'name=apache state=reloaded',
         }
 
     @staticmethod
@@ -47,8 +47,8 @@ class AnsiblePlaybooks(object):
         return {
             "name": "Privkey privileges",
             "file": {
-                "path": "{{ privkey_path }}" if privkey_path is None else '%s' % privkey_path,
-                "mode": 0o600
+                "path": ("{{ privkey_path }}" if privkey_path is None else '%s' % privkey_path),
+                "mode": '0600',
             }
         }
 
@@ -57,8 +57,8 @@ class AnsiblePlaybooks(object):
         return {
             "name": "Copy certificates",
             "copy": {
-                "src": "{{ certs_src }}" if certs_src is None else '%s' % certs_src,
-                "dest": "{{ certs_dst }}" if certs_dst is None else '%s' % certs_dst,
+                "src": ("{{ certs_src }}" if certs_src is None else '%s' % certs_src),
+                "dest": ("{{ certs_dst }}" if certs_dst is None else '%s' % certs_dst),
             }
         }
 
@@ -67,12 +67,12 @@ class AnsiblePlaybooks(object):
         return {
             "name": "Sync certs",
             "synchronize": {
-                "src": "{{ certs_src }}/" if certs_src is None else '%s' % certs_src,
-                "dest": "{{ certs_dst }}/" if certs_dst is None else '%s' % certs_dst,
+                "src": ("{{ certs_src }}/" if certs_src is None else '%s' % certs_src),
+                "dest": ("{{ certs_dst }}/" if certs_dst is None else '%s' % certs_dst),
                 "checksum": "yes",
                 "rsync_opts": [
-                    "-L"
-                ]
+                    "'-L'"
+                ],
             }
         }
 
