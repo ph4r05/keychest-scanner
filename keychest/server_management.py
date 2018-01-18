@@ -844,9 +844,10 @@ class ManagementModule(ServerModule):
         # For now support only simple use cases. E.g., LetsEncrypt renewal.
         # LE Renewal: call Certbot, fetch new certificate from the cert store, deploy later.
         # LE certbot should run on the agent. For now on the master directly.
-
-        if job.target.svc_ca.pki_type != 'LE':
-            logger.info('CA not supported for renewal: %s' % job.target.svc_ca.pki_type)
+        job.target = s.merge(job.target)
+        pki_type = job.target.svc_ca.pki_type if job.target.svc_ca is not None else None
+        if pki_type != 'LE':
+            logger.info('CA not supported for renewal: %s' % pki_type)
             finish_task()
             return
 
@@ -857,7 +858,7 @@ class ManagementModule(ServerModule):
 
         req_data = collections.OrderedDict()
         req_data['CA'] = job.target.svc_ca.id
-        req_data['CA_type'] = job.target.svc_ca.pki_type
+        req_data['CA_type'] = pki_type
         req_data['domains'] = domains
         renew_record = self.create_renew_record(job, req_data=req_data)
 
