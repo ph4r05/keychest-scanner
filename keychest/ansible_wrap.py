@@ -152,7 +152,7 @@ class AnsibleWrapper(object):
         elif service.svc_provider == 'apache':
             tasks.append(AnsiblePlaybooks.apache_reload())
 
-        playbook['hosts'] = host.host_addr
+        playbook['hosts'] = [host.host_addr]
         playbook['tasks'] = tasks
 
         # PKI dependent paths, svc dependent
@@ -241,9 +241,9 @@ class AnsibleWrapper(object):
             fh_pl.write(playbook_yml)
             fh_pld.write(json.dumps(playbook_data, indent=2, cls=util.AutoJSONEncoder))
 
-        cmds = '-l %s --extra-vars "@%s" %s ' % (
+        cmds = '-l %s --extra-vars %s %s ' % (
             host.host_addr,
-            util.escape_shell(fname_pld),
+            util.escape_shell('@%s' % fname_pld),
             util.escape_shell(fname_pl)
         )
         ret = self.run_ansible(cmds=cmds, ansible_cmd='ansible-playbook', cwd=self.tmp_dir)
