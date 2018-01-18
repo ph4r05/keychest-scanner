@@ -975,7 +975,7 @@ class ManagementModule(ServerModule):
             cur_chain.created_at = cur_chain.updated_at = salch.func.now()
 
         if not new_leaf_cert:
-            finish_task()
+            finish_task(last_check_status=4)
             return
 
         # Cert issue record - store renewal happened
@@ -991,7 +991,7 @@ class ManagementModule(ServerModule):
 
         # Trigger tests - set last scan to null
         self.trigger_test_managed_tests(s, solution_id=job.solution.id, service_id=job.target.id)
-        finish_task()
+        finish_task(last_check_status=0)
 
     def process_test_job_body(self, s, job):
         """
