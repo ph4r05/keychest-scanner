@@ -481,11 +481,11 @@ class TlsHandshaker(object):
             resp_bin_acc.append(resp_bin)
             # resp_bin_tot = util.join_buff(resp_bin_acc)
             resp_bin_tot = b''.join(resp_bin_acc)
-            
+
             try:
                 # rec = SSL(resp_bin_tot)
                 rec = TLS(resp_bin_tot)
-                logger.info('rec...')
+
                 return_obj.resp_record = rec
 
                 alert_record = self._get_failure(rec)
