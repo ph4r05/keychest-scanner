@@ -71,7 +71,7 @@ class AnsiblePlaybooks(object):
                 "dest": ("{{ certs_dst }}/" if certs_dst is None else '%s' % certs_dst),
                 "checksum": "yes",
                 "rsync_opts": [
-                    "'-L'"
+                    "-L"
                 ],
             }
         }
