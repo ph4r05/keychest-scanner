@@ -275,6 +275,23 @@ def dir_backup(path, chmod=0o644, backup_dir=None):
     return backup_path
 
 
+def try_delete_file(path, quiet=True):
+    """
+    Deletes the file, swallows exception
+    :param path:
+    :param chmod:
+    :param backup_dir:
+    :param backup_suffix: if defined, suffix is appended to the backup file (e.g., .backup)
+    :return:
+    """
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        if not quiet:
+            logger.error('Exception in file delete %s: %s' % (path, e), exc_info=e)
+
+
 def delete_file_backup(path, chmod=0o644, backup_dir=None, backup_suffix=None):
     """
     Backup the current file by moving it to a new file
