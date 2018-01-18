@@ -544,31 +544,34 @@ def decrypt(key, iv, ciphertext, tag, associated_data=None):
     return decryptor.update(ciphertext) + decryptor.finalize()
 
 
-def silent_close(c):
+def silent_close(c, quiet=True):
     # noinspection PyBroadException
     try:
         if c is not None:
             c.close()
-    except:
-        pass
+    except Exception as e:
+        if not quiet:
+            logger.error('Close exception: %s' % e)
 
 
-def silent_rollback(c):
+def silent_rollback(c, quiet=True):
     # noinspection PyBroadException
     try:
         if c is not None:
             c.rollback()
-    except:
-        pass
+    except Exception as e:
+        if not quiet:
+            logger.error('Rollback exception: %s' % e)
 
 
-def silent_expunge_all(c):
+def silent_expunge_all(c, quiet=True):
     # noinspection PyBroadException
     try:
         if c is not None:
             c.expunge_all()()
-    except:
-        pass
+    except Exception as e:
+        if not quiet:
+            logger.error('Expunge exception: %s' % e)
 
 
 def unix_time(dt):
