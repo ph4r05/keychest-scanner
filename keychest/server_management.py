@@ -1004,14 +1004,15 @@ class ManagementModule(ServerModule):
             .filter(DbManagedCertificate.solution_id == job.solution.id) \
             .filter(DbManagedCertificate.service_id == job.service.id) \
             .filter(DbManagedCertificate.record_deprecated_at == None) \
-            .all())
+            .filter(DbManagedCertificate.certificate_id is not None)\
+            .all())  # type: list[DbManagedCertificate]
 
         if len(mgmt_certs) == 0:
             logger.debug('Nothing to sync for svc %d' % job.service.id)
             finish_task()
             return
 
-        max_cert_id = max([x.id for x in mgmt_certs])
+        max_cert_id = max([x.certificate_id for x in mgmt_certs])
         if job.target.max_certificate_id_deployed >= max_cert_id:
             logger.debug('All certs up to date on host %s' % job.host.id)
             finish_task()
@@ -1022,11 +1023,15 @@ class ManagementModule(ServerModule):
         try:
             ansible = self.get_thread_ansible_wrapper()
             ret = ansible.deploy_certs(host=job.host, service=job.service, primary_domain=job.service.svc_name)
+            ret_code = ret[0]
             test = job.target
 
             out = ret[1]
             out_json = json.dumps(out)
-            test = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json)
+
+            new_max_deployed_id = max_cert_id if ret_code == 0 else test.max_certificate_id_deployed
+            test = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json,
+                                      max_certificate_id_deployed=new_max_deployed_id)
 
             finish_task(test=test)
 
