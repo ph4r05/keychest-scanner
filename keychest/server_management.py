@@ -13,22 +13,19 @@ from . import util
 from .letsencrypt import LetsEncrypt
 from .config import Config
 from .redis_queue import RedisQueue
-from .import redis_helper as rh
 from .trace_logger import Tracelogger
 from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob, \
     PeriodicMgmtHostCheckJob
 
-from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
 from .server_module import ServerModule
 from .audit import AuditManager
 from .ebsysconfig import SysConfig
 from .ansible_wrap import AnsibleWrapper
-from .server_data import EmailArtifact, EmailArtifactTypes
 from .pki_manager import PkiManager
 from .certificate_manager import CertificateManager
 from .database_manager import DatabaseManager
-from .dbutil import DbKeycheckerStats, DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
+from .dbutil import DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
     DbManagedCertChain, DbManagedPrivate, DbHelper
@@ -44,9 +41,6 @@ import logging
 import threading
 import collections
 import base64
-import imaplib
-import email
-import email.message as emsg
 import datetime
 from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
@@ -890,7 +884,7 @@ class ManagementModule(ServerModule):
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
             renew_record.last_issue_status = -2
-            renew_record.last_issue_data = json.dumps({'ret': ret, 'out':out, 'err': err})
+            renew_record.last_issue_data = json.dumps({'ret': ret, 'out': out, 'err': err})
             s.add(renew_record)
             finish_task(last_check_status=-2)
             self.events.on_renew_cerbot_fail(job, (ret, out, err))
