@@ -103,15 +103,10 @@ class ManagementModule(ServerModule):
                                       default_queue='queues:management',
                                       event_queue='queues:management-evt')
 
-        self.le = LetsEncrypt(config=self.config,
-                              config_dir=os.path.join(self.config.certbot_base, 'conf'),
-                              work_dir=os.path.join(self.config.certbot_base, 'work'),
-                              log_dir=os.path.join(self.config.certbot_base, 'log'),
-                              webroot_dir=self.config.certbot_webroot
-                              )
-
+        self.le = self.new_le()
         self.ansible = self.new_ansible_wrapper()
         self.local_data.ansible = None
+        self.local_data.le = None
 
         self.db_manager = server.db_manager
         self.cert_manager = server.cert_manager
@@ -130,6 +125,20 @@ class ManagementModule(ServerModule):
             syscfg=self.syscfg
         )
 
+    def new_le(self):
+        """
+        Constructs new LE
+        :return:
+        """
+        le = LetsEncrypt(config=self.config,
+                         config_dir=os.path.join(self.config.certbot_base, 'conf'),
+                         work_dir=os.path.join(self.config.certbot_base, 'work'),
+                         log_dir=os.path.join(self.config.certbot_base, 'log'),
+                         webroot_dir=self.config.certbot_webroot
+                         )
+        le.staging = True  # TODO: remove staging in production
+        return le
+
     def get_thread_ansible_wrapper(self):
         """
         Thread local ansible wrapper
@@ -139,6 +148,16 @@ class ManagementModule(ServerModule):
         if not hasattr(self.local_data, 'ansible') or self.local_data.ansible is None:
             self.local_data.ansible = self.new_ansible_wrapper()
         return self.local_data.ansible
+
+    def get_thread_le(self):
+        """
+        Thread local LE
+        :return:
+        :rtype: LetsEncrypt
+        """
+        if not hasattr(self.local_data, 'le') or self.local_data.le is None:
+            self.local_data.le = self.new_le()
+        return self.local_data.le
 
     def shutdown(self):
         """
@@ -865,7 +884,8 @@ class ManagementModule(ServerModule):
         # Perform proxied domain validation with certbot, attempt renew / issue.
         # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
         # Move to the pki_manager
-        ret, out, err = self.le.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
+        le_ins = self.get_thread_le()
+        ret, out, err = le_ins.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
             logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
             finish_task(last_check_status=-2)
@@ -875,14 +895,14 @@ class ManagementModule(ServerModule):
             return
 
         # if certificate has changed, load certificate file to the database, update, signalize,...
-        if not self.le.cert_changed:
             finish_task()
+        if not le_ins.cert_changed:
             renew_record.last_issue_status = 2
             s.add(renew_record)
             return
 
         domain = domains[0]
-        priv_file, cert_file, ca_file = self.le.get_cert_paths(domain=domain)
+        priv_file, cert_file, ca_file = le_ins.get_cert_paths(domain=domain)
         pki_files = []
 
         # Load given files to memory
