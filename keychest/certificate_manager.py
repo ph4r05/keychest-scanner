@@ -70,9 +70,11 @@ class CertificateManager(object):
         """
         cert = None  # type: X509Certificate
         if pem is not None:
-            cert = util.load_x509_der(util.pem_to_der(str(cert_db.pem)))
+            cert = util.load_x509_der(util.pem_to_der(pem))
         elif der is not None:
             cert = util.load_x509_der(der)
+        elif cert_db is not None and cert_db.pem is not None:
+            cert = util.load_x509_der(util.pem_to_der(cert_db.pem))
         else:
             raise ValueError('No certificate provided')
 
@@ -358,7 +360,7 @@ class CertificateManager(object):
             try:
                 cert_db = Certificate()
 
-                der = cert_obj if is_der else util.pem_to_der(util.to_string(str(cert_db.pem)))
+                der = cert_obj if is_der else util.pem_to_der(util.to_string(str(cert_obj)))
                 cert = self.parse_certificate(cert_db, der=der)
 
                 local_db.append((cert_db, cert, cert_db.alt_names_arr, der))
