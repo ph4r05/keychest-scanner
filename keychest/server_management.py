@@ -957,11 +957,13 @@ class ManagementModule(ServerModule):
             job.managed_certificate = s.merge(job.managed_certificate)
             job.managed_certificate.record_deprecated_at = salch.func.now()  # deprecate current record
 
-            new_managed_cert = DbHelper.clone_model(s, job.managed_certificate)  # type: DbManagedCertificate
+            new_managed_cert = DbHelper.clone_model(s, job.managed_certificate, do_copy=False)  # type: DbManagedCertificate
+            new_managed_cert.id = None
             new_managed_cert.certificate_id = leaf_cert.id
-            new_managed_cert.deprecated_certificate_id = job.managed_certificate.certificate_id
+            new_managed_cert.deprecated_certificate_id = job.certificate.id if job.certificate else None
             new_managed_cert.record_deprecated_at = None
             new_managed_cert.last_check_at = salch.func.now()
+            new_managed_cert.last_check_status = 100
             new_managed_cert.created_at = new_managed_cert.updated_at = salch.func.now()
             s.add(new_managed_cert)
 
@@ -972,9 +974,11 @@ class ManagementModule(ServerModule):
 
         for idx, cert in enumerate(chain_certs):
             cur_chain = DbManagedCertChain()
+            cur_chain.order_num = idx
             cur_chain.certificate_id = leaf_cert.id
             cur_chain.chain_certificate_id = cert.id
             cur_chain.created_at = cur_chain.updated_at = salch.func.now()
+            s.add(cur_chain)
 
         if not new_leaf_cert:
             finish_task(last_check_status=4)
