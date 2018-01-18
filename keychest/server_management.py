@@ -85,7 +85,7 @@ class ManagementModule(ServerModule):
 
         self.db_manager = None  # type: DatabaseManager
         self.cert_manager = None  # type: CertificateManager
-        self.pki_manager = None  # type: DatabaseManager
+        self.pki_manager = None  # type: PkiManager
         self.audit = AuditManager(disabled=True)
         self.syscfg = SysConfig(audit=self.audit)
         self.ansible = None  # type: AnsibleWrapper
