@@ -334,7 +334,7 @@ class CertificateManager(object):
             return cert_db, is_new_cert
 
         except Exception as e:
-            logger.error('Exception when processing a certificate %s' % (e,))
+            logger.error('Exception when processing a certificate: %s' % e)
             self.trace_logger.log(e)
         return None, False
 
@@ -365,7 +365,7 @@ class CertificateManager(object):
                 fprints_handshake.add(cert_db.fprint_sha1)
 
             except Exception as e:
-                logger.error('Exception when processing a certificate %s' % (e,))
+                logger.error('Exception when processing a certificate %s' % e)
                 self.trace_logger.log(e)
 
         # load existing certificates by fingerprints
@@ -407,7 +407,7 @@ class CertificateManager(object):
                 all_certs.append(cert_db)
 
             except Exception as e:
-                logger.error('Exception when processing a handshake certificate %s' % (e,))
+                logger.error('Exception when processing a handshake certificate %s' % e)
                 self.trace_logger.log(e)
 
         all_certs = list(reversed(all_certs))
