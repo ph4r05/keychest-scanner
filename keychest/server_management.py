@@ -900,7 +900,7 @@ class ManagementModule(ServerModule):
             logger.debug('Certificate did not change for mgmt cert: %s, domain: %s' % (job.target.id, domains[0]))
             renew_record.last_issue_status = 2
             s.add(renew_record)
-            finish_task()
+            finish_task(last_check_status=2)
             return
 
         domain = domains[0]
