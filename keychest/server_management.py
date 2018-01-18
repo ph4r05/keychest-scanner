@@ -821,6 +821,7 @@ class ManagementModule(ServerModule):
             """Simple finish callback"""
             job.results.ok()
             self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now(), **kwargs)
+            s.commit()
 
         # Is the certificate eligible for renewal?
         # if LE then 1 month before expiration. CA: job.target.svc_ca
@@ -990,6 +991,7 @@ class ManagementModule(ServerModule):
             """Simple finish callback"""
             job.results.ok()
             self.finish_test_object(s, test if test else job.target, last_scan_at=salch.func.now(), **kwargs)
+            s.commit()
 
         if job.host is None:
             logger.info('Unsupported check without host ID')
@@ -1026,7 +1028,6 @@ class ManagementModule(ServerModule):
             test = self.update_object(s, test, last_scan_status=ret[0], last_scan_data=out_json)
 
             finish_task(test=test)
-            s.commit()
 
         except Exception as e:
             logger.warning('Exception in cert sync %s for test %s', (e, job.target.id))
@@ -1047,6 +1048,7 @@ class ManagementModule(ServerModule):
             job.results.ok()
             self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(),
                                     last_scan=False, **kwargs)
+            s.commit()
 
         if not job.target.has_ansible:
             logger.warning('Host check of non-Ansible host %s' % job.target.id)
@@ -1066,8 +1068,6 @@ class ManagementModule(ServerModule):
             host = self.update_object(s, host, ansible_last_status=ret[0], host_ansible_facts=facts_json)
 
             finish_task(host=host)
-            s.commit()
-
             logger.info('Ansible check finished: %s for host %s, len(fact): %s' % (ret[0], host.id, len(facts_json)))
 
         except Exception as e:
