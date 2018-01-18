@@ -599,7 +599,6 @@ class ManagementModule(ServerModule):
         :param service_id:
         :return:
         """
-        s = self.db.get_session()
         try:
             stmt = DbManagedTest.__table__.update() \
                 .where(DbManagedTest.solution_id == solution_id) \
@@ -609,8 +608,7 @@ class ManagementModule(ServerModule):
             s.commit()
 
         finally:
-            util.silent_expunge_all(s)
-            util.silent_close(s)
+            util.silent_rollback(s, False)
 
         return True
 
