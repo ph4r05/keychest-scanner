@@ -671,6 +671,7 @@ class ManagementModule(ServerModule):
         :return:
         """
         if not isinstance(job, PeriodicMgmtRenewalJob):
+            logger.error('Invalid job passed (renew): %s' % job)
             return False
 
         logger.debug('Processing Mgmt renew job: %s, qsize: %s, sems: %s'
@@ -826,13 +827,15 @@ class ManagementModule(ServerModule):
         # For now all CAs will have 28 days before expiration renewal period.
         renewal_period = datetime.timedelta(days=28)
 
-        if not job.certificate:
+        if not job.managed_certificate:
             # Certificate not yet linked
+            logger.debug('Not renewing certificate - not linked %s' % job.target.id)
             finish_task()
             return
 
-        if datetime.datetime.now() + renewal_period >= job.certificate.valid_to:
+        if job.certificate and datetime.datetime.now() + renewal_period >= job.certificate.valid_to:
             # No renewal needed here
+            logger.debug('Not renewing - cert valid: %s' % job.target.id)
             finish_task()
             return
 
