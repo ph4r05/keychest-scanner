@@ -315,7 +315,8 @@ class ManagementModule(ServerModule):
                                 .filter(Certificate.id == tls_scan.cert_id_leaf)\
                                 .first()  # type: Certificate
 
-                            svc.svc_aux_names = json.dumps(cert_db.alt_names_arr)
+                            alt_names = cert_db.alt_names_arr if cert_db else []
+                            svc.svc_aux_names = json.dumps(alt_names)
 
                         s.commit()
 
