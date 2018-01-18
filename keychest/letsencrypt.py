@@ -248,6 +248,7 @@ class LetsEncrypt(object):
             return 100
 
     def print_error(self, msg):
+        logger.error(msg)
         if self.print_output:
             sys.stderr.write(msg)
 
