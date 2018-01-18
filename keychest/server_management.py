@@ -381,9 +381,9 @@ class ManagementModule(ServerModule):
         """
         q = s.query(DbManagedCertificate, Certificate, DbManagedSolution, DbManagedService, DbManagedTestProfile,
                     DbKeychestAgent) \
-            .join(Certificate, Certificate.id == DbManagedCertificate.certificate_id) \
             .join(DbManagedSolution, DbManagedSolution.id == DbManagedCertificate.solution_id) \
             .join(DbManagedService, DbManagedService.id == DbManagedCertificate.service_id) \
+            .outerjoin(Certificate, Certificate.id == DbManagedCertificate.certificate_id) \
             .outerjoin(DbManagedTestProfile, DbManagedTestProfile.id == DbManagedService.test_profile_id) \
             .outerjoin(DbKeychestAgent, DbKeychestAgent.id == DbManagedService.agent_id) \
             .filter(DbManagedCertificate.record_deprecated_at == None)
