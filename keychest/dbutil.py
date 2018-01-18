@@ -2355,19 +2355,20 @@ class DbHelper(object):
         return ret
 
     @staticmethod
-    def clone_model(s, obj):
+    def clone_model(s, obj, do_copy=True):
         """
         Clones model with visitor function support for clonning transient fields.
         New model is detached from all sessions retaining all values.
         :param s:
         :param obj:
+        :param do_copy: if true copy.copy is used to create a new object
         :return:
         """
         if obj is None:
             return None
         model = obj.__class__
         cols = model.__table__.columns
-        ret = copy.copy(obj)
+        ret = copy.copy(obj) if do_copy else model()
 
         def sub_clone(obj):
             return DbHelper.clone_model(s, obj)
