@@ -466,7 +466,7 @@ class ManagementModule(ServerModule):
             return
 
         except Exception as e:
-            s.rollback()
+            util.silent_rollback(s, False)
             logger.error('Exception loading watch jobs %s' % e)
             self.trace_logger.log(e)
             raise
@@ -498,7 +498,7 @@ class ManagementModule(ServerModule):
             return
 
         except Exception as e:
-            s.rollback()
+            util.silent_rollback(s, False)
             logger.error('Exception loading watch jobs %s' % e)
             self.trace_logger.log(e)
             raise
@@ -529,7 +529,7 @@ class ManagementModule(ServerModule):
             return
 
         except Exception as e:
-            s.rollback()
+            util.silent_rollback(s, False)
             logger.error('Exception loading host check jobs %s' % e)
             self.trace_logger.log(e)
             raise
