@@ -919,7 +919,6 @@ class ManagementModule(ServerModule):
         res = self.cert_manager.process_full_chain(s, cert_chain=chain_arr, is_der=False)
 
         all_certs = res[0]
-        cert_existing = res[1]
         if len(all_certs) == 0:
             logger.warning('LE Chain is empty')
             return
@@ -1029,11 +1028,11 @@ class ManagementModule(ServerModule):
 
         # Get all managed certificates associated to the service
         mgmt_certs = list(s.query(DbManagedCertificate) \
-            .filter(DbManagedCertificate.solution_id == job.solution.id) \
-            .filter(DbManagedCertificate.service_id == job.service.id) \
-            .filter(DbManagedCertificate.record_deprecated_at == None) \
-            .filter(DbManagedCertificate.certificate_id is not None)\
-            .all())  # type: list[DbManagedCertificate]
+                          .filter(DbManagedCertificate.solution_id == job.solution.id) \
+                          .filter(DbManagedCertificate.service_id == job.service.id) \
+                          .filter(DbManagedCertificate.record_deprecated_at == None) \
+                          .filter(DbManagedCertificate.certificate_id is not None) \
+                          .all())  # type: list[DbManagedCertificate]
 
         if len(mgmt_certs) == 0:
             logger.debug('Nothing to sync for svc %d' % job.service.id)
