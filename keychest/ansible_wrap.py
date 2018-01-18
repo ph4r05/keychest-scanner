@@ -171,7 +171,7 @@ class AnsibleWrapper(object):
         playbook_data['privkey_path'] = os.path.join(playbook_data['certs_dst'], 'privkey.pem')
         playbook_data['ansible_become'] = True  # root needed for server restart
 
-        return playbook, playbook_data
+        return [playbook], playbook_data  # playbook must be a list of plays
 
     def run_ansible(self, cmds, ansible_cmd='ansible', cwd=None):
         """
