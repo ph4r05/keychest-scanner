@@ -30,6 +30,9 @@ class SemaphoreResult(object):
         self.was_released = False
         self.time_expire = None
 
+        # improvement: for expiration implementation add another mutex locked when semaphore
+        # is acquired. WHen expiring allow to expire only such records with unlocked mutex.
+
     @property
     def time_locked(self):
         return self._time_locked
