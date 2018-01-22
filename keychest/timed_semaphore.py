@@ -7,6 +7,7 @@ import threading
 import time
 
 from . import util
+from .stat_sem import BaseStatSemaphore
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ class SemaphoreResult(object):
         self.release(True)
 
 
-class TimedSemaphore(object):
+class TimedSemaphore(BaseStatSemaphore):
     """
     Timed semaphore manager
     Release one resource when timed out, enable to extend the timer (in case of crash), otherwise expires
@@ -113,12 +114,10 @@ class TimedSemaphore(object):
     We want to recover from potential deadlocks.
 
     """
-    def __init__(self, value=1, verbose=None):
-        self.sem = threading.Semaphore(value, verbose=verbose)
+    def __init__(self, value=1, verbose=None, **kwargs):
+        super(StatSemaphore).__init__(value, verbose, **kwargs)
         self.lock = threading.RLock()
         self.db = {}
-        self._cur = value
-        self._start_val = value
 
     def acquire(self, blocking=1):
         """Acquire a semaphore, decrementing the internal counter by one.
@@ -203,20 +202,6 @@ class TimedSemaphore(object):
                 cur_lock.expire()
                 self.release(cur_lock)
                 logger.warning('Timed semaphore expired: %s' % cur_id)
-
-    def count(self):
-        """
-        Currently available semaphores to acquire
-        :return:
-        """
-        return self._cur
-
-    def countinv(self):
-        """
-        Currently occupied semaphores (to release)
-        :return:
-        """
-        return self._start_val - self._cur
 
     def _find_id(self):
         """

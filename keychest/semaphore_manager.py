@@ -15,6 +15,7 @@ except ImportError:
     from collections import MutableMapping as DictMixin
 
 from . import util
+from threading import Semaphore as Semaphore
 from .stat_sem import StatSemaphore
 from .timed_semaphore import SemaphoreResult, TimedSemaphore
 
@@ -74,6 +75,7 @@ class SemaphoreManager(object, DictMixin):
         :param factory:
         :param timed:
         :return:
+        :rtype: Semaphore
         """
         with self.db_lock:
             if key in self.db:
@@ -120,6 +122,7 @@ class SemaphoreManager(object, DictMixin):
         Returns given semaphore / creates a new one with default factory
         :param key:
         :return:
+        :rtype: Semaphore
         """
         with self.db_lock:
             return self.db[key].sem
