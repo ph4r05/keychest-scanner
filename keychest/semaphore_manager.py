@@ -79,7 +79,7 @@ class SemaphoreManager(object, DictMixin):
             if key in self.db:
                 rec = self.db[key]
                 rec.touch()
-                return rec
+                return rec.sem
 
             sem = None
             if factory:
@@ -92,7 +92,7 @@ class SemaphoreManager(object, DictMixin):
                 sem = self.default_factory()
             rec = SemaphoreRecord(sem)
             self.db[key] = rec
-            return rec
+            return rec.sem
 
     def expire_semaphores(self):
         """
@@ -122,7 +122,7 @@ class SemaphoreManager(object, DictMixin):
         :return:
         """
         with self.db_lock:
-            return self.db[key]
+            return self.db[key].sem
 
     def __setitem__(self, key, value):
         """
