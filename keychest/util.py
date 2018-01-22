@@ -13,6 +13,7 @@ import pwd
 import grp
 import hashlib
 import base64
+import math
 import collections
 import datetime
 import shutil
@@ -44,6 +45,7 @@ from . import errors
 
 import dateutil
 import dateutil.parser
+import requests
 
 
 logger = logging.getLogger(__name__)
@@ -1809,6 +1811,27 @@ def add_ending_slash(x):
     if x.endswith('/'):
         return x
     return '%s/' % x
+
+
+def try_request_get(url, attempts=3, **kwargs):
+    """
+
+    :param url:
+    :param attempts:
+    :param kwargs:
+    :return:
+    """
+    for attempt in range(attempts):
+        try:
+            res = requests.get(url, **kwargs)
+            if math.floor(res.status_code / 100) != 2.0:
+                res.raise_for_status()
+
+            return res
+
+        except Exception as e:
+            if attempt + 1 >= attempts:
+                raise
 
 
 def cli_cmd_sync(cmd, log_obj=None, write_dots=False, on_out=None, on_err=None, cwd=None, shell=True,
