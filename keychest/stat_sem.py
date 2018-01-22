@@ -2,7 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
+import sys
 from threading import Semaphore as Semaphore
+
+
+def is_py3():
+    """
+    Returns true if running in py3
+    :return:
+    """
+    return sys.version_info > (3, 0)
 
 
 class SemaphoreWrapper(object):
@@ -55,7 +64,8 @@ class SemaphoreWrapper(object):
         blocking = blocking if blocking is not None else self.blocking
         timeout = timeout if timeout is not None else self.timeout
 
-        self._acquired = self.sem.acquire(blocking=blocking, timeout=timeout)
+        kw = {'timeout': timeout} if is_py3() else {}
+        self._acquired = self.sem.acquire(blocking=blocking, **kw)
         if blocking:
             self._acquired = True
         return self._acquired
