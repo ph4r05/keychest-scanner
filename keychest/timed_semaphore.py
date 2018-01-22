@@ -115,7 +115,7 @@ class TimedSemaphore(BaseStatSemaphore):
 
     """
     def __init__(self, value=1, verbose=None, **kwargs):
-        super(StatSemaphore).__init__(value, verbose, **kwargs)
+        super(BaseStatSemaphore, self).__init__(value, verbose, **kwargs)
         self.lock = threading.RLock()
         self.db = {}
 
