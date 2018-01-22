@@ -279,11 +279,11 @@ def try_delete_file(path, quiet=True):
     """
     Deletes the file, swallows exception
     :param path:
-    :param chmod:
-    :param backup_dir:
-    :param backup_suffix: if defined, suffix is appended to the backup file (e.g., .backup)
+    :param quiet:
     :return:
     """
+    if path is None:
+        return
     try:
         if os.path.exists(path):
             os.remove(path)
