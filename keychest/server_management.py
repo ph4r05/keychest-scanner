@@ -30,7 +30,8 @@ from .dbutil import DbHostGroup, DbManagedSolution, DbManagedService, DbManagedH
     DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
     DbManagedCertChain, DbManagedPrivate, DbHelper
 from .util_keychest import Encryptor
-
+from .stat_sem import SemaphoreWrapper
+from .semaphore_manager import SemaphoreManager
 
 import os
 import time
@@ -84,6 +85,7 @@ class ManagementModule(ServerModule):
         self.syscfg = SysConfig(audit=self.audit)
         self.ansible = None  # type: AnsibleWrapper
         self.encryptor = None  # type: Encryptor
+        self.semaphore_manager = SemaphoreManager()
 
     def init(self, server):
         """
@@ -376,10 +378,17 @@ class ManagementModule(ServerModule):
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
             cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
 
-            q = q.filter(salch.or_(
-                DbManagedTest.last_scan_at < cur_margin,
-                DbManagedTest.last_scan_at == None
-            ))
+            q = q.filter(
+                salch.or_(
+                    salch.and_(DbManagedTest.check_trigger == None,
+                               salch.or_(
+                                   DbManagedTest.last_scan_at < cur_margin,
+                                   DbManagedTest.last_scan_at == None)
+                               ),
+
+                    salch.and_(DbManagedTest.check_trigger != None,
+                               DbManagedTest.check_trigger < salch.func.now()),
+                ))
 
         return q.group_by(DbManagedTest.id) \
             .order_by(DbManagedTest.last_scan_at)  # select the oldest scanned first
@@ -407,10 +416,17 @@ class ManagementModule(ServerModule):
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
             cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
 
-            q = q.filter(salch.or_(
-                DbManagedCertificate.last_check_at < cur_margin,
-                DbManagedCertificate.last_check_at == None
-            ))
+            q = q.filter(
+                salch.or_(
+                    salch.and_(DbManagedCertificate.check_trigger == None,
+                               salch.or_(
+                                   DbManagedCertificate.last_check_at < cur_margin,
+                                   DbManagedCertificate.last_check_at == None)
+                               ),
+
+                    salch.and_(DbManagedCertificate.check_trigger != None,
+                               DbManagedCertificate.check_trigger < salch.func.now()),
+                ))
 
         return q.order_by(DbManagedCertificate.last_check_at)  # select the oldest scanned first
 
@@ -433,10 +449,17 @@ class ManagementModule(ServerModule):
                 last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
             cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
 
-            q = q.filter(salch.or_(
-                DbManagedHost.ansible_last_ping < cur_margin,
-                DbManagedHost.ansible_last_ping == None
-            ))
+            q = q.filter(
+                salch.or_(
+                    salch.and_(DbManagedHost.ansible_check_trigger == None,
+                               salch.or_(
+                                   DbManagedHost.ansible_last_ping < cur_margin,
+                                   DbManagedHost.ansible_last_ping == None)
+                               ),
+
+                    salch.and_(DbManagedHost.ansible_check_trigger != None,
+                               DbManagedHost.ansible_check_trigger < salch.func.now()),
+                ))
 
         return q.order_by(DbManagedHost.ansible_last_ping)  # select the oldest scanned first
 
@@ -462,6 +485,7 @@ class ManagementModule(ServerModule):
         if self.server.periodic_queue_is_full():
             return
 
+        cur_now = datetime.datetime.now()
         try:
             min_scan_margin = self.server.min_scan_margin()
             query = self.load_active_tests(s, last_scan_margin=min_scan_margin)
@@ -469,6 +493,8 @@ class ManagementModule(ServerModule):
             for x in DbHelper.yield_limit(query, DbManagedTest.id, 100, primary_obj=lambda x: x[0]):
                 if self.server.periodic_queue_is_full():
                     return
+                if x[0].check_trigger is not None and x[0].check_trigger > cur_now:
+                    continue
 
                 job = PeriodicMgmtTestJob(target=x[0], periodicity=None,
                                           solution=x[1], service=x[2], test_profile=x[3], host=x[4], agent=x[5])
@@ -494,6 +520,7 @@ class ManagementModule(ServerModule):
         if self.server.periodic_queue_is_full():
             return
 
+        cur_now = datetime.datetime.now()
         try:
             min_scan_margin = self.server.min_scan_margin()
             query = self.load_cert_checks(s, last_scan_margin=min_scan_margin)
@@ -501,6 +528,8 @@ class ManagementModule(ServerModule):
             for x in DbHelper.yield_limit(query, DbManagedCertificate.id, 100, primary_obj=lambda x: x[0]):
                 if self.server.periodic_queue_is_full():
                     return
+                if x[0].check_trigger is not None and x[0].check_trigger > cur_now:
+                    continue
 
                 job = PeriodicMgmtRenewalJob(managed_certificate=x[0], certificate=x[1],
                                              solution=x[2], target=x[3], test_profile=x[4], agent=x[5])
@@ -526,6 +555,7 @@ class ManagementModule(ServerModule):
         if self.server.periodic_queue_is_full():
             return
 
+        cur_now = datetime.datetime.now()
         try:
             min_scan_margin = self.server.min_scan_margin()
             query = self.load_host_checks(s, last_scan_margin=min_scan_margin)
@@ -533,6 +563,8 @@ class ManagementModule(ServerModule):
             for x in DbHelper.yield_limit(query, DbManagedHost.id, 100, primary_obj=lambda x: x[0]):
                 if self.server.periodic_queue_is_full():
                     return
+                if x[0].ansible_check_trigger is not None and x[0].ansible_check_trigger > cur_now:
+                    continue
 
                 job = PeriodicMgmtHostCheckJob(target=x[0], agent=x[1])
                 self.server.periodic_add_job(job)
@@ -646,7 +678,7 @@ class ManagementModule(ServerModule):
         """
         Updates test job
         :param target:
-        :type target: DbManagedTest
+        :type target: Union[DbManagedTest, DbManagedCertificate]
         :param last_scan:
         :param kwargs:
         :return:
@@ -834,7 +866,8 @@ class ManagementModule(ServerModule):
         def finish_task(**kwargs):
             """Simple finish callback"""
             job.results.ok()
-            self.finish_test_object(s, job.managed_certificate, last_scan_at=salch.func.now(), **kwargs)
+            kwargs.setdefault('check_trigger', None)
+            self.finish_test_object(s, job.managed_certificate, last_check_at=salch.func.now(), last_scan=False, **kwargs)
             s.commit()
 
         # Is the certificate eligible for renewal?
@@ -848,7 +881,7 @@ class ManagementModule(ServerModule):
             finish_task()
             return
 
-        if job.certificate and datetime.datetime.now() + renewal_period >= job.certificate.valid_to:
+        if job.certificate and datetime.datetime.now() + renewal_period <= job.certificate.valid_to:
             # No renewal needed here
             logger.debug('Not renewing - cert valid: %s' % job.target.id)
             finish_task()
@@ -870,15 +903,39 @@ class ManagementModule(ServerModule):
         if job.target.svc_aux_names:
             domains += json.loads(job.target.svc_aux_names)
 
+        # Perform proxied domain validation with certbot, attempt renew / issue.
+        # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
+        # Move to the pki_manager
+        sem_key = self.get_certbot_sem_key()
+        sem = self.semaphore_manager.get(sem_key, count=1)
+        sem_wrap = SemaphoreWrapper(sem, blocking=0, timeout=0)
+
+        with sem_wrap:
+            if not sem_wrap.acquired:
+                logger.debug('Certbot lock not acquired for %s, backoff' % domains[0])
+                finish_task(last_check_status=-15, check_trigger=datetime.datetime.now() + datetime.timedelta(seconds=30))
+                return
+
+            return self.renew_cert(s=s, job=job, domains=domains, pki_type=pki_type, finish_task=finish_task)
+
+    def renew_cert(self, s, job, domains, pki_type, finish_task):
+        """
+        Cert renew logic
+        MOVE TO PKI MANAGER
+
+        :param s:
+        :param job:
+        :param domains:
+        :param pki_type:
+        :param finish_task:
+        :return:
+        """
         req_data = collections.OrderedDict()
         req_data['CA'] = job.target.svc_ca.id
         req_data['CA_type'] = pki_type
         req_data['domains'] = domains
         renew_record = self.create_renew_record(job, req_data=req_data)
 
-        # Perform proxied domain validation with certbot, attempt renew / issue.
-        # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
-        # Move to the pki_manager
         le_ins = self.get_thread_le()
         ret, out, err = le_ins.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
         if ret != 0:
@@ -1011,6 +1068,7 @@ class ManagementModule(ServerModule):
         def finish_task(test=None, **kwargs):
             """Simple finish callback"""
             job.results.ok()
+            kwargs.setdefault('check_trigger', None)
             self.finish_test_object(s, test if test else job.target, last_scan_at=salch.func.now(), **kwargs)
             s.commit()
 
@@ -1082,6 +1140,7 @@ class ManagementModule(ServerModule):
         def finish_task(host=None, **kwargs):
             """Simple finish callback"""
             job.results.ok()
+            kwargs.setdefault('ansible_check_trigger', None)
             self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(),
                                     last_scan=False, **kwargs)
             s.commit()
@@ -1113,4 +1172,10 @@ class ManagementModule(ServerModule):
             logger.error('Exception on Ansible check %s' % e, exc_info=e)
             finish_task(ansible_last_status=-1)
 
-
+    def get_certbot_sem_key(self):
+        """
+        Semaphore certbot key
+        MOVE TO PKI MANAGER
+        :return:
+        """
+        return 'renew-certbot'
