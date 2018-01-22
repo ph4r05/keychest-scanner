@@ -16,7 +16,7 @@ from .redis_queue import RedisQueue
 from .trace_logger import Tracelogger
 from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
 from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicMgmtTestJob, ScanResults, PeriodicMgmtRenewalJob, \
-    PeriodicMgmtHostCheckJob
+    PeriodicMgmtHostCheckJob, PeriodicMgmtServiceCheckJob
 
 from .server_module import ServerModule
 from .audit import AuditManager
@@ -47,6 +47,8 @@ from queue import Queue, Empty as QEmpty, Full as QFull, PriorityQueue
 
 import sqlalchemy as salch
 from events import Events
+import requests
+from requests.exceptions import RequestException
 
 
 logger = logging.getLogger(__name__)
@@ -430,7 +432,7 @@ class ManagementModule(ServerModule):
 
         return q.order_by(DbManagedCertificate.last_check_at)  # select the oldest scanned first
 
-    def load_host_checks(self, s, last_scan_margin=60*60*4, randomize=True):
+    def load_host_checks(self, s, last_scan_margin=60*60*12, randomize=True):
         """
         Loads host to check
         :param s:
@@ -463,6 +465,39 @@ class ManagementModule(ServerModule):
 
         return q.order_by(DbManagedHost.ansible_last_ping)  # select the oldest scanned first
 
+    def load_service_checks(self, s, last_scan_margin=60*60*12, randomize=True):
+        """
+        Loads services to check
+        :param s:
+        :param last_scan_margin:
+        :param randomize:
+        :return:
+        """
+        q = s.query(DbManagedService, DbOwner, DbKeychestAgent) \
+            .outerjoin(DbOwner, DbOwner.id == DbManagedService.owner_id) \
+            .outerjoin(DbKeychestAgent, DbKeychestAgent.id == DbManagedService.agent_id) \
+            .filter(DbManagedService.deleted_at == None)
+
+        if last_scan_margin:
+            if randomize:
+                fact = randomize if isinstance(randomize, float) else self.server.randomize_feeder_fact
+                last_scan_margin += math.ceil(last_scan_margin * random.uniform(-1 * fact, fact))
+            cur_margin = datetime.datetime.now() - datetime.timedelta(seconds=last_scan_margin)
+
+            q = q.filter(
+                salch.or_(
+                    salch.and_(DbManagedService.config_check_trigger == None,
+                               salch.or_(
+                                   DbManagedService.config_last_check < cur_margin,
+                                   DbManagedService.config_last_check == None)
+                               ),
+
+                    salch.and_(DbManagedService.config_check_trigger != None,
+                               DbManagedService.config_check_trigger < salch.func.now()),
+                ))
+
+        return q.order_by(DbManagedService.config_last_check)  # select the oldest scanned first
+
     def periodic_feeder(self, s):
         """
         Feed jobs for processing to the queue
@@ -474,6 +509,7 @@ class ManagementModule(ServerModule):
 
         self.periodic_feeder_test(s)
         self.periodic_feeder_renew_check(s)
+        self.periodic_feeder_service_check(s)
         self.periodic_feeder_host_check(s)
 
     def periodic_feeder_test(self, s):
@@ -579,13 +615,48 @@ class ManagementModule(ServerModule):
             self.trace_logger.log(e)
             raise
 
+    def periodic_feeder_service_check(self, s):
+        """
+        Feed jobs - service checking
+
+        :param s:
+        :return:
+        """
+        if self.server.periodic_queue_is_full():
+            return
+
+        cur_now = datetime.datetime.now()
+        try:
+            min_scan_margin = self.server.min_scan_margin()
+            query = self.load_service_checks(s, last_scan_margin=min_scan_margin)
+
+            for x in DbHelper.yield_limit(query, DbManagedService.id, 100, primary_obj=lambda x: x[0]):
+                if self.server.periodic_queue_is_full():
+                    return
+                if x[0].config_check_trigger is not None and x[0].config_check_trigger > cur_now:
+                    continue
+
+                job = PeriodicMgmtServiceCheckJob(service=x[0], owner=x[1], agent=x[2])
+                self.server.periodic_add_job(job)
+
+        except QFull:
+            logger.debug('Queue full')
+            return
+
+        except Exception as e:
+            util.silent_rollback(s, False)
+            logger.error('Exception loading host check jobs %s' % e, exc_info=e)
+            self.trace_logger.log(e)
+            raise
+
     def periodic_job_update_last_scan(self, job):
         """
         Update last scan of the job
         :param job:
         :return: True if job was consumed
         """
-        if not isinstance(job, (PeriodicMgmtRenewalJob, PeriodicMgmtTestJob, PeriodicMgmtHostCheckJob)):
+        if not isinstance(job, (PeriodicMgmtRenewalJob, PeriodicMgmtTestJob, PeriodicMgmtHostCheckJob,
+                                PeriodicMgmtServiceCheckJob)):
             return False
 
         s = self.db.get_session()
@@ -603,6 +674,9 @@ class ManagementModule(ServerModule):
                     .values(last_check_at=salch.func.now())
 
             elif isinstance(job, PeriodicMgmtHostCheckJob):
+                return True
+
+            elif isinstance(job, PeriodicMgmtServiceCheckJob):
                 return True
 
             else:
@@ -678,7 +752,7 @@ class ManagementModule(ServerModule):
         """
         Updates test job
         :param target:
-        :type target: Union[DbManagedTest, DbManagedCertificate]
+        :type target: Union[DbManagedTest, DbManagedCertificate, DbManagedService]
         :param last_scan:
         :param kwargs:
         :return:
@@ -706,6 +780,9 @@ class ManagementModule(ServerModule):
 
         if isinstance(job, PeriodicMgmtHostCheckJob):
             return self.process_periodic_job_host_check(job)
+
+        if isinstance(job, PeriodicMgmtServiceCheckJob):
+            return self.process_periodic_job_service_check(job)
 
         return False
 
@@ -851,6 +928,52 @@ class ManagementModule(ServerModule):
 
         return True
 
+    def process_periodic_job_service_check(self, job):
+        """
+        Process my jobs in the worker thread.
+        :param job:
+        :type job: PeriodicMgmtServiceCheckJob
+        :return:
+        """
+        if not isinstance(job, PeriodicMgmtServiceCheckJob):
+            return False
+
+        logger.debug('Processing Mgmt service check job: %s, qsize: %s, sems: %s'
+                     % (job, self.server.watcher_job_queue.qsize(), self.server.periodic_semaphores()))
+
+        s = None
+        try:
+            s = self.db.get_session()
+
+            self.process_service_check_job_body(s, job)
+            job.success_scan = True  # updates last scan record
+
+            # each scan can fail independently. Successful scans remain valid.
+            if job.results.is_failed():
+                logger.info('Test scan job failed: %s' % (job.results.is_failed()))
+                job.attempts += 1
+                job.success_scan = False
+
+            else:
+                job.success_scan = True
+
+        except InvalidInputData as id:
+            logger.debug('Invalid test input')
+            job.success_scan = True  # job is deemed processed
+            self.finish_test_object(s, job.service, last_scan=False,
+                                    config_last_check=salch.func.now(), config_last_status=-1)
+
+        except Exception as e:
+            logger.debug('Exception when processing the mgmt process job: %s' % e)
+            self.trace_logger.log(e)
+            job.attempts += 1
+
+        finally:
+            util.silent_expunge_all(s)
+            util.silent_close(s)
+
+        return True
+
     def process_renew_job_body(self, s, job):
         """
         Renew job processing
@@ -867,7 +990,8 @@ class ManagementModule(ServerModule):
             """Simple finish callback"""
             job.results.ok()
             kwargs.setdefault('check_trigger', None)
-            self.finish_test_object(s, job.managed_certificate, last_check_at=salch.func.now(), last_scan=False, **kwargs)
+            kwargs.setdefault('last_check_at', salch.func.now())
+            self.finish_test_object(s, job.managed_certificate, last_scan=False, **kwargs)
             s.commit()
 
         # Is the certificate eligible for renewal?
@@ -899,9 +1023,7 @@ class ManagementModule(ServerModule):
             return
 
         # Extract main domain name from the service configuration
-        domains = [job.target.svc_name]
-        if job.target.svc_aux_names:
-            domains += json.loads(job.target.svc_aux_names)
+        domains = ManagementModule.get_service_domains(job.target)
 
         # Perform proxied domain validation with certbot, attempt renew / issue.
         # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
@@ -1069,7 +1191,8 @@ class ManagementModule(ServerModule):
             """Simple finish callback"""
             job.results.ok()
             kwargs.setdefault('check_trigger', None)
-            self.finish_test_object(s, test if test else job.target, last_scan_at=salch.func.now(), **kwargs)
+            kwargs.setdefault('last_scan_at', salch.func.now())
+            self.finish_test_object(s, test if test else job.target, **kwargs)
             s.commit()
 
         if job.host is None:
@@ -1141,8 +1264,8 @@ class ManagementModule(ServerModule):
             """Simple finish callback"""
             job.results.ok()
             kwargs.setdefault('ansible_check_trigger', None)
-            self.finish_test_object(s, host if host else job.target, ansible_last_ping=salch.func.now(),
-                                    last_scan=False, **kwargs)
+            kwargs.setdefault('ansible_last_ping', salch.func.now())
+            self.finish_test_object(s, host if host else job.target, last_scan=False, **kwargs)
             s.commit()
 
         if not job.target.has_ansible:
@@ -1172,6 +1295,87 @@ class ManagementModule(ServerModule):
             logger.error('Exception on Ansible check %s' % e, exc_info=e)
             finish_task(ansible_last_status=-1)
 
+    def process_service_check_job_body(self, s, job):
+        """
+        Check service configuration correctness - typically correctness of the
+        .well-known redirect. Depending on the associated PKI type.
+
+        :param s:
+        :param job:
+        :type job: PeriodicMgmtServiceCheckJob
+        :return:
+        """
+        def finish_task(service=None, **kwargs):
+            """Simple finish callback"""
+            job.results.ok()
+            kwargs.setdefault('config_check_trigger', None)
+            kwargs.setdefault('config_last_check', salch.func.now())
+            self.finish_test_object(s, service if service else job.service, last_scan=False, **kwargs)
+            s.commit()
+
+        # Move the check to the PKI manager.
+        job.service = s.merge(job.service)
+        pki_type = job.service.svc_ca.pki_type if job.service.svc_ca is not None else None
+        if pki_type != 'LE':
+            logger.debug('Svc with PKI %s check not implemented' % pki_type)
+            finish_task()
+            return
+
+        ins_le = self.get_thread_le()
+        attempts = 3
+        timeout = 10
+        domains = ManagementModule.get_service_domains(job.service)
+        check_result = collections.OrderedDict()
+        check_fails = 0
+
+        # Checking each domain redirect.
+        for domain in domains:
+            chal_path = None
+            try:
+                # Place random challenge to the webroot and check the contents
+                webroot = ins_le.get_auto_webroot(domain)
+                well_known = os.path.join(webroot, '.well-known')
+                fname = 'chal_%s.txt' % util.random_alphanum(14)
+                chal_fh, chal_path = util.unique_file(os.path.join(well_known, fname), mode=0o644)
+                chal_data = util.random_alphanum(32)
+                chal_fh.write(chal_data)
+                chal_fh.close()
+                chal_dir, chal_fname = os.path.split(chal_path)
+
+                url_check = 'http://%s/.well-known/%s' % (domain, chal_fname)
+                logger.debug('Going to check svc %s domain %s url %s' % (job.service.id, domain, url_check))
+
+                time_start = time.time()
+                url_data = util.strip(util.try_request_get(url_check, attempts=attempts, timeout=timeout).content)
+
+                if url_data == chal_data:
+                    check_result[domain] = {'status': '0', 'time': time.time() - time_start}
+
+            except RequestException as re:
+                check_fails += 1
+                check_result[domain] = {'status': '-2', 'errno': re.errno, 'e': str(re)}
+                logger.error('RequestException on Svc check %s, domain: %s' % (re, domain), exc_info=re)
+
+            except Exception as e:
+                util.silent_rollback(s)
+                check_fails += 1
+                check_result[domain] = {'status': '-1', 'e': str(e)}
+                logger.error('Exception on Svc check %s, domain: %s' % (e, domain), exc_info=e)
+
+            finally:
+                util.try_delete_file(chal_path)
+
+        # Save check status
+        final_status = 0 if check_fails == 0 else 1
+        check_data = json.dumps(check_result)
+        logger.info('Service check finished, fails: %s for service %s' % (check_fails, job.service.id))
+
+        finish_task(service=job.service,
+                    config_last_status=final_status,
+                    config_last_data=check_data)
+
+        self.events.on_service_check_finished(final_status == 0, job, check_data)
+
     def get_certbot_sem_key(self):
         """
         Semaphore certbot key
@@ -1179,3 +1383,17 @@ class ManagementModule(ServerModule):
         :return:
         """
         return 'renew-certbot'
+
+    @staticmethod
+    def get_service_domains(svc):
+        """
+        Returns list of domains for the service
+        :param svc:
+        :type svc: DbManagedService
+        :return:
+        """
+        domains = [svc.svc_name]
+        if svc.svc_aux_names:
+            domains += json.loads(svc.svc_aux_names)
+        return domains
+

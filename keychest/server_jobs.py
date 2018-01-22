@@ -68,6 +68,7 @@ class JobTypes(object):
     MGMT_RENEW = 7  # Management renewal
     MGMT_CERT_CHECK = 8  # Management cert check
     MGMT_HOST_CHECK = 9  # Management host check
+    MGMT_SVC_CHECK = 10  # Management host check
 
     def __init__(self):
         pass
@@ -619,4 +620,66 @@ class PeriodicMgmtHostCheckJob(BaseJob):
         except Exception as e:
             logger.error('Exception in repr: %s' % e)
             return 'PeriodicMgmtHostCheckJob(?)'
+
+
+class PeriodicMgmtServiceCheckJob(BaseJob):
+    """
+    Service config check job
+    """
+
+    def __init__(self, service=None, **kwargs):
+        """
+        :param service:
+        :type service: DbManagedService
+        :param kwargs:
+        """
+        super(PeriodicMgmtServiceCheckJob, self).__init__(type=JobTypes.MGMT_SVC_CHECK)
+
+        self._id = None
+        self._last_check = None
+        self._service = None
+
+        self.service = service  # type: DbManagedService
+        self.agent = kwargs.get('agent')  # type: DbKeychestAgent
+        self.owner = kwargs.get('owner')
+
+        self.results = ScanResults()
+
+    @property
+    def service(self):
+        return self._service
+
+    @service.setter
+    def service(self, val):
+        self._service = val
+        if val:
+            self._id = val.id
+            self._last_check = val.config_last_check
+
+    def key(self):
+        return 'mgmt_svc_check_%s' % self._id
+
+    def cmpval(self):
+        return self.attempts, \
+               self.later, \
+               self._last_check is None, \
+               self._last_check
+
+    def record_id(self):
+        """
+        Returns watch target id
+        :return:
+        """
+        return self._id
+
+    def __repr__(self):
+        try:
+            return '<PeriodicMgmtServiceCheckJob(target=<DbManagedService(id=%r, self=%r)>, attempts=%r, later=%r,' \
+                   'last_check_at=%r)>' \
+                   % (self._id, self.service, self.attempts, self.later,
+                      self._last_check)
+
+        except Exception as e:
+            logger.error('Exception in repr: %s' % e)
+            return 'PeriodicMgmtServiceCheckJob(?)'
 
