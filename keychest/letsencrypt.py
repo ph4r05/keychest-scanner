@@ -61,6 +61,20 @@ class LetsEncrypt(object):
         """
         return util.cli_cmd_sync(*args, **kwargs)
 
+    def get_auto_webroot(self, domain):
+        """
+        Returns auto-webroot for the given domain.
+        Makes sure the domain exists.
+        :param domain:
+        :return:
+        """
+        if not self.webroot_dir:
+            raise ValueError('Auto webroot needs to have webroot configured')
+
+        webroot = os.path.join(self.webroot_dir, domain)
+        util.makedirs(webroot)
+        return webroot
+
     def certonly(self, email=None, domains=None, expand=False, force=False, auto_webroot=False, **kwargs):
         """
         Calls certbot certonly command.
@@ -85,11 +99,8 @@ class LetsEncrypt(object):
             email = self.FALLBACK_EMAIL
 
         webroot = None
-        if auto_webroot and not self.webroot_dir:
-            raise ValueError('Auto webroot needs to have webroot configured')
         if auto_webroot:
-            webroot = os.path.join(self.webroot_dir, self.domains[0])
-            util.makedirs(webroot)
+            webroot = self.get_auto_webroot(self.domains[0])
 
         cmd = self.get_standalone_cmd(self.domains, email=email,
                                       expand=expand,
