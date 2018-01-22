@@ -115,7 +115,7 @@ class StatSemaphore(BaseStatSemaphore):
     Simple semaphore wrapper with stat counting
     """
     def __init__(self, value=1, verbose=None, **kwargs):
-        super(BaseStatSemaphore, self).__init__(value, verbose, **kwargs)
+        super(StatSemaphore, self).__init__(value, verbose, **kwargs)
 
     def acquire(self, blocking=1):
         """Acquire a semaphore, decrementing the internal counter by one.
