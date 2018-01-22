@@ -55,8 +55,26 @@ def upgrade():
     op.create_index(op.f('ix_managed_cert_privates_private_hash'), 'managed_cert_privates', ['private_hash'],
                     unique=False)
 
+    op.add_column('managed_certificates', sa.Column('check_trigger', sa.DateTime(), nullable=True))
+    op.add_column('managed_hosts', sa.Column('ansible_check_trigger', sa.DateTime(), nullable=True))
+    op.add_column('managed_services', sa.Column('config_check_trigger', sa.DateTime(), nullable=True))
+    op.add_column('managed_services', sa.Column('config_last_data', sa.Text(), nullable=True))
+    op.add_column('managed_services', sa.Column('config_last_ping', sa.DateTime(), nullable=True))
+    op.add_column('managed_services', sa.Column('config_last_status', sa.SmallInteger(), nullable=False))
+    op.add_column('managed_tests', sa.Column('check_trigger', sa.DateTime(), nullable=True))
+
 
 def downgrade():
     op.drop_table('managed_cert_privates')
     op.drop_table('managed_cert_chains')
+
+    op.drop_column('managed_tests', 'check_trigger')
+    op.drop_column('managed_services', 'config_last_status')
+    op.drop_column('managed_services', 'config_last_ping')
+    op.drop_column('managed_services', 'config_last_data')
+    op.drop_column('managed_services', 'config_check_trigger')
+    op.drop_column('managed_hosts', 'ansible_check_trigger')
+    op.drop_column('managed_certificates', 'check_trigger')
+
+
 

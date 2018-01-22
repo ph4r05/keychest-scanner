@@ -1551,6 +1551,8 @@ class DbManagedHost(Base):
     host_desc = Column(Text)  # human informal desc
     host_data = Column(Text)
     host_ansible_facts = Column(LONGTEXT)
+
+    ansible_check_trigger = Column(DateTime, default=None)  # trigger / backoff
     ansible_last_ping = Column(DateTime, default=None)
     ansible_last_status = Column(SmallInteger, default=0, nullable=False)
 
@@ -1648,6 +1650,11 @@ class DbManagedService(Base):
                       nullable=True, index=True)
     test_profile_id = Column(ForeignKey('managed_test_profiles.id', name='managed_services_test_profile_id', ondelete='SET NULL'),
                              nullable=True, index=True)
+
+    config_check_trigger = Column(DateTime, default=None)  # trigger / backoff
+    config_last_ping = Column(DateTime, default=None)
+    config_last_status = Column(SmallInteger, default=0, nullable=False)
+    config_last_data = Column(Text, nullable=True)
 
     owner = relationship('DbOwner')
     agent = relationship('DbKeychestAgent')
@@ -1814,6 +1821,7 @@ class DbManagedTest(Base):
     # watch target scan fields
     scan_data = Column(Text, nullable=True)
 
+    check_trigger = Column(DateTime, default=None)  # trigger / backoff
     last_scan_at = Column(DateTime, default=None)  # last scan for this entry (e.g., cert)
     last_scan_status = Column(SmallInteger, default=None)  # last scan status
     last_scan_data = Column(Text, nullable=True)  # last scan result data
@@ -1856,6 +1864,7 @@ class DbManagedCertificate(Base):
     cert_params = Column(Text, nullable=True)
     record_deprecated_at = Column(DateTime, default=None)  # if not null the record is not active anymore
 
+    check_trigger = Column(DateTime, default=None)  # trigger / backoff
     last_check_at = Column(DateTime, default=None)
     last_check_status = Column(SmallInteger, default=None)
     last_check_data = Column(Text, nullable=True)
