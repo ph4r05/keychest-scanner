@@ -59,7 +59,7 @@ def upgrade():
     op.add_column('managed_hosts', sa.Column('ansible_check_trigger', sa.DateTime(), nullable=True))
     op.add_column('managed_services', sa.Column('config_check_trigger', sa.DateTime(), nullable=True))
     op.add_column('managed_services', sa.Column('config_last_data', sa.Text(), nullable=True))
-    op.add_column('managed_services', sa.Column('config_last_ping', sa.DateTime(), nullable=True))
+    op.add_column('managed_services', sa.Column('config_last_check', sa.DateTime(), nullable=True))
     op.add_column('managed_services', sa.Column('config_last_status', sa.SmallInteger(), nullable=False))
     op.add_column('managed_tests', sa.Column('check_trigger', sa.DateTime(), nullable=True))
 
@@ -70,7 +70,7 @@ def downgrade():
 
     op.drop_column('managed_tests', 'check_trigger')
     op.drop_column('managed_services', 'config_last_status')
-    op.drop_column('managed_services', 'config_last_ping')
+    op.drop_column('managed_services', 'config_last_check')
     op.drop_column('managed_services', 'config_last_data')
     op.drop_column('managed_services', 'config_check_trigger')
     op.drop_column('managed_hosts', 'ansible_check_trigger')

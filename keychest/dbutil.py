@@ -1652,7 +1652,7 @@ class DbManagedService(Base):
                              nullable=True, index=True)
 
     config_check_trigger = Column(DateTime, default=None)  # trigger / backoff
-    config_last_ping = Column(DateTime, default=None)
+    config_last_check = Column(DateTime, default=None)
     config_last_status = Column(SmallInteger, default=0, nullable=False)
     config_last_data = Column(Text, nullable=True)
 
