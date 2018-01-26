@@ -1660,6 +1660,7 @@ class DbManagedService(Base):
     agent = relationship('DbKeychestAgent')
     solutions = relationship('DbManagedSolutionToServiceAssoc', back_populates='service')
     groups = relationship('DbManagedServiceToGroupAssoc', back_populates='service')
+    sec_groups = relationship('DbManagedServiceToSecurityGroupAssoc', back_populates='service')
     test_profile = relationship('DbManagedTestProfile', back_populates='service')
     watch_target = relationship('DbWatchTarget', foreign_keys=svc_watch_id)
     svc_ca = relationship('DbPkiIssuer', foreign_keys=svc_ca_id)
@@ -1986,6 +1987,55 @@ class DbPkiIssuer(Base):
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
+
+
+class DbManagedSecurityGroup(Base):
+    """
+    Security group for service level
+    """
+    __tablename__ = 'managed_security_groups'
+    __table_args__ = (UniqueConstraint('sgrp_name', 'owner_id', name='uk_managed_security_groups_name_owner'),)
+    id = Column(BigInteger, primary_key=True)
+
+    sgrp_name = Column(String(255), default=None)  # unique group identifier per owner.
+    sgrp_desc = Column(Text)
+    sgrp_data = Column(Text)
+
+    sgrp_type = Column(String(64), default=None)  # web service / email server / ...
+    sgrp_assurance_level = Column(String(64), default=None)  # assurance level code
+    sgrp_criticality = Column(Integer, default=None)  # criticality int code
+
+    owner_id = Column(ForeignKey('owners.id', name='managed_security_groups_owner_id', ondelete='CASCADE'),
+                      nullable=True, index=True)
+
+    owner = relationship('DbOwner')
+    services = relationship('DbManagedServiceToSecurityGroupAssoc', back_populates='sec_group')
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None)
+
+
+class DbManagedServiceToSecurityGroupAssoc(Base):
+    """
+    Managed services -> Security Group association
+    List of associated security groups.
+    """
+    __tablename__ = 'managed_service_to_security_group'
+    __table_args__ = (UniqueConstraint('service_id', 'group_id', name='uk_managed_service_to_security_group_svc_group'),)
+    id = Column(BigInteger, primary_key=True)
+
+    service_id = Column(ForeignKey('managed_services.id', name='managed_service_to_security_group_service_id',
+                                   ondelete='CASCADE'), nullable=False, index=True)
+    group_id = Column(ForeignKey('managed_host_groups.id', name='managed_service_to_security_group_group_id',
+                                 ondelete='CASCADE'), nullable=False, index=True)
+
+    service = relationship('DbManagedService', back_populates='sec_groups')
+    sec_group = relationship('DbManagedSecurityGroup', back_populates='services')
+
+    created_at = Column(DateTime, default=None)
+    updated_at = Column(DateTime, default=func.now())
+    deleted_at = Column(DateTime, default=None, nullable=True)
 
 
 #
