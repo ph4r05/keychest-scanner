@@ -2,7 +2,7 @@
 
 [alembic:exclude]
 # excluding laravel generated/maintained tables
-tables = jobs, failed_jobs, migrations, social_users, revisions, permissions, model_has_permissions, roles, role_has_permissions, model_has_roles
+tables = jobs, failed_jobs, migrations, social_users, revisions, permissions, model_has_permissions, roles, role_has_permissions, model_has_roles, jobs_ph4, workers_ph4
 
 [alembic]
 # path to migration scripts
