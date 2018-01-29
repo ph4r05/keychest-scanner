@@ -211,6 +211,11 @@ class Config(object):
     def certbot_webroot(self):
         return self.get_config('certbot_webroot', None)
 
+    # Certbot staging flag - for testing
+    @property
+    def certbot_staging(self):
+        return self.get_config('certbot_staging', False)
+
     # KeyChest App key - base64 encoded key
     @property
     def keychest_key(self):
