@@ -404,11 +404,16 @@ class PeriodicMgmtCertCheckJob(BaseJob):
     def __init__(self, **kwargs):
         super(PeriodicMgmtCertCheckJob, self).__init__(type=JobTypes.MGMT_CERT_CHECK)
         self._id = None
-        self._service = None
-        self.service = kwargs.get('service')
+        self._service = None  # type: DbManagedService
+        self.service = kwargs.get('service')  # type: DbManagedService
 
     @property
     def service(self):
+        """
+        Getter
+        :return: DbManagedService
+        :rtype: DbManagedService
+        """
         return self._service
 
     @service.setter
@@ -442,7 +447,7 @@ class PeriodicMgmtRenewalJob(BaseJob):
 
         self._id = None
         self._svc_name = None
-        self._target = None
+        self._target = None  # type: DbManagedService
 
         self.target = target  # type: DbManagedService
         self.solution = kwargs.get('solution')  # type: DbManagedSolution
@@ -455,6 +460,11 @@ class PeriodicMgmtRenewalJob(BaseJob):
 
     @property
     def target(self):
+        """
+        Getter
+        :return: DbManagedService
+        :rtype: DbManagedService
+        """
         return self._target
 
     @target.setter
@@ -508,7 +518,7 @@ class PeriodicMgmtTestJob(BaseJob):
         self._id = None
         self._host_id = None
         self._last_scan_at = None
-        self._target = None
+        self._target = None  # type: DbManagedTest
 
         self.target = target  # type: DbManagedTest
         self.solution = kwargs.get('solution')  # type: DbManagedSolution
@@ -521,6 +531,11 @@ class PeriodicMgmtTestJob(BaseJob):
 
     @property
     def target(self):
+        """
+        Getter
+        :return: DbManagedTest
+        :rtype: DbManagedTest
+        """
         return self._target
 
     @target.setter
@@ -575,7 +590,7 @@ class PeriodicMgmtHostCheckJob(BaseJob):
 
         self._id = None
         self._ansible_last_ping = None
-        self._target = None
+        self._target = None  # type: DbManagedHost
 
         self.target = target  # type: DbManagedHost
         self.agent = kwargs.get('agent')  # type: DbKeychestAgent
@@ -585,6 +600,11 @@ class PeriodicMgmtHostCheckJob(BaseJob):
 
     @property
     def target(self):
+        """
+        Getter
+        :return: DbManagedHost
+        :rtype: DbManagedHost
+        """
         return self._target
 
     @target.setter
