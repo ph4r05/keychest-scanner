@@ -30,7 +30,7 @@ from .pki_manager import PkiOperationAlreadyInProgress, PkiRenewalFailed, PkiCou
     CertRenewal, PkiSubManager, PkiManager
 
 from .semaphore_manager import SemaphoreManager
-from .server_management import ManagementModule
+from .server_management_utils import ManagementUtils
 from .stat_sem import SemaphoreWrapper
 from .trace_logger import Tracelogger
 
@@ -138,6 +138,15 @@ class PkiLeManager(PkiSubManager):
         self.trace_logger = Tracelogger(logger)
         self.semaphore_manager = SemaphoreManager()
 
+    @staticmethod
+    def get_config_dir(config):
+        """
+        LE config dir
+        :param config:
+        :return:
+        """
+        return os.path.join(config.certbot_base, 'conf')
+
     def new_le(self):
         """
         Constructs new LE
@@ -190,7 +199,7 @@ class PkiLeManager(PkiSubManager):
         """
 
         # Extract main domain name from the service configuration
-        domains = ManagementModule.get_service_domains(job.target)
+        domains = ManagementUtils.get_service_domains(job.target)
 
         ren = CertRenewalLe(self)
         ren.domains = domains

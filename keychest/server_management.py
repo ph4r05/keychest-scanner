@@ -25,6 +25,7 @@ from .ansible_wrap import AnsibleWrapper
 from .pki_manager import PkiManager, PkiOperationAlreadyInProgress, PkiRenewalFailed, PkiCouldNotReadCertError,\
     PkiAuthCheckFailed, PkiAuthCheckFailedRequest, PkiAuthCheckFailedInvalidChallenge,\
     CertRenewal, PkiSubManager
+from .pki_manager_le import PkiLeManager
 
 from .certificate_manager import CertificateManager
 from .database_manager import DatabaseManager
@@ -32,8 +33,9 @@ from .dbutil import DbHostGroup, DbManagedSolution, DbManagedService, DbManagedH
     DbManagedTestProfile, DbManagedCertIssue, DbManagedServiceToGroupAssoc, DbManagedSolutionToServiceAssoc, \
     DbKeychestAgent, DbManagedCertificate, Certificate, DbWatchTarget, DbDnsResolve, DbHandshakeScanJob, DbOwner,\
     DbManagedCertChain, DbManagedPrivate, DbHelper
+
+from .server_management_utils import ManagementUtils
 from .util_keychest import Encryptor
-from .stat_sem import SemaphoreWrapper
 from .semaphore_manager import SemaphoreManager
 
 import os
@@ -105,7 +107,6 @@ class ManagementModule(ServerModule):
 
         self.ansible = self.new_ansible_wrapper()
         self.local_data.ansible = None
-        self.local_data.le = None
 
         self.db_manager = server.db_manager
         self.cert_manager = server.cert_manager
@@ -119,7 +120,7 @@ class ManagementModule(ServerModule):
         :rtype: AnsibleWrapper
         """
         return AnsibleWrapper(
-            local_certbot_live=os.path.join(self.le.config_dir, 'live'),
+            local_certbot_live=os.path.join(PkiLeManager.get_config_dir(self.config), 'live'),
             ansible_as_user='root',
             syscfg=self.syscfg
         )
@@ -1306,7 +1307,7 @@ class ManagementModule(ServerModule):
 
         attempts = 3
         timeout = 10
-        domains = ManagementModule.get_service_domains(job.service)
+        domains = ManagementUtils.get_service_domains(job.service)
         check_result = collections.OrderedDict()
         check_fails = 0
 
