@@ -81,7 +81,7 @@ def upgrade():
                     sa.Column('created_at', sa.DateTime(), nullable=True),
                     sa.Column('updated_at', sa.DateTime(), nullable=True),
                     sa.Column('deleted_at', sa.DateTime(), nullable=True),
-                    sa.ForeignKeyConstraint(['group_id'], ['managed_host_groups.id'],
+                    sa.ForeignKeyConstraint(['group_id'], ['managed_security_groups.id'],
                                             name='managed_service_to_security_group_group_id', ondelete='CASCADE'),
                     sa.ForeignKeyConstraint(['service_id'], ['managed_services.id'],
                                             name='managed_service_to_security_group_service_id', ondelete='CASCADE'),

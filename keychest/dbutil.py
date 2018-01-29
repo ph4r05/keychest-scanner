@@ -2027,11 +2027,11 @@ class DbManagedServiceToSecurityGroupAssoc(Base):
 
     service_id = Column(ForeignKey('managed_services.id', name='managed_service_to_security_group_service_id',
                                    ondelete='CASCADE'), nullable=False, index=True)
-    group_id = Column(ForeignKey('managed_host_groups.id', name='managed_service_to_security_group_group_id',
+    group_id = Column(ForeignKey('managed_security_groups.id', name='managed_service_to_security_group_group_id',
                                  ondelete='CASCADE'), nullable=False, index=True)
 
-    service = relationship('DbManagedService', back_populates='sec_groups')
-    sec_group = relationship('DbManagedSecurityGroup', back_populates='services')
+    service = relationship('DbManagedService', back_populates='sec_groups', foreign_keys=service_id)
+    sec_group = relationship('DbManagedSecurityGroup', back_populates='services', foreign_keys=group_id)
 
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
