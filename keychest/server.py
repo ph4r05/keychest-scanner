@@ -69,6 +69,7 @@ from .tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsTimeout, TlsRes
 from .tls_scanner import TlsScanner, RequestErrorCode
 from .trace_logger import Tracelogger
 from .pki_manager import PkiManager
+from .pki_manager import PkiLeManager
 from .certificate_manager import CertificateManager
 from .database_manager import DatabaseManager
 
@@ -266,6 +267,10 @@ class Server(object):
         self.db_manager.init(db=self.db, config=self.config)
         self.cert_manager.init(db=self.db, config=self.config, db_manager=self.db_manager)
         self.pki_manager.init(db=self.db, config=self.config)
+
+        le_pki_manager = PkiLeManager(self.pki_manager)
+        le_pki_manager.register()
+
         signal.signal(signal.SIGINT, self.signal_handler)
 
     def init_modules(self):

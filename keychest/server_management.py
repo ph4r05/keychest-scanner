@@ -22,7 +22,10 @@ from .server_module import ServerModule
 from .audit import AuditManager
 from .ebsysconfig import SysConfig
 from .ansible_wrap import AnsibleWrapper
-from .pki_manager import PkiManager
+from .pki_manager import PkiManager, PkiOperationAlreadyInProgress, PkiRenewalFailed, PkiCouldNotReadCertError,\
+    PkiAuthCheckFailed, PkiAuthCheckFailedRequest, PkiAuthCheckFailedInvalidChallenge,\
+    CertRenewal, PkiSubManager
+
 from .certificate_manager import CertificateManager
 from .database_manager import DatabaseManager
 from .dbutil import DbHostGroup, DbManagedSolution, DbManagedService, DbManagedHost, DbManagedTest, \
@@ -78,7 +81,6 @@ class ManagementModule(ServerModule):
 
         self.job_queue = Queue(300)
         self.workers = []
-        self.le = None  # type: LetsEncrypt
 
         self.db_manager = None  # type: DatabaseManager
         self.cert_manager = None  # type: CertificateManager
@@ -101,7 +103,6 @@ class ManagementModule(ServerModule):
                                       default_queue='queues:management',
                                       event_queue='queues:management-evt')
 
-        self.le = self.new_le()
         self.ansible = self.new_ansible_wrapper()
         self.local_data.ansible = None
         self.local_data.le = None
@@ -123,20 +124,6 @@ class ManagementModule(ServerModule):
             syscfg=self.syscfg
         )
 
-    def new_le(self):
-        """
-        Constructs new LE
-        :return:
-        """
-        le = LetsEncrypt(config=self.config,
-                         config_dir=os.path.join(self.config.certbot_base, 'conf'),
-                         work_dir=os.path.join(self.config.certbot_base, 'work'),
-                         log_dir=os.path.join(self.config.certbot_base, 'log'),
-                         webroot_dir=self.config.certbot_webroot
-                         )
-        le.staging = True  # TODO: remove staging in production
-        return le
-
     def get_thread_ansible_wrapper(self):
         """
         Thread local ansible wrapper
@@ -146,16 +133,6 @@ class ManagementModule(ServerModule):
         if not hasattr(self.local_data, 'ansible') or self.local_data.ansible is None:
             self.local_data.ansible = self.new_ansible_wrapper()
         return self.local_data.ansible
-
-    def get_thread_le(self):
-        """
-        Thread local LE
-        :return:
-        :rtype: LetsEncrypt
-        """
-        if not hasattr(self.local_data, 'le') or self.local_data.le is None:
-            self.local_data.le = self.new_le()
-        return self.local_data.le
 
     def shutdown(self):
         """
@@ -900,6 +877,7 @@ class ManagementModule(ServerModule):
             s = self.db.get_session()
 
             self.process_host_check_job_body(s, job)
+            self.process_host_config_check_job_body(s, job)
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
@@ -1017,77 +995,69 @@ class ManagementModule(ServerModule):
         # LE certbot should run on the agent. For now on the master directly.
         job.target = s.merge(job.target)
         pki_type = job.target.svc_ca.pki_type if job.target.svc_ca is not None else None
-        if pki_type != 'LE':
+
+        pki_mgr = self.pki_manager.resolve_manager(pki_type)
+        if not pki_mgr:
             logger.info('CA not supported for renewal: %s' % pki_type)
             finish_task()
             return
 
-        # Extract main domain name from the service configuration
-        domains = ManagementModule.get_service_domains(job.target)
+        ren = pki_mgr.renew_cert(s=s, job=job)
+        self.renew_cert(s, job, pki_mgr, ren, finish_task)
 
-        # Perform proxied domain validation with certbot, attempt renew / issue.
-        # CA-related renewal for now. Later extend to renewal object, separate CA dependent code.
-        # Move to the pki_manager
-        sem_key = self.get_certbot_sem_key()
-        sem = self.semaphore_manager.get(sem_key, count=1)
-        sem_wrap = SemaphoreWrapper(sem, blocking=0, timeout=0)
-
-        with sem_wrap:
-            if not sem_wrap.acquired:
-                logger.debug('Certbot lock not acquired for %s, backoff' % domains[0])
-                finish_task(last_check_status=-15, check_trigger=datetime.datetime.now() + datetime.timedelta(seconds=30))
-                return
-
-            return self.renew_cert(s=s, job=job, domains=domains, pki_type=pki_type, finish_task=finish_task)
-
-    def renew_cert(self, s, job, domains, pki_type, finish_task):
+    def renew_cert(self, s, job, pki_mgr, ren, finish_task):
         """
         Cert renew logic
-        MOVE TO PKI MANAGER
 
         :param s:
         :param job:
-        :param domains:
-        :param pki_type:
+        :param pki_mgr:
+        :type pki_mgr: PkiSubManager
+        :param ren:
+        :type ren: CertRenewal
         :param finish_task:
         :return:
         """
+        domains = ren.domains
+
         req_data = collections.OrderedDict()
         req_data['CA'] = job.target.svc_ca.id
-        req_data['CA_type'] = pki_type
-        req_data['domains'] = domains
+        req_data['CA_type'] = pki_mgr.ca_type()
+        req_data['domains'] = ren.domains
         renew_record = self.create_renew_record(job, req_data=req_data)
 
-        le_ins = self.get_thread_le()
-        ret, out, err = le_ins.certonly(email='le@keychest.net', domains=domains, auto_webroot=True)
-        if ret != 0:
-            logger.warning('Certbot failed with error code: %s, err: %s' % (ret, err))
-            renew_record.last_issue_status = -2
-            renew_record.last_issue_data = json.dumps({'ret': ret, 'out': out, 'err': err})
-            s.add(renew_record)
-            finish_task(last_check_status=-2)
-            self.events.on_renew_cerbot_fail(job, (ret, out, err))
+        try:
+            ren.renew()
+
+        except PkiOperationAlreadyInProgress as e:
+            logger.debug('Certbot lock not acquired for %s, back-off' % ren.domains[0])
+            finish_task(last_check_status=-15,
+                        check_trigger=datetime.datetime.now() + datetime.timedelta(seconds=30))
             return
 
+        except PkiRenewalFailed as e:
+            logger.warning('Renewal failed: %s' % e)
+
+            renew_record.last_issue_status = -2
+            renew_record.last_issue_data = json.dumps(e.fail_data)
+            s.add(renew_record)
+            finish_task(last_check_status=-2)
+            self.events.on_renew_fail(job, e)
+            return
+
+        except PkiCouldNotReadCertError as e:
+            logger.warning('Could not read certificates')
+
         # if certificate has changed, load certificate file to the database, update, signalize,...
-        if not le_ins.cert_changed:
+        if not ren.cert_changed:
             logger.debug('Certificate did not change for mgmt cert: %s, domain: %s' % (job.target.id, domains[0]))
             renew_record.last_issue_status = 2
             s.add(renew_record)
             finish_task(last_check_status=2)
             return
 
-        domain = domains[0]
-        priv_file, cert_file, ca_file = le_ins.get_cert_paths(domain=domain)
-        pki_files = []
-
-        # Load given files to memory
-        for fname in [priv_file, cert_file, ca_file]:
-            with open(fname, 'r') as fh:
-                pki_files.append(fh.read())
-
         # Load the full cert chain, with the newest issued cert in the first entry
-        chain_arr = CertificateManager.pem_chain_to_array(pki_files[2])
+        chain_arr = CertificateManager.pem_chain_to_array(ren.chain_data)
         res = self.cert_manager.process_full_chain(s, cert_chain=chain_arr, is_der=False)
 
         all_certs = res[0]
@@ -1100,7 +1070,7 @@ class ManagementModule(ServerModule):
 
         # All base model certificates are in the DB now
         # Check existence of the chaining records and private key records.
-        privkey_hash = CertificateManager.get_privkey_hash(pem=pki_files[0])
+        privkey_hash = CertificateManager.get_privkey_hash(pem=ren.priv_data)
         priv_db = s.query(DbManagedPrivate)\
             .filter(DbManagedPrivate.private_hash == privkey_hash)\
             .first()
@@ -1109,7 +1079,7 @@ class ManagementModule(ServerModule):
             priv_db = DbManagedPrivate()
             priv_db.private_hash = privkey_hash
             priv_db.certificate_id = leaf_cert.id
-            priv_db.private_data = self.encryptor.encrypt(util.to_string(pki_files[0]))
+            priv_db.private_data = self.encryptor.encrypt(util.to_string(ren.priv_data))
             priv_db.created_at = priv_db.updated_at = salch.func.now()
             s.add(priv_db)
 
@@ -1295,6 +1265,18 @@ class ManagementModule(ServerModule):
             logger.error('Exception on Ansible check %s' % e, exc_info=e)
             finish_task(ansible_last_status=-1)
 
+    def process_host_config_check_job_body(self, s, job):
+        """
+        Host configuration check w.r.t. service (e.g., .well-known forwarding test)
+        TODO: check (host, svc) pairs. Host can have multiple services, such tests should be independent.
+
+        :param s:
+        :param job:
+        :type job: PeriodicMgmtHostCheckJob
+        :return:
+        """
+        return False
+
     def process_service_check_job_body(self, s, job):
         """
         Check service configuration correctness - typically correctness of the
@@ -1316,12 +1298,13 @@ class ManagementModule(ServerModule):
         # Move the check to the PKI manager.
         job.service = s.merge(job.service)
         pki_type = job.service.svc_ca.pki_type if job.service.svc_ca is not None else None
-        if pki_type != 'LE':
+
+        pki_mgr = self.pki_manager.resolve_manager(pki_type)
+        if not pki_mgr:
             logger.debug('Svc with PKI %s check not implemented' % pki_type)
             finish_task()
             return
 
-        ins_le = self.get_thread_le()
         attempts = 3
         timeout = 10
         domains = ManagementModule.get_service_domains(job.service)
@@ -1330,40 +1313,24 @@ class ManagementModule(ServerModule):
 
         # Checking each domain redirect.
         for domain in domains:
-            chal_path = None
             try:
-                # Place random challenge to the webroot and check the contents
-                webroot = ins_le.get_auto_webroot(domain)
-                well_known = os.path.join(webroot, '.well-known')
-                fname = 'chal_%s.txt' % util.random_alphanum(14)
-                chal_fh, chal_path = util.unique_file(os.path.join(well_known, fname), mode=0o644)
-                chal_data = util.random_alphanum(32)
-                chal_fh.write(chal_data)
-                chal_fh.close()
-                chal_dir, chal_fname = os.path.split(chal_path)
+                res = pki_mgr.test_renew_config(domain, attempts=attempts, timeout=timeout)
+                check_result[domain] = {'status': '0', 'res': res}
 
-                url_check = 'http://%s/.well-known/%s' % (domain, chal_fname)
-                logger.debug('Going to check svc %s domain %s url %s' % (job.service.id, domain, url_check))
-
-                time_start = time.time()
-                url_data = util.strip(util.try_request_get(url_check, attempts=attempts, timeout=timeout).content)
-
-                if url_data == chal_data:
-                    check_result[domain] = {'status': '0', 'time': time.time() - time_start}
-
-            except RequestException as re:
+            except PkiAuthCheckFailedRequest as re:
                 check_fails += 1
-                check_result[domain] = {'status': '-2', 'errno': re.errno, 'e': str(re)}
+                check_result[domain] = {'status': '-2', 'errno': re.cause.errno, 'e': str(re)}
                 logger.error('RequestException on Svc check %s, domain: %s' % (re, domain), exc_info=re)
 
-            except Exception as e:
-                util.silent_rollback(s)
+            except PkiAuthCheckFailedInvalidChallenge as e:
+                check_fails += 1
+                check_result[domain] = {'status': '-3', 'e': str(e)}
+                logger.error('Invalid challenge on Svc check %s, domain: %s' % (e, domain), exc_info=e)
+
+            except PkiAuthCheckFailed as e:
                 check_fails += 1
                 check_result[domain] = {'status': '-1', 'e': str(e)}
                 logger.error('Exception on Svc check %s, domain: %s' % (e, domain), exc_info=e)
-
-            finally:
-                util.try_delete_file(chal_path)
 
         # Save check status
         final_status = 0 if check_fails == 0 else 1
