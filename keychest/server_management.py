@@ -1295,7 +1295,6 @@ class ManagementModule(ServerModule):
             self.finish_test_object(s, service if service else job.service, last_scan=False, **kwargs)
             s.commit()
 
-        # Move the check to the PKI manager.
         job.service = s.merge(job.service)
         pki_type = job.service.svc_ca.pki_type if job.service.svc_ca is not None else None
 
@@ -1342,14 +1341,6 @@ class ManagementModule(ServerModule):
                     config_last_data=check_data)
 
         self.events.on_service_check_finished(final_status == 0, job, check_data)
-
-    def get_certbot_sem_key(self):
-        """
-        Semaphore certbot key
-        MOVE TO PKI MANAGER
-        :return:
-        """
-        return 'renew-certbot'
 
     @staticmethod
     def get_service_domains(svc):
