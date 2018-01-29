@@ -69,7 +69,7 @@ from .tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsTimeout, TlsRes
 from .tls_scanner import TlsScanner, RequestErrorCode
 from .trace_logger import Tracelogger
 from .pki_manager import PkiManager
-from .pki_manager import PkiLeManager
+from .pki_manager_le import PkiLeManager
 from .certificate_manager import CertificateManager
 from .database_manager import DatabaseManager
 
