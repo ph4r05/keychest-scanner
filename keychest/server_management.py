@@ -1314,7 +1314,7 @@ class ManagementModule(ServerModule):
         # Checking each domain redirect.
         for domain in domains:
             try:
-                res = pki_mgr.test_renew_config(domain, attempts=attempts, timeout=timeout)
+                res = pki_mgr.test_renew_config(domain, job=job, attempts=attempts, timeout=timeout)
                 check_result[domain] = {'status': '0', 'res': res}
 
             except PkiAuthCheckFailedRequest as re:
