@@ -58,6 +58,7 @@ def upgrade():
     op.create_table('managed_security_groups',
                     sa.Column('id', sa.BigInteger(), nullable=False),
                     sa.Column('sgrp_name', sa.String(length=255), nullable=True),
+                    sa.Column('sgrp_display', sa.String(length=255), nullable=True),
                     sa.Column('sgrp_desc', sa.Text(), nullable=True),
                     sa.Column('sgrp_data', sa.Text(), nullable=True),
                     sa.Column('sgrp_type', sa.String(length=64), nullable=True),

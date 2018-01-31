@@ -1997,6 +1997,7 @@ class DbManagedSecurityGroup(Base):
     __table_args__ = (UniqueConstraint('sgrp_name', 'owner_id', name='uk_managed_security_groups_name_owner'),)
     id = Column(BigInteger, primary_key=True)
 
+    sgrp_display = Column(String(255), default=None)
     sgrp_name = Column(String(255), default=None)  # unique group identifier per owner.
     sgrp_desc = Column(Text)
     sgrp_data = Column(Text)
