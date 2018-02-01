@@ -84,8 +84,6 @@ class DbMigrationManager(object):
             self._migrate_1()
         if db_ver < 2:
             self._migrate_2()
-        if db_ver < 3:
-            self._migrate_3()
         if db_ver < 5:
             self._migrate_5()
 
