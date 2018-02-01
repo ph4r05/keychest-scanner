@@ -46,7 +46,7 @@ def shorten_pre_json(data):
     :return:
     """
     if isinstance(data, dict):
-        return {k:shorten_pre_json(data[k]) for k in data}
+        return {k: shorten_pre_json(data[k]) for k in data}
     elif isinstance(data, list) or isinstance(data, tuple):
         return [shorten_pre_json(x) for x in data]
     elif isinstance(data, set):

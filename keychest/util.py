@@ -1682,7 +1682,7 @@ def join_buff(buff):
     :param buff:
     :return:
     """
-    return reduce(lambda x,y: x+y, buff, b'')
+    return reduce(lambda x, y: x+y, buff, b'')
 
 
 def escape_shell(inp):

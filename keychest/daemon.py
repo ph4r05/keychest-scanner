@@ -1,4 +1,4 @@
-'''
+"""
 ***
 Modified generic daemon class
 ***
@@ -16,7 +16,7 @@ Changes:        23rd Jan 2009 (David Mytton <david@boxedice.com>)
                   (before SystemExit was part of the Exception base)
                 13th Aug 2010 (David Mytton <david@boxedice.com>
                 - Fixed unhandled exception if PID file is empty
-'''
+"""
 
 # Core modules
 import atexit

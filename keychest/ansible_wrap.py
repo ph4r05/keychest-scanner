@@ -80,7 +80,7 @@ class AnsiblePlaybooks(object):
     def create_cert_dir(certs_dst=None):
         return {
             "name": "Cert directory",
-            "file": "path=%s state=directory" % ('{{ certs_dst }}' if certs_dst is None else '%s' % certs_dst )
+            "file": "path=%s state=directory" % ('{{ certs_dst }}' if certs_dst is None else '%s' % certs_dst)
         }
 
 

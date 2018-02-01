@@ -156,17 +156,17 @@ class TLSExtSignatureAndHashAlgorithmFixed(PacketNoPayload):
 
 class TLSExtChannelId(PacketNoPayload):
     name = "TLS Extension channel id"
-    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length), ]
 
 
 class TLSExt2a2a(PacketNoPayload):
     name = "ext-2a2a"
-    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length), ]
 
 
 class TLSExt4a4a(PacketNoPayload):
     name = "ext-4a4a"
-    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length),]
+    fields_desc = [StrLenField("data", '', length_from=lambda x:x.underlayer.length), ]
 
 
 class TLSExtExtendedMasterSecret(PacketNoPayload):

@@ -124,7 +124,7 @@ class KeyTester(ServerModule):
         """
         s = self.db.get_session()
         try:
-            all_keys = [a for a in dir(KeyStats) if not a.startswith('__') and not callable(getattr(KeyStats,a))]
+            all_keys = [a for a in dir(KeyStats) if not a.startswith('__') and not callable(getattr(KeyStats, a))]
             for key in all_keys:
                 tkey = getattr(KeyStats, key)
 
@@ -675,20 +675,20 @@ class KeyTester(ServerModule):
         self.inc_counter(KeyStats.SUBMITTED)
 
         job_data = job.decoded['data']['json']
-        keyType = util.lower(util.strip(job_data['keyType']))
+        key_type = util.lower(util.strip(job_data['keyType']))
 
         s = None
         try:
-            if keyType is None:
+            if key_type is None:
                 self.on_key(job_data)
 
-            elif keyType == 'file':
+            elif key_type == 'file':
                 self.on_key(job_data, is_file=True)
 
-            elif keyType == 'github':
+            elif key_type == 'github':
                 self.on_github_key(job_data)
 
-            elif keyType == 'pgp':
+            elif key_type == 'pgp':
                 self.on_pgp_key(job_data)
 
         except Exception as e:
