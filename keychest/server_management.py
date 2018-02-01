@@ -827,6 +827,7 @@ class ManagementModule(ServerModule):
         try:
             s = self.db.get_session()
 
+            self.process_host_config_check_job_body(s, job)
             self.process_test_job_body(s, job)
             job.success_scan = True  # updates last scan record
 
@@ -878,7 +879,6 @@ class ManagementModule(ServerModule):
             s = self.db.get_session()
 
             self.process_host_check_job_body(s, job)
-            self.process_host_config_check_job_body(s, job)
             job.success_scan = True  # updates last scan record
 
             # each scan can fail independently. Successful scans remain valid.
@@ -1268,12 +1268,12 @@ class ManagementModule(ServerModule):
 
     def process_host_config_check_job_body(self, s, job):
         """
-        Host configuration check w.r.t. service (e.g., .well-known forwarding test)
+        Host configuration check w.r.t. service (e.g., .well-known forwarding test for LE-like CAs)
         TODO: check (host, svc) pairs. Host can have multiple services, such tests should be independent.
 
         :param s:
         :param job:
-        :type job: PeriodicMgmtHostCheckJob
+        :type job: PeriodicMgmtTestJob
         :return:
         """
         return False
