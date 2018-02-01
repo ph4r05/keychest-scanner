@@ -152,6 +152,10 @@ class PkiLeManager(PkiSubManager):
         Constructs new LE
         :return:
         """
+        if not self.config.certbot_base or not self.config.certbot_webroot:
+            logger.info('Cerbot not configured, LE disabled')
+            return None
+
         le = LetsEncrypt(config=self.config,
                          config_dir=os.path.join(self.config.certbot_base, 'conf'),
                          work_dir=os.path.join(self.config.certbot_base, 'work'),
