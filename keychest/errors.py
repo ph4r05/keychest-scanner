@@ -30,6 +30,7 @@ class Error(Exception):
     def __init__(self, message=None, cause=None, do_message=True):
         super(Error, self).__init__(error_message(self, message, cause))
         self.cause = cause
+        self.message = message
         self.base_message = message
 
         self.exc_type, self.exc_value, self.exc_traceback = None, None, None

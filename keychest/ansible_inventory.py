@@ -42,9 +42,13 @@ class AnsibleInventory(object):
         self.cache_path_inventory = None
         self.latest_change = None
 
+        self.args = None
         self.conn = None
         self.inventory = dict()  # A list of groups and the hosts in that group
         self.cache = dict()  # Details about hosts in the inventory
+
+        self.groups = dict()
+        self.hosts = dict()
 
     def init_config(self):
         """

@@ -114,6 +114,7 @@ class Server(object):
         self.stop_event = threading.Event()
         self.terminate = False
         self.agent_mode = False
+        self.last_result = None
 
         self.db = None
         self.redis = None
