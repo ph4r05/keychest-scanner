@@ -67,9 +67,8 @@ class Tracelogger(object):
     def set_logger(self, logger_obj):
         """
         Updates internall logging 
-        :param logger: 
+        :param logger_obj:
         :return: 
         """
         self._logger = logger_obj if logger_obj is not None else logger
 
-        

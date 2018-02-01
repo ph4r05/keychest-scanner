@@ -330,7 +330,8 @@ class TlsHandshaker(object):
         :param host: 
         :param port: 
         :param attempts: 
-        :param kwargs: 
+        :param sleep_fnc:
+        :param kwargs:
         :return:
         :rtype TlsHandshakeResult
         """

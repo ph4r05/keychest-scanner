@@ -153,6 +153,7 @@ class Encryptor(object):
         """
         Decrypt the Laravel protected field
         :param field:
+        :param unserialize:
         :return:
         """
         return decrypt_field_aes_cbc(self.app_key, field, unserialize=unserialize)

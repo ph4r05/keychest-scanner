@@ -47,6 +47,7 @@ class SemaphoreWrapper(object):
         :param sem:
         :type sem: Semaphore
         :param blocking:
+        :param timeout:
         :return:
         """
         wrap = cls(sem=sem, **kwargs)

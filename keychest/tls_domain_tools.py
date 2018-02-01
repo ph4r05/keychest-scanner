@@ -371,7 +371,7 @@ class TlsDomainTools(object):
     def detect_hsts(res):
         """
         Detects HSTS from the requests response
-        :param req:
+        :param res:
         :return:
         """
         ret = HstsInfo()
@@ -515,7 +515,8 @@ class TlsDomainTools(object):
     def get_ip_family(ip=None, type_idx=None):
         """
         Returns 0 if the host is not IP, 1 for IPv4, 2 for IPv6
-        :param hostname:
+        :param ip:
+        :param type_idx:
         :return:
         """
         if ip is not None:

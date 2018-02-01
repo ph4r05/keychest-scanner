@@ -698,6 +698,7 @@ class ManagementModule(ServerModule):
         :param req_data:
         :param new_cert:
         :type new_cert: Certificate
+        :param status:
         :return:
         :rtype: DbManagedCertIssue
         """
@@ -729,6 +730,7 @@ class ManagementModule(ServerModule):
     def finish_test_object(self, s, target, last_scan=True, **kwargs):
         """
         Updates test job
+        :param s:
         :param target:
         :type target: Union[DbManagedTest, DbManagedCertificate, DbManagedService]
         :param last_scan:

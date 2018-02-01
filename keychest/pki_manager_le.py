@@ -76,11 +76,7 @@ class CertRenewalLe(CertRenewal):
 
     def renew_cert_body(self, **kwargs):
         """
-        Pass
-        :param s:
-        :param job:
-        :param domains:
-        :param finish_task:
+        Executes the renewal
         :return:
         """
         le_ins = self.manager.get_thread_le()
@@ -198,7 +194,6 @@ class PkiLeManager(PkiSubManager):
         Renew certificate job for management.
         :param s:
         :param job:
-        :param finish_task:
         :return:
         """
 

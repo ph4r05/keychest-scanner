@@ -279,7 +279,7 @@ class CrtProcessor(object):
     def parse_index_page(self, ret, data):
         """
         Parses index page
-        :param query: 
+        :param ret:
         :param data: 
         :return: 
         """

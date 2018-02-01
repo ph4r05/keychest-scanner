@@ -137,6 +137,7 @@ def process_pgp(data):
 def get_pgp_key(key_id, attempts=4, timeout=12, logger=None, **kwargs):
     """
     Simple PGP key getter - tries to fetch given key from the key server
+    :param key_id:
     :param attempts:
     :param timeout:
     :param logger:

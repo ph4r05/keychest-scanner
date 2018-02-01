@@ -161,6 +161,7 @@ class ServerApiProc(ServerModule):
     def finish_waiting_object(self, s, target, **kwargs):
         """
         Finishes waiting object, updates database so it is not considered as active anymore
+        :param s:
         :param target:
         :type target: DbApiWaitingObjects
         :param kwargs:

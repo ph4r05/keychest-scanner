@@ -813,7 +813,7 @@ class Server(object):
         :param query:
         :param job_db:
         :type job_db Optional[ScanJob]
-        :param store_job: stores job to the database in the scanning process.
+        :param store_to_db: stores job to the database in the scanning process.
                           Not storing the job immediately has meaning for diff scanning (watcher).
         :return:
         :rtype DbDnsResolve
@@ -1557,6 +1557,7 @@ class Server(object):
     def periodic_scan_dns(self, s, job):
         """
         Periodic DNS scan - determines if the check is required, invokes the check
+        :param s:
         :param job:
         :type job: PeriodicJob
         :return:
@@ -1582,6 +1583,7 @@ class Server(object):
     def periodic_scan_tls(self, s, job):
         """
         Periodic TLS scan - determines if the check is required, invokes the check
+        :param s:
         :param job:
         :type job: PeriodicJob
         :return:
@@ -1628,6 +1630,7 @@ class Server(object):
     def periodic_scan_crtsh(self, s, job):
         """
         Periodic CRTsh scan - determines if the check is required, invokes the check
+        :param s:
         :param job:
         :type job: PeriodicJob
         :return:
@@ -1653,6 +1656,7 @@ class Server(object):
     def periodic_scan_whois(self, s, job):
         """
         Periodic Whois scan - determines if the check is required, invokes the check
+        :param s:
         :param job:
         :type job: PeriodicJob
         :return:
@@ -1686,6 +1690,7 @@ class Server(object):
     def periodic_scan_subdomain(self, s, job):
         """
         Periodic CRTsh wildcard scan
+        :param s:
         :param job:
         :type job: PeriodicReconJob
         :return:
@@ -1813,6 +1818,7 @@ class Server(object):
     def wp_scan_dns(self, s, job, last_scan):
         """
         Watcher DNS scan - body
+        :param s:
         :param job:
         :type job: PeriodicJob
         :param last_scan:
@@ -1911,10 +1917,11 @@ class Server(object):
     def wp_scan_tls(self, s, job, scan_list, ip=None):
         """
         Watcher TLS scan - body
+        :param s:
         :param job:
         :type job: PeriodicJob
-        :param last_scan:
-        :type last_scan: DbHandshakeScanJob
+        :param scan_list:
+        :param ip:
         :return:
         """
         job_scan = job.scan_tls  # type: ScanResults
@@ -1987,6 +1994,7 @@ class Server(object):
     def wp_scan_crtsh(self, s, job, last_scan):
         """
         Watcher crt.sh scan - body
+        :param s:
         :param job:
         :type job: PeriodicJob
         :param last_scan:
@@ -2046,6 +2054,7 @@ class Server(object):
     def wp_scan_crtsh_wildcard(self, s, job, last_scan):
         """
         Watcher crt.sh wildcard scan - body
+        :param s:
         :param job:
         :type job: PeriodicReconJob
         :param last_scan:
@@ -2152,6 +2161,7 @@ class Server(object):
     def wp_scan_whois(self, s, job, url, top_domain, last_scan):
         """
         Watcher whois scan - body
+        :param s:
         :param job:
         :type job: PeriodicJob
         :param url:
@@ -2273,6 +2283,7 @@ class Server(object):
     def wp_scan_ip_scan(self, s, job, last_scan):
         """
         IP scan scan - body
+        :param s:
         :param job:
         :type job: PeriodicIpScanJob
         :param last_scan:
@@ -3058,7 +3069,7 @@ class Server(object):
         :param job_data: 
         :param crt_sh_id: 
         :param index_result: 
-        :param crt.sh scan object: 
+        :param crtsh_query_db: crt.sh scan object
         :param store_res: true if to store crt sh result
         :return: cert_db
         :rtype: Tuple[Certificate, DbCrtShQueryResult]
@@ -3224,6 +3235,7 @@ class Server(object):
         """
         Generates CRTSH input query to use from the input object
         :param query:
+        :param query_type:
         :return:
         """
         query_input = None

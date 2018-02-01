@@ -13,7 +13,8 @@ def failjob(job, e=None):
     """
     Fails job
     :param job: 
-    :return: 
+    :param e:
+    :return:
     """
     job.mark_as_failed()
 

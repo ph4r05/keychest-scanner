@@ -108,6 +108,7 @@ class DatabaseManager(object):
         Loads or creates a new top domain record.
         :param s:
         :param top_domain:
+        :param attempts:
         :return:
         :rtype Tuple[DbBaseDomain, is_new]
         """

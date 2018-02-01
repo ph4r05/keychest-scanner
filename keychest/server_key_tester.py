@@ -534,7 +534,10 @@ class KeyTester(ServerModule):
         Moves email message to.
         :param cl:
         :param id:
-        :param to:
+        :param done:
+        :param fail:
+        :param empty:
+        :param progress:
         :return:
         """
         to = None
@@ -893,7 +896,7 @@ class KeyTester(ServerModule):
     def num_positive_tests(self, tests):
         """
         Returns number of positive tests
-        :param res:
+        :param tests:
         :return:
         """
         if tests is None or not isinstance(tests, list):
@@ -914,7 +917,7 @@ class KeyTester(ServerModule):
     def stats_from_results(self, results, is_email=False):
         """
         Increments stats counters from results
-        :param res:
+        :param results:
         :param is_email:
         :return:
         """

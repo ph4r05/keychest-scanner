@@ -2534,6 +2534,7 @@ class ModelUpdater(object):
         :param trace_logger: trace logger to log failure
         :param log_message: message to use with trace logger
         :param fail_sleep: sleep time to sleep after failure
+        :param pre_add_fnc: called before object is added
         :return: Tuple[Object, Boolean]  - object new/loaded, is_new flag
         """
         for attempt in range(attempts):
@@ -2756,6 +2757,7 @@ class MySQL(object):
         :param connstring: connection string. if empty, default root is used
         :param user: user to use for the engine, if connstring is not given, local database is used
         :param password: user password to use for the engine, if connstring is not given, local database is used
+        :param store_as_main:
         :return:
         """
         try:
@@ -2839,6 +2841,7 @@ class MySQL(object):
         """
         Drops the database. Uses sqlalchemy DB engine
         :param database_name:
+        :param engine:
         :return:
         """
         if engine is None:
@@ -2891,6 +2894,7 @@ class MySQL(object):
 
         :param database_name:
         :param backup_dir:
+        :param root_passwd:
         :return:
         """
         util.make_or_verify_dir(backup_dir)

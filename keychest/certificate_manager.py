@@ -235,6 +235,8 @@ class CertificateManager(object):
         :param s:
         :param cert_db:
         :type cert_db: Certificate
+        :param fetch_first:
+        :param add_alts:
         :return:
         :rtype: tuple[Certificate, bool]
         """

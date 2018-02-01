@@ -142,8 +142,6 @@ class PkiSubManager(object):
         Renew cert task
         :param s:
         :param job:
-        :param domains:
-        :param finish_task:
         :return:
         :rtype: CertRenewal
         """

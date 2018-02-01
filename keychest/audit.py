@@ -485,7 +485,8 @@ class AuditManager(object):
         """
         Change of permissions
         :param fname:
-        :param data:
+        :param privs:
+        :param recursive:
         :return:
         """
         def oct_hlp(x):
@@ -507,7 +508,9 @@ class AuditManager(object):
         """
         Change of owner
         :param fname:
-        :param data:
+        :param user:
+        :param group:
+        :param recursive:
         :return:
         """
         log = self._newlog('chmod')
@@ -556,6 +559,7 @@ class AuditManager(object):
         """
         Download action
         :param url:
+        :param retcode:
         :return:
         """
         log = self._newlog('download')
@@ -572,6 +576,8 @@ class AuditManager(object):
         API request (e.g., JSON)
         :param url:
         :param data:
+        :param desc:
+        :param sensitive:
         :return:
         """
         log = self._newlog('request')
@@ -644,7 +650,6 @@ class AuditManager(object):
     def audit_error(self, *args, **kwargs):
         """
         Error auditing
-        :param evt:
         :param args:
         :param kwargs:
         :return:
@@ -685,6 +690,7 @@ class AuditManager(object):
         """
         Command line auditing - printing
         :param question:
+        :param sensitive:
         :param args:
         :param kwargs:
         :return:

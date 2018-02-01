@@ -260,7 +260,9 @@ class ServerAgent(ServerModule):
         """
         Transforms a watch to a db object
         :param s:
-        :param host_json:
+        :param watch_json:
+        :param svc:
+        :param top_domain:
         :return:
         """
         if watch_json is None:
@@ -289,6 +291,7 @@ class ServerAgent(ServerModule):
     def agent_svc_to_db(self, s, svc_json):
         """
         Transforms to an object
+        :param s:
         :param svc_json:
         :return:
         """
@@ -513,6 +516,7 @@ class ServerAgent(ServerModule):
         """
         Processes new results from the agent
         :param s:
+        :param r:
         :param results:
         :return:
         """

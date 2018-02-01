@@ -187,6 +187,7 @@ def chown(path, user=None, group=None, follow_symlinks=False):
     :param path:
     :param user: string user name / numerical user id / None to leave as is
     :param group: string group name / numerical group id / None to leave as is
+    :param follow_symlinks:
     :return:
     """
     if user is None and group is None:
@@ -850,7 +851,6 @@ def defvalkeys(js, key, default=None):
     :param js:
     :param key:
     :param default:
-    :param take_none:
     :return:
     """
     if js is None:
@@ -1205,7 +1205,7 @@ def try_get_issuer_org(cert):
 def try_parse_datetime_string(x):
     """
     Tries to parse try_parse_datetime_string
-    :param str: 
+    :param x:
     :return: 
     """
     try:

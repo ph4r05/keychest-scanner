@@ -190,6 +190,7 @@ class PathValidator(object):
         """
         Chain of certificates, incremental validation
         :param chain: 
+        :param is_der:
         :return:
         :rtype: ValidationResult
         """
