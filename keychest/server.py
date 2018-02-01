@@ -874,6 +874,7 @@ class Server(object):
         try:
             if is_ip == IpType.NOT_IP:
                 my_resolver = dns.resolver.Resolver()
+                my_resolver.timeout = 4
                 cnames = list(my_resolver.query(domain, 'CNAME'))
                 if len(cnames) > 0:
                     scan_db.cname = util.remove_trailing_char(cnames[0].to_text(), '.')
@@ -884,6 +885,9 @@ class Server(object):
 
         except dns.resolver.NXDOMAIN:
             pass  # no CNAME
+
+        except dns.resolver.Timeout:
+            pass  # resolver timeout
 
         except Exception as e:
             logger.debug('Exception in DNS scan: %s : %s' % (domain, e))
