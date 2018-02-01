@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from config import Config
+from datetime import datetime
 import os.path
 import pid
-import util
-from datetime import datetime
+
+from .config import Config
+from . import util
 
 
 CONFIG_DIR = '/etc/enigma-keychest-scanner'

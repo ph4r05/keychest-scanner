@@ -5,17 +5,17 @@
 Server part of the script
 """
 
-from daemon import Daemon
-from core import Core
-from config import Config
-from dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
+from .daemon import Daemon
+from .core import Core
+from .config import Config
+from .dbutil import MySQL, ScanJob, Certificate, CertificateAltName, DbCrtShQuery, DbCrtShQueryResult, \
     DbHandshakeScanJob, DbHandshakeScanJobResult
 
-from trace_logger import Tracelogger
-from tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
-from cert_path_validator import PathValidator, ValidationException
-from tls_domain_tools import TlsDomainTools
-from errors import RequestError
+from .trace_logger import Tracelogger
+from .tls_handshake import TlsHandshaker, TlsHandshakeResult, TlsIncomplete, TlsTimeout, TlsException
+from .cert_path_validator import PathValidator, ValidationException
+from .tls_domain_tools import TlsDomainTools
+from .errors import RequestError
 
 import logging
 from functools import wraps

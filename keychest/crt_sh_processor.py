@@ -6,12 +6,14 @@ import logging
 import time
 import requests
 from lxml import html
-import util
 import datetime
-import traceback
-import errors
-import requests.exceptions as rex
 import re
+import traceback
+
+from . import util
+from . import errors
+
+import requests.exceptions as rex
 
 
 logger = logging.getLogger(__name__)

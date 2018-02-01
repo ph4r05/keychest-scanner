@@ -18,11 +18,11 @@ from eventlet import wsgi
 from flask import Flask, jsonify, request, abort
 from flask_socketio import SocketIO, send as ws_send, emit as ws_emit
 
-import dbutil
-import util
-from consts import DbLastScanCacheType, DbScanType
-from dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbWatchService, DbBaseDomain, DbHelper
-from trace_logger import Tracelogger
+from . import dbutil
+from . import util
+from .consts import DbLastScanCacheType, DbScanType
+from .dbutil import DbKeychestAgent, DbWatchTarget, DbLastScanCache, DbWatchService, DbBaseDomain, DbHelper
+from .trace_logger import Tracelogger
 
 eventlet.monkey_patch(socket=True)
 redis = eventlet.import_patched('redis')

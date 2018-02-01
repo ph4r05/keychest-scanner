@@ -12,17 +12,14 @@ e.g. request of the user to add a certificate to the monitoring send by public A
 from past.builtins import cmp
 from future.utils import iteritems
 
-import util
-from config import Config
-from redis_queue import RedisQueue
-import redis_helper as rh
-from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
-from server_jobs import JobTypes, BaseJob, PeriodicJob, ScanResults, PeriodicApiProcessJob
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
-from server_module import ServerModule
-from dbutil import DbApiWaitingObjects, DbApiKey, DbUser, DbOwner, Certificate, CertificateAltName, DbHelper
-from crt_sh_processor import CrtShTimeoutException, CrtShException
+from . import util
+from .trace_logger import Tracelogger
+from .errors import Error, InvalidHostname, ServerShuttingDown, InvalidInputData
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, ScanResults, PeriodicApiProcessJob
+from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, CrtshInputType, DbLastScanCacheType, IpType
+from .server_module import ServerModule
+from .dbutil import DbApiWaitingObjects, DbApiKey, DbUser, DbOwner, Certificate, CertificateAltName, DbHelper
+from .crt_sh_processor import CrtShTimeoutException, CrtShException
 
 import time
 import json

@@ -7,10 +7,10 @@ import coloredlogs
 import os
 import re
 
-import util
-import dbutil
-from core import Core
-from config import Config
+from . import util
+from . import dbutil
+from .core import Core
+from .config import Config
 
 __author__ = 'dusanklinec'
 logger = logging.getLogger(__name__)

@@ -5,14 +5,14 @@ import time
 import logging
 import json
 
-import util
 import redis
 import collections
 
-import lua_scripts
-from redis_client import RedisClient
-from redis_job import RedisJob
-import redis_helper as rh
+from . import util
+from . import lua_scripts
+from .redis_client import RedisClient
+from .redis_job import RedisJob
+from . import redis_helper as rh
 
 logger = logging.getLogger(__name__)
 

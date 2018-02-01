@@ -8,18 +8,19 @@ Key tester
 from past.builtins import basestring    # pip install future
 from past.builtins import cmp
 
-import util
-from config import Config
-from redis_queue import RedisQueue
-import redis_helper as rh
-from trace_logger import Tracelogger
-from errors import Error, InvalidHostname, ServerShuttingDown
-from server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
-from consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
-from server_module import ServerModule
-from server_data import EmailArtifact, EmailArtifactTypes
-from dbutil import DbKeycheckerStats
-import keys_tools
+from . import util
+from .config import Config
+from .redis_queue import RedisQueue
+from . import redis_helper as rh
+from .trace_logger import Tracelogger
+from .errors import Error, InvalidHostname, ServerShuttingDown
+from .server_jobs import JobTypes, BaseJob, PeriodicJob, PeriodicReconJob, PeriodicIpScanJob, ScanResults
+from .consts import CertSigAlg, BlacklistRuleType, DbScanType, JobType, DbLastScanCacheType, IpType
+from .server_module import ServerModule
+from .server_data import EmailArtifact, EmailArtifactTypes
+from .dbutil import DbKeycheckerStats
+from . import keys_tools
+
 from roca import detect
 
 import os

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import json
-import util
+from . import util
 
 
 class RedisJob(object):
