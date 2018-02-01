@@ -1827,6 +1827,8 @@ class DbManagedTest(Base):
     last_scan_status = Column(SmallInteger, default=None)  # last scan status
     last_scan_data = Column(Text, nullable=True)  # last scan result data
 
+    # TODO: host-svc config check. for renewal.
+
     created_at = Column(DateTime, default=None)
     updated_at = Column(DateTime, default=func.now())
     deleted_at = Column(DateTime, default=None)
